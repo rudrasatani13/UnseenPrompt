@@ -32,4 +32,22 @@ describe("parseEnvironment", () => {
       }),
     ).toThrow();
   });
+
+  it("rejects non-HTTP application URLs", () => {
+    expect(() =>
+      parseEnvironment({
+        APP_ENV: "production",
+        NEXT_PUBLIC_APP_URL: "javascript:alert(1)",
+      }),
+    ).toThrow(/NEXT_PUBLIC_APP_URL/);
+  });
+
+  it("requires HTTPS in staging and production", () => {
+    expect(() =>
+      parseEnvironment({
+        APP_ENV: "staging",
+        NEXT_PUBLIC_APP_URL: "http://staging.unseenprompt.cloud",
+      }),
+    ).toThrow(/HTTPS/);
+  });
 });

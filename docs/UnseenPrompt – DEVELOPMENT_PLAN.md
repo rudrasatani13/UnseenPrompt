@@ -73,13 +73,13 @@ The roadmap contains **18 phases numbered 0–17**.
 
 ## How This Plan Is Structured
 
-| Milestone                           | Phases | Outcome                                                                                                   |
-| ----------------------------------- | -----: | --------------------------------------------------------------------------------------------------------- |
-| M0 — Platform Foundation            |    0–4 | Repository, Cloudflare environments, design system, Supabase data, authentication, profile, and memory    |
-| M1 — Stateful AI Core               |    5–9 | Provider gateway, project state, adaptive discovery, confirmed brief, and tool-specific prompt generation |
-| M2 — Evidence and Lifecycle         |  10–13 | Private artifacts, result analysis, user-confirmed progression, and complete lifecycle modes              |
-| M3 — Product and Commercial Surface |  14–15 | Project library, usage, Paddle Free/Pro entitlements, and billing management                              |
-| M4 — Hardening and Release          |  16–17 | Security, reliability, evaluations, end-to-end validation, deployment, and public-beta readiness          |
+| Milestone | Phases | Outcome |
+|---|---:|---|
+| M0 — Platform Foundation | 0–4 | Repository, Cloudflare environments, design system, Supabase data, authentication, profile, and memory |
+| M1 — Stateful AI Core | 5–9 | Provider gateway, project state, adaptive discovery, confirmed brief, and tool-specific prompt generation |
+| M2 — Evidence and Lifecycle | 10–13 | Private artifacts, result analysis, user-confirmed progression, and complete lifecycle modes |
+| M3 — Product and Commercial Surface | 14–15 | Project library, usage, Paddle Free/Pro entitlements, and billing management |
+| M4 — Hardening and Release | 16–17 | Security, reliability, evaluations, end-to-end validation, deployment, and public-beta readiness |
 
 Each phase contains **Goal · Tasks · Deliverables · Exit criteria · Depends on**.
 
@@ -576,5 +576,5 @@ These belong in the Master Plan or a future business execution document. Deploym
 
 ---
 
-_UnseenPrompt Development Plan v1.0.0 — July 2026_  
-_18 phases: 0–17 · Development only · No code snippets_
+*UnseenPrompt Development Plan v1.0.0 — July 2026*  
+*18 phases: 0–17 · Development only · No code snippets*

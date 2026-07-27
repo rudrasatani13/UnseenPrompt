@@ -81,12 +81,12 @@ Beginners often cannot do these things. Vibe coders can do some of them but lose
 
 ### The Gap
 
-| Product category         | What it provides                    | What remains missing                                                                 |
-| ------------------------ | ----------------------------------- | ------------------------------------------------------------------------------------ |
-| Prompt improvers         | Better wording and prompt structure | Durable software-project state and lifecycle continuity                              |
-| General chat assistants  | Flexible conversation and advice    | Controlled progress, confirmed decisions, evidence states, and tool-specific handoff |
-| AI coding agents         | Repository work and code generation | Product discovery, cross-session roadmap, and independent project memory             |
-| Project-management tools | Tasks and status tracking           | Adaptive technical reasoning and executable coding-agent prompts                     |
+| Product category | What it provides | What remains missing |
+|---|---|---|
+| Prompt improvers | Better wording and prompt structure | Durable software-project state and lifecycle continuity |
+| General chat assistants | Flexible conversation and advice | Controlled progress, confirmed decisions, evidence states, and tool-specific handoff |
+| AI coding agents | Repository work and code generation | Product discovery, cross-session roadmap, and independent project memory |
+| Project-management tools | Tasks and status tracking | Adaptive technical reasoning and executable coding-agent prompts |
 
 UnseenPrompt sits between product discovery, lightweight project management, and AI coding execution. It does not replace Claude Code, Codex, or Cursor. It makes the user consistently effective with them.
 
@@ -95,30 +95,30 @@ UnseenPrompt sits between product discovery, lightweight project management, and
 **Category:** AI software-development guidance  
 **Position:** The project memory and next-prompt layer for AI coding  
 **Primary promise:** Never lose the plan. Never wonder what to ask next.  
-**Primary optimization target:** Prompt quality and project continuity
+**Primary optimization target:** Prompt quality and project continuity  
 
 ---
 
 ## Core Product Identity
 
-| Attribute                    | Value                                            |
-| ---------------------------- | ------------------------------------------------ |
-| Brand                        | UnseenPrompt                                     |
-| Product                      | Stateful Project Copilot                         |
-| Planned domain               | `unseenprompt.cloud`                             |
-| Platform                     | Responsive web application                       |
-| Supported projects           | Websites and web applications                    |
-| Supported coding agents      | Claude Code, OpenAI Codex, Cursor                |
-| Input language               | Any language, including Hindi and Hinglish       |
-| Application language         | English                                          |
-| Coding-agent prompt language | Precise technical English                        |
-| Account model                | Personal accounts only in the MVP                |
-| Business model               | Free tier plus Pro subscription                  |
-| Billing provider             | Paddle Billing                                   |
-| Hosting                      | Cloudflare Workers                               |
-| Data platform                | Supabase Auth, PostgreSQL, and private Storage   |
-| AI providers                 | Anthropic, OpenAI, and Google Gemini             |
-| Visual identity              | Warm Editorial interface with Powder Pink tokens |
+| Attribute | Value |
+|---|---|
+| Brand | UnseenPrompt |
+| Product | Stateful Project Copilot |
+| Planned domain | `unseenprompt.cloud` |
+| Platform | Responsive web application |
+| Supported projects | Websites and web applications |
+| Supported coding agents | Claude Code, OpenAI Codex, Cursor |
+| Input language | Any language, including Hindi and Hinglish |
+| Application language | English |
+| Coding-agent prompt language | Precise technical English |
+| Account model | Personal accounts only in the MVP |
+| Business model | Free tier plus Pro subscription |
+| Billing provider | Paddle Billing |
+| Hosting | Cloudflare Workers |
+| Data platform | Supabase Auth, PostgreSQL, and private Storage |
+| AI providers | Anthropic, OpenAI, and Google Gemini |
+| Visual identity | Warm Editorial interface with Powder Pink tokens |
 
 ### What UnseenPrompt Is Not
 
@@ -153,11 +153,11 @@ UnseenPrompt sits between product discovery, lightweight project management, and
 
 ### Primary Segments
 
-| Segment                             | Core Need                                                         | Product Adaptation                                                   |
-| ----------------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------- |
-| Non-technical founders and creators | Turn an idea into a buildable product without knowing what to ask | Plain-language discovery, conservative defaults, explanations        |
-| Vibe coders                         | Maintain direction while iterating quickly with AI tools          | Faster discovery, stack recommendations, focused follow-ups          |
-| Developers and agencies             | Preserve architecture and produce precise implementation prompts  | Technical constraints, acceptance criteria, testing and risk details |
+| Segment | Core Need | Product Adaptation |
+|---|---|---|
+| Non-technical founders and creators | Turn an idea into a buildable product without knowing what to ask | Plain-language discovery, conservative defaults, explanations |
+| Vibe coders | Maintain direction while iterating quickly with AI tools | Faster discovery, stack recommendations, focused follow-ups |
+| Developers and agencies | Preserve architecture and produce precise implementation prompts | Technical constraints, acceptance criteria, testing and risk details |
 
 ### Core Use Cases
 
@@ -254,23 +254,23 @@ The interface uses a Warm Editorial layout with Powder Pink semantic tokens:
 
 ### Must-Have Capabilities
 
-| Layer           | MVP capability                                                        |
-| --------------- | --------------------------------------------------------------------- |
-| Authentication  | Google OAuth and email magic link                                     |
-| Projects        | Private personal projects, lifecycle state, archive and delete        |
-| Intent          | Automatic mode detection with manual correction                       |
-| Discovery       | Adaptive one-question-at-a-time flow                                  |
-| Project state   | Confirmed requirements, decisions, milestones, events, summaries      |
-| Stack guidance  | Recommended stack with rationale and user override                    |
-| Coding tools    | Claude Code, Codex, and Cursor adapters                               |
-| Prompt delivery | One versioned prompt, expected result, and acceptance criteria        |
-| Return flow     | Pasted response, bounded code/text/PDF/image upload                   |
-| Progress        | Suggested status with required user confirmation                      |
-| Memory          | Skill level, preferred stack, coding style, deployment preference     |
-| AI              | Managed Anthropic, OpenAI, and Gemini access                          |
-| Billing         | Free and Pro entitlements through Paddle                              |
-| Quality         | Prompt evaluation suite and release gates                             |
-| Safety          | Ownership, file validation, secret redaction, risk flags, idempotency |
+| Layer | MVP capability |
+|---|---|
+| Authentication | Google OAuth and email magic link |
+| Projects | Private personal projects, lifecycle state, archive and delete |
+| Intent | Automatic mode detection with manual correction |
+| Discovery | Adaptive one-question-at-a-time flow |
+| Project state | Confirmed requirements, decisions, milestones, events, summaries |
+| Stack guidance | Recommended stack with rationale and user override |
+| Coding tools | Claude Code, Codex, and Cursor adapters |
+| Prompt delivery | One versioned prompt, expected result, and acceptance criteria |
+| Return flow | Pasted response, bounded code/text/PDF/image upload |
+| Progress | Suggested status with required user confirmation |
+| Memory | Skill level, preferred stack, coding style, deployment preference |
+| AI | Managed Anthropic, OpenAI, and Gemini access |
+| Billing | Free and Pro entitlements through Paddle |
+| Quality | Prompt evaluation suite and release gates |
+| Safety | Ownership, file validation, secret redaction, risk flags, idempotency |
 
 ### Explicitly Excluded From MVP
 
@@ -288,23 +288,23 @@ The interface uses a Warm Editorial layout with Powder Pink semantic tokens:
 
 ## Technology Summary
 
-| Layer                    | Approved choice                                            |
-| ------------------------ | ---------------------------------------------------------- |
-| Web application          | Next.js App Router with TypeScript                         |
-| Hosting                  | Cloudflare Workers through OpenNext                        |
-| Durable background work  | Cloudflare Workflows                                       |
-| Authentication           | Supabase Auth                                              |
-| Database                 | Supabase PostgreSQL                                        |
-| File storage             | Supabase private Storage                                   |
-| Styling                  | Token-based Warm Editorial system with Powder Pink palette |
-| AI gateway               | Typed provider abstraction                                 |
-| AI providers             | Anthropic, OpenAI, Gemini Developer API                    |
-| Validation               | Typed structured outputs and deterministic policy checks   |
-| Billing                  | Paddle Billing and customer portal                         |
-| Abuse controls           | Cloudflare rate limits and Turnstile                       |
-| Error monitoring         | Sentry                                                     |
-| Product analytics        | Privacy-conscious PostHog events                           |
-| Cloud/runtime monitoring | Cloudflare observability                                   |
+| Layer | Approved choice |
+|---|---|
+| Web application | Next.js App Router with TypeScript |
+| Hosting | Cloudflare Workers through OpenNext |
+| Durable background work | Cloudflare Workflows |
+| Authentication | Supabase Auth |
+| Database | Supabase PostgreSQL |
+| File storage | Supabase private Storage |
+| Styling | Token-based Warm Editorial system with Powder Pink palette |
+| AI gateway | Typed provider abstraction |
+| AI providers | Anthropic, OpenAI, Gemini Developer API |
+| Validation | Typed structured outputs and deterministic policy checks |
+| Billing | Paddle Billing and customer portal |
+| Abuse controls | Cloudflare rate limits and Turnstile |
+| Error monitoring | Sentry |
+| Product analytics | Privacy-conscious PostHog events |
+| Cloud/runtime monitoring | Cloudflare observability |
 
 The application remains one deployable web product. Independent services are separated by interfaces, not premature microservices.
 
@@ -462,34 +462,34 @@ Detailed day-to-day marketing execution does not belong in the Development Plan.
 
 ### Product Risks
 
-| Risk                                       | Mitigation                                                            |
-| ------------------------------------------ | --------------------------------------------------------------------- |
-| Too many questions create abandonment      | Adaptive sufficiency checks and one-question flow                     |
-| Generated prompts remain generic           | Structured state, tool adapters, evaluations, and acceptance criteria |
-| Long projects contradict earlier decisions | Confirmed invariants and explicit decision-change flow                |
-| Users believe agent claims are verified    | Four evidence labels and user confirmation                            |
-| Complete-lifecycle scope becomes shallow   | Ordered release gates; do not advertise a mode until it passes        |
-| Beginners are intimidated                  | Warm editorial UI and adaptive technical depth                        |
+| Risk | Mitigation |
+|---|---|
+| Too many questions create abandonment | Adaptive sufficiency checks and one-question flow |
+| Generated prompts remain generic | Structured state, tool adapters, evaluations, and acceptance criteria |
+| Long projects contradict earlier decisions | Confirmed invariants and explicit decision-change flow |
+| Users believe agent claims are verified | Four evidence labels and user confirmation |
+| Complete-lifecycle scope becomes shallow | Ordered release gates; do not advertise a mode until it passes |
+| Beginners are intimidated | Warm editorial UI and adaptive technical depth |
 
 ### Technical Risks
 
-| Risk                                          | Mitigation                                                         |
-| --------------------------------------------- | ------------------------------------------------------------------ |
-| Model behavior changes                        | Provider abstraction, schemas, evaluation suite, prompt versioning |
-| Cloudflare runtime incompatibility            | OpenNext preview validation and dependency constraints             |
-| File prompt injection                         | Treat extracted text as untrusted evidence                         |
-| Duplicate calls cause duplicate charges/state | End-to-end idempotency keys                                        |
-| Billing webhooks arrive twice or out of order | Event deduplication, timestamp ordering, reconciliation            |
-| Context grows beyond model limits             | Relevance-based Context Compiler and bounded summaries             |
+| Risk | Mitigation |
+|---|---|
+| Model behavior changes | Provider abstraction, schemas, evaluation suite, prompt versioning |
+| Cloudflare runtime incompatibility | OpenNext preview validation and dependency constraints |
+| File prompt injection | Treat extracted text as untrusted evidence |
+| Duplicate calls cause duplicate charges/state | End-to-end idempotency keys |
+| Billing webhooks arrive twice or out of order | Event deduplication, timestamp ordering, reconciliation |
+| Context grows beyond model limits | Relevance-based Context Compiler and bounded summaries |
 
 ### Business Risks
 
-| Risk                                    | Mitigation                                                                    |
-| --------------------------------------- | ----------------------------------------------------------------------------- |
-| Paddle seller approval delays billing   | Keep entitlements provider-neutral and run free beta if necessary             |
-| AI cost exceeds subscription value      | Quotas, provider routing, deterministic adapters, usage ledger                |
+| Risk | Mitigation |
+|---|---|
+| Paddle seller approval delays billing | Keep entitlements provider-neutral and run free beta if necessary |
+| AI cost exceeds subscription value | Quotas, provider routing, deterministic adapters, usage ledger |
 | Coding tools improve their own planning | Differentiate through cross-tool project continuity and user-controlled state |
-| Users expect autonomous execution       | State the manual handoff boundary clearly                                     |
+| Users expect autonomous execution | State the manual handoff boundary clearly |
 
 ---
 
@@ -531,5 +531,5 @@ UnseenPrompt succeeds when:
 
 ---
 
-_UnseenPrompt Master Plan v1.0.0 — July 2026_  
-_Planned domain: unseenprompt.cloud_
+*UnseenPrompt Master Plan v1.0.0 — July 2026*  
+*Planned domain: unseenprompt.cloud*

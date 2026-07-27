@@ -33,12 +33,12 @@ Local Node builds (`pnpm build`) are necessary but insufficient. Cloudflare Work
 
 Local Supabase Docker is **not** a required developer-machine dependency. Disk cost of the full Supabase stack is high.
 
-| Verification                                  | Environment                                          |
-| --------------------------------------------- | ---------------------------------------------------- |
-| Unit, lint, typecheck, Next build, CF preview | Developer machine + CI                               |
-| `pnpm test:db` (pgTAP)                        | **GitHub Actions CI or shared cloud/staging runner** |
+| Verification                                  | Environment                                             |
+| --------------------------------------------- | ------------------------------------------------------- |
+| Unit, lint, typecheck, Next build, CF preview | Developer machine + CI                                  |
+| `pnpm test:db` (pgTAP)                        | **Isolated database on a GitHub-hosted Actions runner** |
 
-`supabase/config.toml`, empty `migrations/`, and `tests/database/00000_smoke.test.sql` remain in-repo so CI/staging can run the suite without inventing schema early.
+`supabase/config.toml`, empty `migrations/`, and `tests/database/00000_smoke.test.sql` remain in-repo so CI can run the suite without inventing schema early. Shared staging and production are never unit-test targets. An isolated Supabase Preview Branch per pull request is deferred to Phase 3.
 
 ## Deferred decisions
 
@@ -53,7 +53,7 @@ Local Supabase Docker is **not** a required developer-machine dependency. Disk c
 ## Failure modes Phase 0 must surface
 
 - Missing environment values (fail-closed Zod parse)
-- Cross-layer imports (ESLint `no-restricted-imports`)
+- Cross-layer imports (ESLint `architecture/no-cross-layer-imports`)
 - Database unavailability when tests are intentionally run (CI)
 - Incompatible Worker dependencies (OpenNext build)
 - Preview startup failure (HTTP smoke assertion)

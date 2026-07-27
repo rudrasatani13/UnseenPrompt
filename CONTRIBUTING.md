@@ -15,17 +15,17 @@ pnpm install --frozen-lockfile
 
 Use Node 24.x and pnpm 11.x. Do not hand-edit `pnpm-lock.yaml`.
 
-## Database tests: CI / staging only
+## Database tests: CI only
 
 **Do not start local Supabase Docker on developer machines by default.** The images are large and are not required for day-to-day application work.
 
-| Gate                                                           | Where it runs                                                       |
-| -------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `pnpm format:check`, `lint`, `typecheck`, `test:unit`, `build` | Local + CI                                                          |
-| `pnpm cf:build`, `pnpm test:cf-preview`                        | Local + CI (Workers preview via Wrangler; no Supabase Docker)       |
-| `pnpm test:db`                                                 | **GitHub Actions `database` job, or a shared cloud/staging runner** |
+| Gate                                                           | Where it runs                                                 |
+| -------------------------------------------------------------- | ------------------------------------------------------------- |
+| `pnpm format:check`, `lint`, `typecheck`, `test:unit`, `build` | Local + CI                                                    |
+| `pnpm cf:build`, `pnpm test:cf-preview`                        | Local + CI (Workers preview via Wrangler; no Supabase Docker) |
+| `pnpm test:db`                                                 | **GitHub Actions `database` job**                             |
 
-If you must run database tests locally, that is opt-in and requires a Docker-compatible runtime you accept the disk cost for. Prefer verifying on a PR against CI.
+Database unit tests must not target shared staging or production. Phase 3 may replace the CI database container with an isolated Supabase Preview Branch for each pull request.
 
 ## Tests before behavior changes
 
@@ -56,7 +56,7 @@ pnpm cf:build
 pnpm test:cf-preview
 ```
 
-Database and RLS changes are validated by the CI `database` job (or staging), not by requiring local Docker for every contributor.
+Database and RLS changes are validated by the CI `database` job, not by requiring local Docker or using shared staging.
 
 ## Pull requests
 

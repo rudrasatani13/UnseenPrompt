@@ -26,4 +26,4 @@ Secrets must never receive dummy-looking production-shaped values in a public (`
 
 ## Database environment note
 
-Local developer machines are not required to run Supabase via Docker. Database configuration under `supabase/` is exercised in GitHub Actions or staging. Remote Supabase projects are provisioned in later phases, not Phase 0.
+Local developer machines do not run Supabase via Docker. Database configuration under `supabase/` is exercised against an isolated database on a GitHub-hosted Actions runner. Shared staging and production are not unit-test targets. Remote Supabase projects and isolated Preview Branches are provisioned in later phases, not Phase 0.

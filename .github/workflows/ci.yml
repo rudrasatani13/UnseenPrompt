@@ -62,11 +62,11 @@ jobs:
         run: npm install --global pnpm@${PNPM_VERSION}
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Start local Supabase
-        run: pnpm exec supabase start
+      - name: Start isolated test database
+        run: pnpm exec supabase db start
       - name: Run database tests
         run: pnpm test:db
-      - name: Stop local Supabase
+      - name: Stop isolated test database
         if: always()
         run: pnpm exec supabase stop --no-backup
 

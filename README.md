@@ -19,7 +19,7 @@ Phase 0 establishes the repository, toolchain, and quality gates only.
 - pnpm 11.17.0
 - Git
 
-**Docker is not required on developer machines.** Database tests (`pnpm test:db`) are verified in GitHub Actions CI or a shared staging environment, not by pulling local Supabase Docker images.
+**Docker is not required on developer machines.** Database tests (`pnpm test:db`) run against an isolated database on a GitHub-hosted Actions runner, not against local Docker or shared staging.
 
 ## Bootstrap
 
@@ -44,13 +44,15 @@ pnpm cf:build
 pnpm test:cf-preview
 ```
 
-Database gate (CI / cloud / staging only):
+Database gate (GitHub Actions only):
 
 ```bash
-# Do not run against local Docker on developer Macs by default.
-# Verified in GitHub Actions `database` job or a shared staging runner.
+# Do not run against local Docker on developer Macs.
+# The GitHub Actions `database` job supplies the isolated database.
 pnpm test:db
 ```
+
+An isolated Supabase Preview Branch per pull request may replace the CI database container in Phase 3. Shared staging and production are never database-unit-test targets.
 
 Negative environment test:
 

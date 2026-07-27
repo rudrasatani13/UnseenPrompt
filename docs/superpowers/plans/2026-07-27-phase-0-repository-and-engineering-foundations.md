@@ -37,12 +37,12 @@
 - Run from `/Users/rudrasatani/Desktop/UnseenPrompt`.
 - Read `docs/UnseenPrompt – Stateful Project Copilot.md` and `docs/UnseenPrompt – DEVELOPMENT_PLAN.md` before editing.
 - Use an isolated `codex/phase-0-foundations` branch or worktree; never implement directly on protected `main`.
-- Require Node.js 24.x, Git, pnpm 11.17.0, and a Docker-compatible runtime.
+- Require Node.js 24.x, Git, and pnpm 11.17.0. Docker is not required on developer machines.
 - Preserve unrelated changes. If the worktree is not clean, stop before scaffolding and report the overlapping files.
 
 ### Definition of Done
 
-All of these commands must exit with status `0` from a fresh clone after copying `.env.example` to `.env.local`:
+All of these local commands must exit with status `0` from a fresh clone after copying `.env.example` to `.env.local`:
 
 ```bash
 pnpm install --frozen-lockfile
@@ -51,10 +51,11 @@ pnpm lint
 pnpm typecheck
 pnpm test:unit
 pnpm build
-pnpm test:db
 pnpm cf:build
 pnpm test:cf-preview
 ```
+
+The GitHub Actions `database` job must start an isolated database with `supabase db start` and then pass `pnpm test:db`. Shared staging and production are never unit-test targets.
 
 The negative environment test must also pass:
 
@@ -112,7 +113,8 @@ GitHub Actions must pass the `quality`, `database`, and `cloudflare-preview` job
 │   ├── config/env/server.ts
 │   ├── domain/README.md
 │   ├── features/README.md
-│   └── lib/README.md
+│   ├── lib/README.md
+│   └── tooling/import-boundaries.test.ts
 ├── supabase/
 │   ├── config.toml
 │   ├── migrations/.gitkeep
@@ -168,7 +170,7 @@ node --version
 docker version
 ```
 
-Expected: branch is `codex/phase-0-foundations` (or an equivalent isolated worktree branch), status has no unrelated changes, Node reports `v24.x`, and Docker client/server are reachable.
+Expected: branch is `codex/phase-0-foundations` (or an equivalent isolated worktree branch), status has no unrelated changes, and Node reports `v24.x`.
 
 - [ ] **Step 2: Create the runtime marker**
 
@@ -225,7 +227,7 @@ Create `package.json`:
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
     "@vitejs/plugin-react": "6.0.4",
-    "eslint": "10.8.0",
+    "eslint": "9.39.5",
     "eslint-config-next": "16.2.12",
     "eslint-config-prettier": "10.1.8",
     "jsdom": "30.0.0",
@@ -233,8 +235,7 @@ Create `package.json`:
     "start-server-and-test": "3.0.11",
     "supabase": "2.109.1",
     "tsx": "4.23.1",
-    "typescript": "7.0.2",
-    "vite-tsconfig-paths": "6.1.1",
+    "typescript": "6.0.3",
     "vitest": "4.1.10",
     "wrangler": "4.114.0"
   }
@@ -345,21 +346,58 @@ git commit -m "chore: establish runtime and package contract"
 - Create: `src/lib/README.md`
 - Create: `src/components/README.md`
 - Create: `src/features/README.md`
+- Test: `src/tooling/import-boundaries.test.ts`
 
 **Interfaces:**
 
 - Consumes: `@/*` alias from Task 1.
 - Produces: enforced one-way dependencies `app -> features/components/lib/domain`, `features -> components/lib/domain`, `lib -> domain`.
 
-- [ ] **Step 1: Add a deliberately invalid boundary fixture**
+- [ ] **Step 1: Add regression tests for alias and relative import boundaries**
 
-Temporarily create `src/domain/boundary-fixture.ts`:
+Create `src/tooling/import-boundaries.test.ts`:
 
 ```ts
-import "@/features/README.md";
+import path from "node:path";
 
-export const invalidBoundary = true;
+import { ESLint } from "eslint";
+import { describe, expect, it } from "vitest";
+
+const eslint = new ESLint({ cwd: process.cwd() });
+
+async function lintFrom(filePath: string, source: string) {
+  const [result] = await eslint.lintText(source, {
+    filePath: path.join(process.cwd(), filePath),
+  });
+
+  return result?.messages ?? [];
+}
+
+describe("architectural import boundaries", () => {
+  it("rejects relative imports from lib into app", async () => {
+    const messages = await lintFrom("src/lib/boundary-fixture.ts", 'import "../app/page";');
+
+    expect(messages).toEqual(
+      expect.arrayContaining([expect.objectContaining({ messageId: "crossLayerImport" })]),
+    );
+  });
+
+  it("rejects alias imports from domain into features", async () => {
+    const messages = await lintFrom(
+      "src/domain/boundary-fixture.ts",
+      'import "@/features/project";',
+    );
+
+    expect(messages).toEqual(
+      expect.arrayContaining([expect.objectContaining({ messageId: "crossLayerImport" })]),
+    );
+  });
+});
 ```
+
+Run `pnpm test:unit -- src/tooling/import-boundaries.test.ts`.
+
+Expected: FAIL because the existing alias-only restriction does not emit `crossLayerImport` and does not reject the relative path.
 
 - [ ] **Step 2: Configure Prettier**
 
@@ -382,6 +420,8 @@ Create `.prettierignore`:
 coverage
 node_modules
 pnpm-lock.yaml
+docs/UnseenPrompt – DEVELOPMENT_PLAN.md
+docs/UnseenPrompt – Stateful Project Copilot.md
 ```
 
 - [ ] **Step 3: Configure Next.js lint rules and import boundaries**
@@ -389,71 +429,126 @@ pnpm-lock.yaml
 Create `eslint.config.mjs`:
 
 ```js
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
 import nextTypeScript from "eslint-config-next/typescript";
 import eslintConfigPrettier from "eslint-config-prettier/flat";
 
-const restrictedImports = (groups) => [
-  "error",
-  {
-    patterns: groups.map((group) => ({
-      group: [group],
-      message: "This import crosses an architectural boundary. Use a lower-level module.",
-    })),
+const repositoryRoot = path.dirname(fileURLToPath(import.meta.url));
+const sourceRoot = path.join(repositoryRoot, "src");
+
+const forbiddenDependencies = new Map([
+  ["domain", new Set(["app", "components", "config", "features", "lib"])],
+  ["config", new Set(["app", "components", "features", "lib"])],
+  ["lib", new Set(["app", "components", "features"])],
+  ["components", new Set(["app", "features"])],
+  ["features", new Set(["app"])],
+]);
+
+function sourceLayer(filePath) {
+  const relativePath = path.relative(sourceRoot, filePath);
+
+  if (relativePath.startsWith("..") || path.isAbsolute(relativePath)) {
+    return null;
+  }
+
+  return relativePath.split(path.sep)[0] ?? null;
+}
+
+function importedLayer(importerPath, importSource) {
+  let importedPath;
+
+  if (importSource.startsWith("@/")) {
+    importedPath = path.join(sourceRoot, importSource.slice(2));
+  } else if (importSource.startsWith(".")) {
+    importedPath = path.resolve(path.dirname(importerPath), importSource);
+  } else {
+    return null;
+  }
+
+  return sourceLayer(importedPath);
+}
+
+const architecturePlugin = {
+  rules: {
+    "no-cross-layer-imports": {
+      meta: {
+        type: "problem",
+        schema: [],
+        messages: {
+          crossLayerImport:
+            "{{sourceLayer}} modules must not import from the {{targetLayer}} layer.",
+        },
+      },
+      create(context) {
+        const importerPath = context.filename;
+        const importerLayer = sourceLayer(importerPath);
+        const forbiddenLayers = forbiddenDependencies.get(importerLayer);
+
+        function checkImportSource(node) {
+          if (!forbiddenLayers || typeof node.value !== "string") {
+            return;
+          }
+
+          const targetLayer = importedLayer(importerPath, node.value);
+
+          if (targetLayer && forbiddenLayers.has(targetLayer)) {
+            context.report({
+              node,
+              messageId: "crossLayerImport",
+              data: { sourceLayer: importerLayer, targetLayer },
+            });
+          }
+        }
+
+        return {
+          ImportDeclaration: (node) => checkImportSource(node.source),
+          ExportAllDeclaration: (node) => checkImportSource(node.source),
+          ExportNamedDeclaration: (node) => {
+            if (node.source) {
+              checkImportSource(node.source);
+            }
+          },
+          ImportExpression: (node) => checkImportSource(node.source),
+        };
+      },
+    },
   },
-];
+};
 
 export default defineConfig([
   ...nextCoreWebVitals,
   ...nextTypeScript,
   eslintConfigPrettier,
   {
-    files: ["src/domain/**/*.{ts,tsx}"],
-    rules: {
-      "no-restricted-imports": restrictedImports([
-        "@/app/**",
-        "@/components/**",
-        "@/features/**",
-        "@/lib/**",
-      ]),
+    files: ["src/**/*.{ts,tsx}"],
+    plugins: {
+      architecture: architecturePlugin,
     },
-  },
-  {
-    files: ["src/lib/**/*.{ts,tsx}"],
     rules: {
-      "no-restricted-imports": restrictedImports(["@/app/**", "@/components/**", "@/features/**"]),
-    },
-  },
-  {
-    files: ["src/components/**/*.{ts,tsx}"],
-    rules: {
-      "no-restricted-imports": restrictedImports(["@/app/**", "@/features/**"]),
-    },
-  },
-  {
-    files: ["src/features/**/*.{ts,tsx}"],
-    rules: {
-      "no-restricted-imports": restrictedImports(["@/app/**"]),
+      "architecture/no-cross-layer-imports": "error",
     },
   },
   globalIgnores([".next/**", ".open-next/**", "coverage/**", "next-env.d.ts"]),
 ]);
 ```
 
-- [ ] **Step 4: Verify the boundary rule fails**
+- [ ] **Step 4: Verify the regression tests pass**
 
 Run:
 
 ```bash
-pnpm lint
+pnpm test:unit -- src/tooling/import-boundaries.test.ts
 ```
 
-Expected: FAIL on `src/domain/boundary-fixture.ts` with `no-restricted-imports`.
+Expected: both alias and relative-path cases pass by observing `architecture/no-cross-layer-imports`.
 
-- [ ] **Step 5: Remove the invalid fixture and document each layer**
+- [ ] **Step 5: Document each layer**
 
-Delete `src/domain/boundary-fixture.ts`. In each layer README, state its responsibility, permitted imports, forbidden imports, and give one representative future module name. Do not add placeholder production modules solely to preserve directories.
+In each layer README, state its responsibility, permitted imports, forbidden imports, and give one representative future module name. Do not add placeholder production modules solely to preserve directories.
 
 - [ ] **Step 6: Verify formatting and linting**
 
@@ -537,6 +632,24 @@ describe("parseEnvironment", () => {
       }),
     ).toThrow();
   });
+
+  it("rejects non-HTTP application URLs", () => {
+    expect(() =>
+      parseEnvironment({
+        APP_ENV: "production",
+        NEXT_PUBLIC_APP_URL: "javascript:alert(1)",
+      }),
+    ).toThrow(/NEXT_PUBLIC_APP_URL/);
+  });
+
+  it("requires HTTPS outside local and test environments", () => {
+    expect(() =>
+      parseEnvironment({
+        APP_ENV: "staging",
+        NEXT_PUBLIC_APP_URL: "http://staging.unseenprompt.cloud",
+      }),
+    ).toThrow(/HTTPS/);
+  });
 });
 ```
 
@@ -557,10 +670,31 @@ Create `src/config/env/schema.ts`:
 ```ts
 import { z } from "zod";
 
+const applicationUrlSchema = z.url().refine(
+  (value) => {
+    const protocol = new URL(value).protocol;
+    return protocol === "http:" || protocol === "https:";
+  },
+  {
+    message: "NEXT_PUBLIC_APP_URL must use HTTP or HTTPS",
+  },
+);
+
 const environmentSchema = z
   .object({
     APP_ENV: z.enum(["local", "preview", "staging", "production", "test"]),
-    NEXT_PUBLIC_APP_URL: z.url(),
+    NEXT_PUBLIC_APP_URL: applicationUrlSchema,
+  })
+  .superRefine((environment, context) => {
+    const requiresHttps = environment.APP_ENV === "staging" || environment.APP_ENV === "production";
+
+    if (requiresHttps && new URL(environment.NEXT_PUBLIC_APP_URL).protocol !== "https:") {
+      context.addIssue({
+        code: "custom",
+        path: ["NEXT_PUBLIC_APP_URL"],
+        message: "HTTPS is required in staging and production",
+      });
+    }
   })
   .readonly();
 
@@ -639,10 +773,12 @@ Create `vitest.config.mts`:
 ```ts
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
-import tsconfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
-  plugins: [tsconfigPaths(), react()],
+  plugins: [react()],
+  resolve: {
+    tsconfigPaths: true,
+  },
   test: {
     environment: "jsdom",
     setupFiles: ["./vitest.setup.ts"],
@@ -799,7 +935,7 @@ git commit -m "feat: add tested application identity baseline"
 
 **Interfaces:**
 
-- Produces: `pnpm test:db`, which runs pgTAP against an isolated local Supabase database.
+- Produces: `pnpm test:db`, which runs pgTAP against an isolated database on a GitHub-hosted Actions runner.
 - Does not produce application tables, policies, seed users, or remote project links.
 
 - [ ] **Step 1: Initialize the local Supabase directory**
@@ -831,27 +967,21 @@ rollback;
 
 Keep `supabase/migrations/.gitkeep` so Phase 3 has a versioned migration location without inventing schema early.
 
-- [ ] **Step 3: Run the test before starting Supabase**
+- [ ] **Step 3: Keep the database test off developer machines**
+
+Do not link the local checkout to staging or production and do not start Supabase Docker locally. The test is executed only after the CI workflow starts its isolated database.
+
+- [ ] **Step 4: Start only the database service on the GitHub-hosted runner**
 
 Run:
 
 ```bash
+pnpm exec supabase db start
 pnpm test:db
+pnpm exec supabase stop --no-backup
 ```
 
-Expected: FAIL with a local database connection/startup error. A connection to any linked or remote database is a test failure.
-
-- [ ] **Step 4: Start the local stack and run pgTAP**
-
-Run:
-
-```bash
-pnpm exec supabase start
-pnpm test:db
-pnpm exec supabase stop
-```
-
-Expected: pgTAP reports `Files=1, Tests=2` and `Result: PASS`; the local stack stops cleanly.
+Expected: pgTAP reports `Files=1, Tests=2` and `Result: PASS`; the CI database stops cleanly.
 
 - [ ] **Step 5: Verify no remote link or secret was created**
 
@@ -1030,7 +1160,7 @@ Include, in this order:
 1. `UnseenPrompt — Stateful Project Copilot`
 2. Status: `Pre-development; Phase 0 foundation`
 3. Explicit non-capabilities: no repository access, autonomous execution, team accounts, or production service connections
-4. Prerequisites: Node 24.x, pnpm 11.17.0, Docker
+4. Prerequisites: Node 24.x and pnpm 11.17.0; explicitly state that Docker is not required locally
 5. Bootstrap commands: copy `.env.example`, frozen install, local development
 6. Canonical quality commands from the Definition of Done
 7. Documentation links to both approved plans, architecture, naming, environment contract, contributing, and security
@@ -1188,11 +1318,11 @@ jobs:
         run: npm install --global pnpm@${PNPM_VERSION}
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Start local Supabase
-        run: pnpm exec supabase start
+      - name: Start isolated test database
+        run: pnpm exec supabase db start
       - name: Run database tests
         run: pnpm test:db
-      - name: Stop local Supabase
+      - name: Stop isolated test database
         if: always()
         run: pnpm exec supabase stop --no-backup
 
@@ -1236,14 +1366,11 @@ Run:
 ```bash
 CI=true APP_ENV=test NEXT_PUBLIC_APP_URL=http://localhost:3000 pnpm install --frozen-lockfile
 CI=true APP_ENV=test NEXT_PUBLIC_APP_URL=http://localhost:3000 pnpm check
-pnpm exec supabase start
-pnpm test:db
-pnpm exec supabase stop --no-backup
 CI=true APP_ENV=test NEXT_PUBLIC_APP_URL=http://localhost:3000 pnpm cf:build
 CI=true APP_ENV=test NEXT_PUBLIC_APP_URL=http://localhost:3000 pnpm test:cf-preview
 ```
 
-Expected: every command exits `0`.
+Expected: every local command exits `0`. Push the branch and confirm the GitHub Actions `database` job starts its isolated database and passes `pnpm test:db`.
 
 - [ ] **Step 4: Commit CI**
 
@@ -1296,14 +1423,11 @@ Expected: all five gates pass with zero warnings treated as errors by lint.
 Run:
 
 ```bash
-pnpm exec supabase start
-pnpm test:db
-pnpm exec supabase stop --no-backup
 APP_ENV=preview NEXT_PUBLIC_APP_URL=http://127.0.0.1:8787 pnpm cf:build
 APP_ENV=preview NEXT_PUBLIC_APP_URL=http://127.0.0.1:8787 pnpm test:cf-preview
 ```
 
-Expected: database smoke tests pass, the bundle exists, and the Workers preview renders the product identity.
+Expected: the bundle exists and the Workers preview renders the product identity. Confirm the database smoke test separately in the GitHub Actions `database` job.
 
 - [ ] **Step 4: Scan tracked content for likely secrets and generated files**
 
