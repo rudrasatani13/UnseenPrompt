@@ -39,6 +39,18 @@ export async function assertCloudflareDeployment({
       continue;
     }
 
+    const isHealthy =
+      healthResponse.ok && health.service === "unseenprompt" && health.status === "ok";
+
+    if (isHealthy && health.release === expectedReleaseSha) {
+      break;
+    }
+
+    if (isHealthy && attempt < 19) {
+      await sleep(1_000);
+      continue;
+    }
+
     if (healthResponse.ok) {
       break;
     }
