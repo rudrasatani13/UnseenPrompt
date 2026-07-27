@@ -29,7 +29,7 @@ jobs:
     timeout-minutes: 25
     environment:
       name: staging
-      url: ${{ steps.deploy.outputs.url }}
+      url: ${{ steps.staging.outputs.url }}
     env:
       CI: "true"
       APP_ENV: staging
@@ -74,28 +74,14 @@ jobs:
           pnpm exec wrangler deploy \
             --env staging \
             --var "RELEASE_SHA:${{ github.sha }}"
-          node --input-type=module -e '
-            import { appendFileSync, readFileSync } from "node:fs";
-            const events = readFileSync(process.env.WRANGLER_OUTPUT_FILE_PATH, "utf8")
-              .trim().split("\n").map(JSON.parse);
-            const deploy = events.find((event) => event.type === "deploy" || event.type === "version-upload");
-            const url =
-              deploy?.url ??
-              deploy?.preview_urls?.[0] ??
-              deploy?.targets?.[0]?.url ??
-              deploy?.worker?.url;
-            if (!url) {
-              throw new Error("Wrangler did not report a staging deployment URL");
-            }
-            if (!String(url).startsWith("https://")) {
-              throw new Error("Staging deployment URL must use HTTPS");
-            }
-            appendFileSync(process.env.GITHUB_OUTPUT, `url=${url}\n`);
-            appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Staging: ${url}\n`);
-          '
+      - name: Resolve staging URL
+        id: staging
+        env:
+          OUTPUT_FILE: ${{ runner.temp }}/wrangler-output.ndjson
+        run: node scripts/wrangler-output.mjs deployment-url
       - name: Smoke-test staging
         env:
-          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+          DEPLOYMENT_URL: ${{ steps.staging.outputs.url }}
           HEALTHCHECK_TOKEN: ${{ secrets.STAGING_HEALTHCHECK_TOKEN }}
           GITHUB_SHA: ${{ github.sha }}
         run: pnpm test:cf-deployment
@@ -186,23 +172,16 @@ jobs:
             --tag "release-${RELEASE_SHA_INPUT}" \
             --message "Production ${RELEASE_SHA_INPUT}" \
             --var "RELEASE_SHA:${RELEASE_SHA_INPUT}"
-          node --input-type=module -e '
-            import { appendFileSync, readFileSync } from "node:fs";
-            const events = readFileSync(process.env.WRANGLER_OUTPUT_FILE_PATH, "utf8")
-              .trim().split("\n").map(JSON.parse);
-            const upload = events.find((event) => event.type === "version-upload");
-            const versionId = upload?.version_id ?? upload?.id;
-            if (!versionId) {
-              throw new Error("Wrangler did not report a production version_id");
-            }
-            appendFileSync(process.env.GITHUB_OUTPUT, `version_id=${versionId}\n`);
-            appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Production version: ${versionId}\n`);
-          '
+      - name: Resolve production version
+        id: version
+        env:
+          OUTPUT_FILE: ${{ runner.temp }}/wrangler-output.ndjson
+        run: node scripts/wrangler-output.mjs version-id
       - name: Promote production version
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          VERSION_ID: ${{ steps.upload.outputs.version_id }}
+          VERSION_ID: ${{ steps.version.outputs.version_id }}
           RELEASE_SHA_INPUT: ${{ inputs.release_sha }}
         run: |
           pnpm exec wrangler versions deploy \

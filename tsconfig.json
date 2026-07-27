@@ -35,5 +35,6 @@
     "**/*.mts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules", ".open-next"]
+  "exclude": ["node_modules", ".open-next", "scripts"]
 }
+
