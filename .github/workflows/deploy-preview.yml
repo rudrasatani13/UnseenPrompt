@@ -1,0 +1,75 @@
+name: Deploy Preview
+
+on:
+  pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: preview-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    if: github.event.pull_request.draft == false && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: "true"
+      APP_ENV: preview
+      NEXT_PUBLIC_APP_URL: https://preview.unseenprompt.com
+      RELEASE_SHA: ${{ github.event.pull_request.head.sha }}
+      NODE_VERSION: 24
+      PNPM_VERSION: 11.17.0
+    steps:
+      - name: Check out pull request
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Install pnpm
+        run: npm install --global pnpm@${PNPM_VERSION}
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build Worker
+        run: pnpm cf:build
+      - name: Upload preview version
+        id: upload
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.ndjson
+        run: >-
+          pnpm exec wrangler versions upload
+          --env preview
+          --strict
+          --preview-alias pr-${{ github.event.pull_request.number }}
+          --tag ${{ github.event.pull_request.head.sha }}
+          --message "PR ${{ github.event.pull_request.number }}"
+          --var RELEASE_SHA:${{ github.event.pull_request.head.sha }}
+      - name: Resolve preview URL
+        id: preview
+        env:
+          OUTPUT_FILE: ${{ runner.temp }}/wrangler-output.ndjson
+        run: |
+          node --input-type=module -e '
+            import { appendFileSync, readFileSync } from "node:fs";
+            const events = readFileSync(process.env.OUTPUT_FILE, "utf8")
+              .trim().split("\n").map(JSON.parse);
+            const upload = events.find((event) => event.type === "version-upload");
+            const url = upload?.preview_urls?.find((value) => value.includes("pr-")) ??
+              upload?.preview_urls?.[0];
+            if (!url) throw new Error("Wrangler did not report a preview URL");
+            appendFileSync(process.env.GITHUB_OUTPUT, `url=${url}\n`);
+            appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Preview: ${url}\n`);
+          '
+      - name: Smoke-test preview
+        env:
+          DEPLOYMENT_URL: ${{ steps.preview.outputs.url }}
+          HEALTHCHECK_TOKEN: ${{ secrets.PREVIEW_HEALTHCHECK_TOKEN }}
+        run: pnpm test:cf-deployment
