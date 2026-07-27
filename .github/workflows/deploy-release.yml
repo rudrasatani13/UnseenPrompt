@@ -1,0 +1,218 @@
+name: Deploy Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      target:
+        description: Deployment target
+        required: true
+        type: choice
+        options: [production]
+      release_sha:
+        description: Full commit SHA already present on main
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-${{ github.event_name == 'push' && 'staging' || inputs.target }}
+  cancel-in-progress: false
+
+jobs:
+  staging:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    environment:
+      name: staging
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      CI: "true"
+      APP_ENV: staging
+      NEXT_PUBLIC_APP_URL: https://staging.unseenprompt.com
+      RELEASE_SHA: ${{ github.sha }}
+      NODE_VERSION: 24
+      PNPM_VERSION: 11.17.0
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ github.sha }}
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Install pnpm
+        run: npm install --global pnpm@${PNPM_VERSION}
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Check formatting
+        run: pnpm format:check
+      - name: Lint
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Run unit tests
+        run: pnpm test:unit
+      - name: Check generated Cloudflare types
+        run: pnpm cf:types:check
+      - name: Check Workers dependency policy
+        run: pnpm check:workers-deps
+      - name: Build Worker
+        run: pnpm cf:build
+      - name: Deploy staging
+        id: deploy
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.ndjson
+        run: |
+          pnpm exec wrangler deploy \
+            --env staging \
+            --var "RELEASE_SHA:${{ github.sha }}"
+          node --input-type=module -e '
+            import { appendFileSync, readFileSync } from "node:fs";
+            const events = readFileSync(process.env.WRANGLER_OUTPUT_FILE_PATH, "utf8")
+              .trim().split("\n").map(JSON.parse);
+            const deploy = events.find((event) => event.type === "deploy" || event.type === "version-upload");
+            const url =
+              deploy?.url ??
+              deploy?.preview_urls?.[0] ??
+              deploy?.targets?.[0]?.url ??
+              deploy?.worker?.url;
+            if (!url) {
+              throw new Error("Wrangler did not report a staging deployment URL");
+            }
+            if (!String(url).startsWith("https://")) {
+              throw new Error("Staging deployment URL must use HTTPS");
+            }
+            appendFileSync(process.env.GITHUB_OUTPUT, `url=${url}\n`);
+            appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Staging: ${url}\n`);
+          '
+      - name: Smoke-test staging
+        env:
+          DEPLOYMENT_URL: ${{ steps.deploy.outputs.url }}
+          HEALTHCHECK_TOKEN: ${{ secrets.STAGING_HEALTHCHECK_TOKEN }}
+          GITHUB_SHA: ${{ github.sha }}
+        run: pnpm test:cf-deployment
+
+  production:
+    if: github.event_name == 'workflow_dispatch' && inputs.target == 'production'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment:
+      name: production
+      url: https://unseenprompt.com
+    env:
+      CI: "true"
+      APP_ENV: production
+      NEXT_PUBLIC_APP_URL: https://unseenprompt.com
+      RELEASE_SHA: ${{ inputs.release_sha }}
+      NODE_VERSION: 24
+      PNPM_VERSION: 11.17.0
+    steps:
+      - name: Validate release SHA format
+        env:
+          RELEASE_SHA_INPUT: ${{ inputs.release_sha }}
+        run: |
+          if [[ ! "$RELEASE_SHA_INPUT" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "release_sha must be a full 40-character lowercase hex commit SHA"
+            exit 1
+          fi
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          fetch-depth: 0
+      - name: Require commit on main and domain verification
+        env:
+          RELEASE_SHA_INPUT: ${{ inputs.release_sha }}
+          PRODUCTION_DOMAIN_VERIFIED: ${{ vars.PRODUCTION_DOMAIN_VERIFIED }}
+        run: |
+          git fetch origin main
+          if ! git merge-base --is-ancestor "$RELEASE_SHA_INPUT" origin/main; then
+            echo "release_sha must already be an ancestor of origin/main"
+            exit 1
+          fi
+          if [[ "$PRODUCTION_DOMAIN_VERIFIED" != "true" ]]; then
+            echo "PRODUCTION_DOMAIN_VERIFIED must be exactly true before production promotion"
+            exit 1
+          fi
+      - name: Check out release SHA
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: ${{ inputs.release_sha }}
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Install pnpm
+        run: npm install --global pnpm@${PNPM_VERSION}
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Check formatting
+        run: pnpm format:check
+      - name: Lint
+        run: pnpm lint
+      - name: Typecheck
+        run: pnpm typecheck
+      - name: Run unit tests
+        run: pnpm test:unit
+      - name: Check generated Cloudflare types
+        run: pnpm cf:types:check
+      - name: Check Workers dependency policy
+        run: pnpm check:workers-deps
+      - name: Build Worker
+        run: pnpm cf:build
+      - name: Production dry-run
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: pnpm exec wrangler deploy --env production --dry-run
+      - name: Upload production version
+        id: upload
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.ndjson
+          RELEASE_SHA_INPUT: ${{ inputs.release_sha }}
+        run: |
+          pnpm exec wrangler versions upload \
+            --env production \
+            --strict \
+            --tag "release-${RELEASE_SHA_INPUT}" \
+            --message "Production ${RELEASE_SHA_INPUT}" \
+            --var "RELEASE_SHA:${RELEASE_SHA_INPUT}"
+          node --input-type=module -e '
+            import { appendFileSync, readFileSync } from "node:fs";
+            const events = readFileSync(process.env.WRANGLER_OUTPUT_FILE_PATH, "utf8")
+              .trim().split("\n").map(JSON.parse);
+            const upload = events.find((event) => event.type === "version-upload");
+            const versionId = upload?.version_id ?? upload?.id;
+            if (!versionId) {
+              throw new Error("Wrangler did not report a production version_id");
+            }
+            appendFileSync(process.env.GITHUB_OUTPUT, `version_id=${versionId}\n`);
+            appendFileSync(process.env.GITHUB_STEP_SUMMARY, `Production version: ${versionId}\n`);
+          '
+      - name: Promote production version
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          VERSION_ID: ${{ steps.upload.outputs.version_id }}
+          RELEASE_SHA_INPUT: ${{ inputs.release_sha }}
+        run: |
+          pnpm exec wrangler versions deploy \
+            --env production \
+            "${VERSION_ID}@100" \
+            --message "Production ${RELEASE_SHA_INPUT}" \
+            --yes
+      - name: Smoke-test production
+        env:
+          DEPLOYMENT_URL: https://unseenprompt.com
+          HEALTHCHECK_TOKEN: ${{ secrets.PRODUCTION_HEALTHCHECK_TOKEN }}
+          GITHUB_SHA: ${{ inputs.release_sha }}
+        run: pnpm test:cf-deployment
