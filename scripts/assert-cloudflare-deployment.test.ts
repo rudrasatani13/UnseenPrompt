@@ -93,4 +93,24 @@ describe("deployment verification", () => {
     });
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
+
+  test("retries an empty Workflow response during deployment propagation", async () => {
+    const expectedReleaseSha = "d".repeat(40);
+    const responses = [
+      jsonResponse({ service: "unseenprompt", status: "ok", release: expectedReleaseSha }),
+      new Response("", { status: 200 }),
+      jsonResponse({ status: "complete", output: { ok: true } }),
+    ];
+    const fetchImpl = vi.fn(async () => responses.shift()!);
+
+    await assertCloudflareDeployment({
+      deploymentUrl: "https://preview.example.test",
+      expectedReleaseSha,
+      healthcheckToken: "test-token",
+      fetchImpl,
+      sleep: async () => undefined,
+    });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
 });
