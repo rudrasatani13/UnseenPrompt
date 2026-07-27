@@ -40,6 +40,42 @@ describe("deployment verification", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(1);
   });
 
+  test("retries an empty health response during deployment propagation", async () => {
+    const expectedReleaseSha = "b".repeat(40);
+    const responses = [
+      new Response("", { status: 200 }),
+      jsonResponse({ service: "unseenprompt", status: "ok", release: expectedReleaseSha }),
+    ];
+    const fetchImpl = vi.fn(async () => responses.shift()!);
+
+    await assertCloudflareDeployment({
+      deploymentUrl: "https://preview.example.test",
+      expectedReleaseSha,
+      fetchImpl,
+      sleep: async () => undefined,
+    });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  test("retries a transient server error during deployment propagation", async () => {
+    const expectedReleaseSha = "c".repeat(40);
+    const responses = [
+      new Response("temporary failure", { status: 500 }),
+      jsonResponse({ service: "unseenprompt", status: "ok", release: expectedReleaseSha }),
+    ];
+    const fetchImpl = vi.fn(async () => responses.shift()!);
+
+    await assertCloudflareDeployment({
+      deploymentUrl: "https://preview.example.test",
+      expectedReleaseSha,
+      fetchImpl,
+      sleep: async () => undefined,
+    });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
   test("accepts a matching release and completed Workflow probe", async () => {
     const expectedReleaseSha = "b".repeat(40);
     const responses = [

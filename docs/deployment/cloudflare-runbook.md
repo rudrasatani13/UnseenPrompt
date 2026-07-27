@@ -143,10 +143,10 @@ pnpm exec wrangler deploy --env production --dry-run
 4. Approve the `production` environment gate.
 5. Pipeline dry-runs, uploads a tagged version, promotes `VERSION_ID@100`, then smokes `https://unseenprompt.com` with `GITHUB_SHA` set to the release SHA.
 
-Production routes:
+Production Custom Domains:
 
-- `unseenprompt.com/*`
-- `www.unseenprompt.com/*`
+- `unseenprompt.com`
+- `www.unseenprompt.com`
 
 Do not promote while zone ownership or DNS verification is incomplete.
 
