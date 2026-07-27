@@ -1,6 +1,7 @@
 import { pathToFileURL } from "node:url";
 
 const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const propagationAttempts = 60;
 
 export async function assertCloudflareDeployment({
   deploymentUrl,
@@ -23,7 +24,7 @@ export async function assertCloudflareDeployment({
   let healthResponse;
   let health;
 
-  for (let attempt = 0; attempt < 20; attempt += 1) {
+  for (let attempt = 0; attempt < propagationAttempts; attempt += 1) {
     healthResponse = await fetchImpl(new URL("/api/health", baseUrl), {
       headers: { Accept: "application/json" },
     });
@@ -31,7 +32,7 @@ export async function assertCloudflareDeployment({
     try {
       health = await healthResponse.json();
     } catch {
-      if (attempt === 19) {
+      if (attempt === propagationAttempts - 1) {
         throw new Error(`Runtime health returned invalid JSON with HTTP ${healthResponse.status}`);
       }
 
@@ -46,7 +47,7 @@ export async function assertCloudflareDeployment({
       break;
     }
 
-    if (isHealthy && attempt < 19) {
+    if (isHealthy && attempt < propagationAttempts - 1) {
       await sleep(1_000);
       continue;
     }
@@ -55,7 +56,7 @@ export async function assertCloudflareDeployment({
       break;
     }
 
-    if (healthResponse.status < 500 || attempt === 19) {
+    if (healthResponse.status < 500 || attempt === propagationAttempts - 1) {
       throw new Error(`Runtime health failed with HTTP ${healthResponse.status}`);
     }
 
@@ -79,7 +80,7 @@ export async function assertCloudflareDeployment({
   const idempotencyKey = `deploy-${expectedReleaseSha}`.slice(0, 80);
   let workflow;
 
-  for (let attempt = 0; attempt < 20; attempt += 1) {
+  for (let attempt = 0; attempt < propagationAttempts; attempt += 1) {
     const response = await fetchImpl(new URL("/api/internal/health/workflow", baseUrl), {
       method: "POST",
       headers: {
@@ -91,7 +92,7 @@ export async function assertCloudflareDeployment({
     try {
       workflow = await response.json();
     } catch {
-      if (attempt === 19) {
+      if (attempt === propagationAttempts - 1) {
         throw new Error(`Workflow probe returned invalid JSON with HTTP ${response.status}`);
       }
 
