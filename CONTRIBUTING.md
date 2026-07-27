@@ -69,4 +69,4 @@ Database and RLS changes are validated by the CI `database` job, not by requirin
 - Keep PRs focused.
 - Reference the phase or task when applicable.
 - Ensure GitHub Actions `quality`, `database`, and `cloudflare-preview` jobs pass before merge.
-- Same-repository non-draft PRs also run `Deploy Preview` when Cloudflare secrets are configured.
+- Merging to `main` deploys staging and then production; a staging failure blocks production.
