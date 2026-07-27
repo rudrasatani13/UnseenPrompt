@@ -104,5 +104,11 @@ export default defineConfig([
       "architecture/no-cross-layer-imports": "error",
     },
   },
-  globalIgnores([".next/**", ".open-next/**", "coverage/**", "next-env.d.ts"]),
+  globalIgnores([
+    ".next/**",
+    ".open-next/**",
+    "coverage/**",
+    "next-env.d.ts",
+    "worker-configuration.d.ts",
+  ]),
 ]);

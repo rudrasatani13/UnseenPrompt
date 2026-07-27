@@ -1,15 +1,122 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "unseenprompt",
-  "main": ".open-next/worker.js",
+  "name": "unseenprompt-local",
+  "main": "custom-worker.ts",
   "compatibility_date": "2026-07-27",
   "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "workers_dev": true,
+  "preview_urls": false,
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS",
   },
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1,
+  },
+  "version_metadata": {
+    "binding": "CF_VERSION_METADATA",
+  },
+  "secrets": {
+    "required": ["HEALTHCHECK_TOKEN"],
+  },
   "vars": {
-    "APP_ENV": "preview",
+    "APP_ENV": "local",
     "NEXT_PUBLIC_APP_URL": "http://127.0.0.1:8787",
+    "RELEASE_SHA": "local",
+  },
+  "workflows": [
+    {
+      "name": "unseenprompt-health-local",
+      "binding": "RUNTIME_HEALTH_WORKFLOW",
+      "class_name": "RuntimeHealthWorkflow",
+    },
+  ],
+  "env": {
+    "preview": {
+      "name": "unseenprompt-preview",
+      "workers_dev": true,
+      "preview_urls": true,
+      "observability": {
+        "enabled": true,
+        "head_sampling_rate": 1,
+      },
+      "version_metadata": {
+        "binding": "CF_VERSION_METADATA",
+      },
+      "secrets": {
+        "required": [],
+      },
+      "vars": {
+        "APP_ENV": "preview",
+        "NEXT_PUBLIC_APP_URL": "https://preview.unseenprompt.com",
+        "RELEASE_SHA": "preview",
+      },
+      "workflows": [],
+    },
+    "staging": {
+      "name": "unseenprompt-staging",
+      "workers_dev": true,
+      "preview_urls": false,
+      "observability": {
+        "enabled": true,
+        "head_sampling_rate": 1,
+      },
+      "version_metadata": {
+        "binding": "CF_VERSION_METADATA",
+      },
+      "secrets": {
+        "required": ["HEALTHCHECK_TOKEN"],
+      },
+      "vars": {
+        "APP_ENV": "staging",
+        "NEXT_PUBLIC_APP_URL": "https://staging.unseenprompt.com",
+        "RELEASE_SHA": "staging",
+      },
+      "workflows": [
+        {
+          "name": "unseenprompt-health-staging",
+          "binding": "RUNTIME_HEALTH_WORKFLOW",
+          "class_name": "RuntimeHealthWorkflow",
+        },
+      ],
+    },
+    "production": {
+      "name": "unseenprompt-production",
+      "workers_dev": false,
+      "preview_urls": false,
+      "routes": [
+        {
+          "pattern": "unseenprompt.com/*",
+          "zone_name": "unseenprompt.com",
+        },
+        {
+          "pattern": "www.unseenprompt.com/*",
+          "zone_name": "unseenprompt.com",
+        },
+      ],
+      "observability": {
+        "enabled": true,
+        "head_sampling_rate": 0.1,
+      },
+      "version_metadata": {
+        "binding": "CF_VERSION_METADATA",
+      },
+      "secrets": {
+        "required": ["HEALTHCHECK_TOKEN"],
+      },
+      "vars": {
+        "APP_ENV": "production",
+        "NEXT_PUBLIC_APP_URL": "https://unseenprompt.com",
+        "RELEASE_SHA": "production",
+      },
+      "workflows": [
+        {
+          "name": "unseenprompt-health-production",
+          "binding": "RUNTIME_HEALTH_WORKFLOW",
+          "class_name": "RuntimeHealthWorkflow",
+        },
+      ],
+    },
   },
 }

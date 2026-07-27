@@ -17,6 +17,7 @@ env:
   CI: "true"
   APP_ENV: test
   NEXT_PUBLIC_APP_URL: http://localhost:3000
+  RELEASE_SHA: test
   PNPM_VERSION: 11.17.0
   NODE_VERSION: 24
 
@@ -85,6 +86,12 @@ jobs:
         run: npm install --global pnpm@${PNPM_VERSION}
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Check generated Cloudflare types
+        run: pnpm cf:types:check
+      - name: Check Workers dependency policy
+        run: pnpm check:workers-deps
+      - name: Check preview workflow trust boundary
+        run: pnpm check:preview-workflow-trust
       - name: Build Workers bundle
         run: pnpm cf:build
       - name: Assert bundle entry point

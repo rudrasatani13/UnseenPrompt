@@ -1,17 +1,29 @@
 # Environment contract
 
-## Phase 0 variables
+## Phase 0–1 variables
 
-| Variable              | Visibility | Local                   | Preview             | Staging           | Production                 | Owner    |
-| --------------------- | ---------- | ----------------------- | ------------------- | ----------------- | -------------------------- | -------- |
-| `APP_ENV`             | Server     | `local`                 | `preview`           | `staging`         | `production`               | Platform |
-| `NEXT_PUBLIC_APP_URL` | Public     | `http://localhost:3000` | ephemeral HTTPS URL | staging HTTPS URL | `https://unseenprompt.com` | Platform |
+| Variable              | Visibility | Local                   | Preview                 | Staging           | Production                 | Owner               |
+| --------------------- | ---------- | ----------------------- | ----------------------- | ----------------- | -------------------------- | ------------------- |
+| `APP_ENV`             | Server     | `local`                 | `preview`               | `staging`         | `production`               | Platform            |
+| `NEXT_PUBLIC_APP_URL` | Public     | `http://localhost:3000` | canonical preview HTTPS | staging HTTPS URL | `https://unseenprompt.com` | Platform            |
+| `RELEASE_SHA`         | Server     | `local`                 | Git commit SHA          | Git commit SHA    | Git commit SHA             | Deployment pipeline |
+| `HEALTHCHECK_TOKEN`   | Secret     | `.dev.vars`             | Cloudflare secret       | Cloudflare secret | Cloudflare secret          | Platform            |
 
-Test runners may use `APP_ENV=test` with `NEXT_PUBLIC_APP_URL=http://localhost:3000`.
+Test runners may use `APP_ENV=test` with `NEXT_PUBLIC_APP_URL=http://localhost:3000` and `RELEASE_SHA=test`.
+
+`NEXT_PUBLIC_APP_URL` is the canonical environment URL (for example `https://preview.unseenprompt.com` or the staging/production host), not a per-version preview URL. Authentication callback URLs are deferred to Phase 4.
+
+`HEALTHCHECK_TOKEN` must be at least 32 random bytes, unique to local, staging, or production, and never
+committed. Preview intentionally has no health token. Local copies live only in ignored `.dev.vars`.
 
 ## Dummy template
 
-Committed template: `.env.example` (safe defaults only). Copy to `.env.local` for local development. Never put credentials in `.env.example`.
+Committed templates:
+
+- `.env.example` — safe defaults only; copy to `.env.local` for local Next.js development
+- `.dev.vars.example` — local Wrangler secret shape only; copy to `.dev.vars` and replace the token
+
+Never put credentials in `.env.example` or real tokens in `.dev.vars.example`.
 
 ## Adding variables later
 

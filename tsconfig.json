@@ -28,11 +28,12 @@
   },
   "include": [
     "next-env.d.ts",
+    "worker-configuration.d.ts",
     ".next/types/**/*.ts",
     "**/*.ts",
     "**/*.tsx",
     "**/*.mts",
     ".next/dev/types/**/*.ts"
   ],
-  "exclude": ["node_modules", ".open-next"]
+  "exclude": ["node_modules", ".open-next", "scripts"]
 }
