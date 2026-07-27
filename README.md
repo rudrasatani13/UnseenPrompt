@@ -2,6 +2,8 @@
 
 **Status:** Pre-development; Phase 0 foundation
 
+**Primary domain:** `https://unseenprompt.com` (purchased; DNS and Cloudflare verification pending)
+
 ## What this is not
 
 UnseenPrompt does **not** currently provide:

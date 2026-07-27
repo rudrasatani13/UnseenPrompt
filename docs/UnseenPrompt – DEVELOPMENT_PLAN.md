@@ -7,7 +7,7 @@
 **Status:** Approved Plan — Pre-Development  
 **Brand:** UnseenPrompt  
 **Product:** Stateful Project Copilot  
-**Planned Domain:** `unseenprompt.cloud` (not yet purchased)  
+**Primary Domain:** `unseenprompt.com` (purchased)  
 **Companion Doc:** `UnseenPrompt – Stateful Project Copilot.md`
 
 ---
@@ -98,7 +98,7 @@ Each phase contains **Goal · Tasks · Deliverables · Exit criteria · Depends 
 - Create the committed environment-variable template using dummy values only.
 - Configure continuous integration for lint, typecheck, unit tests, database tests, build, and Cloudflare preview validation.
 - Add the approved Master Plan, Development Plan, and design specification to project documentation.
-- Configure application identity as UnseenPrompt with domain metadata prepared for `unseenprompt.cloud`.
+- Configure application identity as UnseenPrompt with domain metadata prepared for `unseenprompt.com`.
 
 **Deliverables:** Repository skeleton, environment contract, automated quality pipeline, and project documentation.
 
@@ -122,7 +122,7 @@ Each phase contains **Goal · Tasks · Deliverables · Exit criteria · Depends 
 - Add a runtime health surface that reports application readiness without exposing secrets.
 - Define the Cloudflare Workflows binding and a minimal workflow health path.
 - Establish a dependency policy that rejects packages incompatible with the Workers runtime.
-- Prepare custom-domain configuration for `unseenprompt.cloud` without making domain ownership a development blocker.
+- Prepare custom-domain configuration for `unseenprompt.com`; DNS and Cloudflare ownership verification remain deployment gates.
 
 **Deliverables:** Cloudflare deployment configuration, staging deployment, environment isolation, health checks, and workflow binding.
 
@@ -414,7 +414,7 @@ Each phase contains **Goal · Tasks · Deliverables · Exit criteria · Depends 
 - Prioritize improvements using project evidence and user goals.
 - Keep speculative refactors out of generated prompts unless explicitly selected.
 - Add lifecycle completion and iteration transitions.
-- Prepare planned-domain handling for `unseenprompt.cloud` when ownership is available.
+- Prepare production-domain handling for `unseenprompt.com`.
 
 **Deliverables:** Deploy and Improve workflows, high-risk confirmation policy, rollback-aware prompts, and lifecycle completion.
 
@@ -521,7 +521,7 @@ Each phase contains **Goal · Tasks · Deliverables · Exit criteria · Depends 
 - Complete end-to-end journeys from project creation through multiple returned results and final lifecycle progression.
 - Complete accessibility, keyboard, responsive, performance, and failure-path validation.
 - Validate staging deployment through the Cloudflare production runtime.
-- Configure `unseenprompt.cloud` only after the domain is purchased and verified.
+- Configure `unseenprompt.com` only after DNS and Cloudflare ownership are verified.
 - Publish only lifecycle modes that pass their complete release gates.
 - Prepare operational recovery and rollback documentation.
 
