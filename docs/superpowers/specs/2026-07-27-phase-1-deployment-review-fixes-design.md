@@ -23,7 +23,10 @@ Worker must represent the pull request head SHA.
 - The PR build output crosses into the privileged workflow only as an inert `.open-next` artifact.
 - The trusted deployer does not execute files from the artifact; trusted Wrangler tooling only bundles
   and uploads them.
-- Preview credentials cannot authorize staging or production resources.
+- The deployed preview Worker has no secret or Workflow bindings; PR code cannot receive runtime
+  credentials or capabilities.
+- Preview deployment credentials target a separate preview-only Cloudflare account because Workers
+  Scripts permissions are account-scoped; they cannot authorize staging or production resources.
 - A deployment smoke test succeeds only when `/api/health` reports the expected release SHA.
 
 ## Architecture
@@ -53,8 +56,9 @@ The trusted workflow:
 2. checks out `main`, including trusted `package.json`, lockfile, Wrangler configuration, and scripts;
 3. installs dependencies from `main` on a fresh runner;
 4. downloads the exact artifact produced by the triggering workflow run;
-5. extracts the tar artifact with Python's `tarfile` `data` filter and validates the expected
-   `.open-next/worker.js` layout;
+5. validates that every tar member stays under `.open-next` and is a regular file or directory, then
+   extracts with Python's `tarfile` `data` filter and validates the expected `.open-next/worker.js`
+   layout;
 6. invokes trusted Wrangler with the preview environment and PR head SHA;
 7. resolves the preview alias URL through a tested repository script; and
 8. runs the trusted deployment smoke script with the expected PR head SHA.
@@ -78,9 +82,9 @@ actionable error. Workflow wrappers write validated values to `GITHUB_OUTPUT` an
 
 ## Release Identity Verification
 
-`assert-cloudflare-deployment.mjs` requires `GITHUB_SHA` for remote CI deployment checks and compares it
-with `health.release` before starting the authenticated Workflow probe. A mismatch fails immediately and
-reports expected and received release identities without exposing secrets.
+`assert-cloudflare-deployment.mjs` requires a full lowercase `GITHUB_SHA` for remote CI deployment
+checks and compares it with `health.release` before any optional authenticated Workflow probe. Preview
+uses release-identity smoke only; staging and production additionally run the authenticated probe.
 
 Manual smoke checks remain supported when operators provide the expected SHA, as already documented in
 the deployment runbook. The preview trusted workflow supplies the PR head SHA; staging supplies
@@ -118,9 +122,10 @@ available locally.
 ## Documentation And Operations
 
 The Cloudflare runbook and Phase 1 topology document will describe the two-workflow preview pipeline,
-trusted-main boundary, expected release assertion, artifact retention, preview-only token requirement,
-and credential rotation requirement for secrets previously exposed to unmerged same-repository code.
+trusted-main boundary, expected release assertion, artifact retention, zero-secret preview requirement,
+and credential rotation requirement for credentials previously exposed to unmerged same-repository code.
 
-Deploying the workflow files does not rotate credentials automatically. Platform operators must rotate
-the Cloudflare API token and preview health token, then verify the Cloudflare API token cannot reach
-staging, production, zones, routes, or unrelated Workers.
+Deploying the workflow files does not remove an existing Cloudflare secret automatically. Platform
+operators must delete the preview health secret and obsolete GitHub copy, rotate the old token into
+`PREVIEW_CLOUDFLARE_API_TOKEN`, configure a separate preview account, verify the preview secret list is
+empty, and prove that account contains no staging or production resources.

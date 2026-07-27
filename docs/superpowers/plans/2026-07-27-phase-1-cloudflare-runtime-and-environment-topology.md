@@ -2,6 +2,10 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
+> **Security amendment:** Preview deployment steps in this original plan are superseded by
+> `2026-07-27-phase-1-deployment-review-fixes.md`. Do not provision a preview health token or Workflow
+> binding, and do not execute PR-controlled code or artifacts with deployment credentials.
+
 **Goal:** Run UnseenPrompt reproducibly on Cloudflare Workers in isolated local, preview, staging, and production environments, with safe deployment controls, non-sensitive readiness checks, and a verified Cloudflare Workflows binding.
 
 **Architecture:** Keep the existing single Next.js/OpenNext Worker. Use Wrangler named environments to create separate preview, staging, and production Workers; use version preview aliases for pull requests, deploy staging automatically from `main`, and promote production only through a protected manual GitHub Actions job. Add a small custom Worker entry point that delegates HTTP traffic to OpenNext and exports one no-op health Workflow, while Next.js route handlers expose public runtime readiness and a token-protected workflow probe.

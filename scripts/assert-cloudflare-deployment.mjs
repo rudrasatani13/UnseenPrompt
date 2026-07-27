@@ -15,6 +15,9 @@ export async function assertCloudflareDeployment({
   if (!expectedReleaseSha) {
     throw new Error("GITHUB_SHA is required");
   }
+  if (!/^[0-9a-f]{40}$/.test(expectedReleaseSha)) {
+    throw new Error("GITHUB_SHA must be a 40-character lowercase commit SHA");
+  }
 
   const baseUrl = new URL(deploymentUrl);
   const healthResponse = await fetchImpl(new URL("/api/health", baseUrl), {

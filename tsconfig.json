@@ -37,4 +37,3 @@
   ],
   "exclude": ["node_modules", ".open-next", "scripts"]
 }
-

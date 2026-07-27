@@ -13,7 +13,8 @@ Test runners may use `APP_ENV=test` with `NEXT_PUBLIC_APP_URL=http://localhost:3
 
 `NEXT_PUBLIC_APP_URL` is the canonical environment URL (for example `https://preview.unseenprompt.com` or the staging/production host), not a per-version preview URL. Authentication callback URLs are deferred to Phase 4.
 
-`HEALTHCHECK_TOKEN` must be at least 32 random bytes, unique per environment, and never committed. Local copies live only in ignored `.dev.vars`.
+`HEALTHCHECK_TOKEN` must be at least 32 random bytes, unique to local, staging, or production, and never
+committed. Preview intentionally has no health token. Local copies live only in ignored `.dev.vars`.
 
 ## Dummy template
 

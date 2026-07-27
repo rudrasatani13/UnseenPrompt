@@ -57,6 +57,18 @@ export async function POST(request: Request): Promise<NextResponse> {
   }
 
   const { workflow } = getRuntimeBindings();
+  if (!workflow) {
+    return NextResponse.json(
+      { error: "workflow_binding_unavailable" },
+      {
+        status: 503,
+        headers: {
+          "Cache-Control": "no-store",
+        },
+      },
+    );
+  }
+
   const created = await workflow.createBatch([
     {
       id: instanceId,

@@ -36,6 +36,17 @@ describe("Wrangler output parsing", () => {
     expect(() => resolveDeploymentUrl([{ type: "deploy", targets: [] }])).toThrow("did not report");
   });
 
+  test("rejects line breaks that could inject GitHub outputs", () => {
+    expect(() =>
+      resolvePreviewUrl([
+        {
+          type: "version-upload",
+          preview_url: "https://preview.example.test/\nforged=value",
+        },
+      ]),
+    ).toThrow("must not contain line breaks");
+  });
+
   test("resolves production version IDs", () => {
     expect(resolveVersionId([{ type: "version-upload", version_id: "version-123" }])).toBe(
       "version-123",

@@ -3,14 +3,17 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const createBatch = vi.fn();
 const get = vi.fn();
 const status = vi.fn();
+const runtime = vi.hoisted(() => ({ workflowAvailable: true }));
 
 vi.mock("@/lib/cloudflare/context", () => ({
   getRuntimeBindings: () => ({
     version: "local",
-    workflow: {
-      createBatch,
-      get,
-    },
+    workflow: runtime.workflowAvailable
+      ? {
+          createBatch,
+          get,
+        }
+      : undefined,
   }),
 }));
 
@@ -22,6 +25,7 @@ describe("POST /api/internal/health/workflow", () => {
     createBatch.mockReset();
     get.mockReset();
     status.mockReset();
+    runtime.workflowAvailable = true;
     process.env.HEALTHCHECK_TOKEN = VALID_TOKEN;
   });
 
@@ -48,6 +52,19 @@ describe("POST /api/internal/health/workflow", () => {
   it("returns 401 when the token is wrong", async () => {
     const response = await post({ Authorization: `Bearer ${"b".repeat(32)}` });
     expect(response.status).toBe(401);
+  });
+
+  it("returns 503 when an authenticated environment has no Workflow binding", async () => {
+    runtime.workflowAvailable = false;
+
+    const response = await post({
+      Authorization: `Bearer ${VALID_TOKEN}`,
+      "Idempotency-Key": "test-probe-0001",
+    });
+
+    expect(response.status).toBe(503);
+    expect(await response.json()).toEqual({ error: "workflow_binding_unavailable" });
+    expect(createBatch).not.toHaveBeenCalled();
   });
 
   it("creates a deterministic Workflow probe with a valid token", async () => {

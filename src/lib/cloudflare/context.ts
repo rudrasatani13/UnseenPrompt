@@ -4,7 +4,7 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 
 export interface RuntimeBindings {
   version: string;
-  workflow: Workflow;
+  workflow: Workflow | undefined;
 }
 
 export function getRuntimeBindings(): RuntimeBindings {

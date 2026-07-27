@@ -4,7 +4,11 @@
 
 **Goal:** Fix the Phase 1 deployment parsers, enforce release identity in smoke tests, and preserve automatic same-repository PR previews without exposing secrets to PR-controlled code.
 
-**Architecture:** A credential-free `pull_request` workflow builds a tarred `.open-next` artifact. A separate `workflow_run` workflow loaded from `main` safely extracts that artifact, then uses trusted main-branch Wrangler tooling and smoke scripts with preview-only credentials. Shared tested scripts parse Wrangler NDJSON and verify the deployed release SHA.
+**Architecture:** A credential-free `pull_request` workflow builds a tarred `.open-next` artifact. A
+separate `workflow_run` workflow loaded from `main` safely extracts that artifact, then uses trusted
+main-branch Wrangler tooling with runner-only deployment credentials. The deployed preview Worker has
+no secrets or Workflow binding. Shared tested scripts parse Wrangler NDJSON and verify the deployed
+release SHA.
 
 **Tech Stack:** GitHub Actions, Node.js 24 ESM, Vitest 4, pnpm 11, Wrangler 4.114.0, OpenNext Cloudflare 1.20.2, Python `tarfile` safe extraction.
 
@@ -13,8 +17,10 @@
 - Same-repository, non-draft pull requests deploy previews automatically before review.
 - The privileged deployment workflow and every executable input it uses come from `main`.
 - Pull-request-controlled code receives no repository or environment secrets.
-- The PR artifact is treated as untrusted data and is never executed on the deployment runner.
-- Preview, staging, and production keep separate health tokens and Cloudflare authority.
+- The PR artifact is treated as untrusted data, cannot overwrite trusted checkout files, and is never
+  executed on the deployment runner.
+- Preview has no runtime secret or Workflow bindings; staging and production keep separate health
+  tokens and Cloudflare authority.
 - Every deployment smoke test requires the exact expected 40-character lowercase release SHA.
 - All third-party GitHub Actions remain pinned to full commit SHAs.
 - Do not add runtime dependencies; `yaml@2.9.0` may be added only as a direct dev dependency for workflow-policy tests.
@@ -30,6 +36,10 @@
 - Create `scripts/assert-cloudflare-deployment.test.ts`: health/release/Workflow probe tests.
 - Create `scripts/assert-preview-workflow-trust.mjs`: parsed workflow-policy checker and CLI.
 - Create `scripts/assert-preview-workflow-trust.test.ts`: security-boundary regression tests.
+- Create `scripts/extract-preview-artifact.py`: allowlist and safely extract the untrusted Worker archive.
+- Create `scripts/extract-preview-artifact.test.ts`: archive-overwrite and link regression coverage.
+- Create `scripts/assert-preview-secret-isolation.mjs`: fail deployment unless the preview Worker has
+  zero Cloudflare secret bindings.
 - Create `.github/workflows/build-preview.yml`: credential-free PR build and artifact upload.
 - Modify `.github/workflows/deploy-preview.yml`: trusted `workflow_run` preview deployment from `main`.
 - Modify `.github/workflows/deploy-release.yml`: use the shared parser and release verifier.
@@ -404,7 +414,10 @@ Create `scripts/assert-preview-workflow-trust.mjs` using `parse` from `yaml`.
 - no deploy checkout selects `github.event.workflow_run.head_sha`;
 - deploy job contains no `pnpm cf:build`;
 - secret-bearing run steps are only the trusted Wrangler upload and trusted
-  `pnpm test:cf-deployment` commands.
+  preview-secret isolation commands;
+- build archive creation dereferences symbolic and hard links;
+- deploy job invokes the trusted preview artifact extractor exactly once;
+- preview smoke receives no health token.
 
 The guarded CLI reads the two repository workflow paths and prints:
 
@@ -432,7 +445,9 @@ and `pnpm cf:build`, but contains no secret references. Then:
 
 ```yaml
 - name: Package preview Worker
-  run: tar --create --file preview-worker.tar .open-next
+  run: >-
+    tar --dereference --hard-dereference
+    --create --file preview-worker.tar .open-next
 - name: Upload preview Worker
   uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
   with:
@@ -479,27 +494,20 @@ On a fresh runner:
 4. download the run-scoped artifact using
    `actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c` (`v8.0.1`), `run-id`,
    `github-token`, and destination `preview-artifact`;
-5. extract with:
+5. extract with the trusted allowlisting script:
 
 ```bash
-python3 - <<'PY'
-import tarfile
-from pathlib import Path
-
-archive = Path("preview-artifact/preview-worker.tar")
-if not archive.is_file():
-    raise SystemExit("Preview artifact archive is missing")
-with tarfile.open(archive) as bundle:
-    bundle.extractall(".", filter="data")
-if not Path(".open-next/worker.js").is_file():
-    raise SystemExit("Preview artifact does not contain .open-next/worker.js")
-PY
+python3 scripts/extract-preview-artifact.py preview-artifact/preview-worker.tar .
 ```
 
-6. run trusted `pnpm exec wrangler versions upload` with preview-only secrets, PR alias, and
+The extractor rejects paths outside `.open-next`, duplicate names, links, devices, and other
+non-regular members before extracting anything. It then applies `tarfile` `filter="data"` and requires
+`.open-next/worker.js`.
+
+6. run trusted `pnpm exec wrangler versions upload` with runner-only deployment credentials, PR alias, and
    `--var RELEASE_SHA:${PR_HEAD_SHA}`;
 7. run `node scripts/wrangler-output.mjs preview-url`;
-8. run trusted `pnpm test:cf-deployment` with `GITHUB_SHA: ${PR_HEAD_SHA}` and the preview health token.
+8. run trusted public `pnpm test:cf-deployment` with `GITHUB_SHA: ${PR_HEAD_SHA}` and no health token.
 
 - [ ] **Step 7: Register and run the policy check**
 
@@ -566,9 +574,11 @@ Document:
 - `.open-next` crosses the boundary as a tar artifact and is extracted with `tarfile` `data` filtering;
 - trusted main Wrangler and smoke scripts deploy the PR head SHA;
 - all remote smoke commands require `GITHUB_SHA`;
-- operators must rotate `CLOUDFLARE_API_TOKEN` and `PREVIEW_HEALTHCHECK_TOKEN`;
-- the preview token must be proven unable to reach staging, production, zones, routes, or unrelated
-  Workers.
+- operators must replace the old repository token with `PREVIEW_CLOUDFLARE_API_TOKEN`, configure
+  `PREVIEW_CLOUDFLARE_ACCOUNT_ID` for a preview-only Cloudflare account, delete the preview Worker
+  health secret and obsolete `PREVIEW_HEALTHCHECK_TOKEN`, and verify the preview secret list is empty;
+- the preview account must contain no staging or production resources because Workers Scripts
+  permissions are account-scoped.
 
 - [ ] **Step 2: Update the topology document**
 

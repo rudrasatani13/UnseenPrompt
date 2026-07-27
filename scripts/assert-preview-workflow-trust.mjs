@@ -21,23 +21,19 @@ function stepRun(step) {
 }
 
 function isCheckoutStep(step) {
-  return stepUses(step).includes("actions/checkout@");
+  return stepUses(step).startsWith("actions/checkout@");
 }
 
-function isSecretBearingRun(step) {
-  const run = stepRun(step);
-  if (!run) {
-    return false;
-  }
-  return (
-    /\$\{\{\s*secrets\./.test(run) ||
-    Boolean(step.env && JSON.stringify(step.env).includes("secrets."))
-  );
+function secretNames(step) {
+  const serialized = JSON.stringify(step);
+  return [...serialized.matchAll(/\$\{\{\s*secrets\.([A-Za-z0-9_]+)/g)].map((match) => match[1]);
 }
 
 function isTrustedWranglerUpload(step) {
-  const run = stepRun(step);
-  return run.includes("wrangler versions upload") && run.includes("--env preview");
+  return (
+    stepRun(step).trim() ===
+    'pnpm exec wrangler versions upload --env preview --strict --preview-alias pr-${{ env.PR_NUMBER }} --tag ${{ env.PR_HEAD_SHA }} --message "PR ${{ env.PR_NUMBER }}" --var RELEASE_SHA:${{ env.PR_HEAD_SHA }}'
+  );
 }
 
 function isTrustedDeploymentSmoke(step) {
@@ -45,12 +41,25 @@ function isTrustedDeploymentSmoke(step) {
   return run.includes("pnpm test:cf-deployment") || run.includes("test:cf-deployment");
 }
 
+function isTrustedSecretIsolation(step) {
+  const run = stepRun(step);
+  return run.trim() === "node scripts/assert-preview-secret-isolation.mjs";
+}
+
+function isTrustedArtifactDownload(step, names) {
+  return (
+    stepUses(step).startsWith("actions/download-artifact@") &&
+    names.length > 0 &&
+    names.every((name) => name === "GITHUB_TOKEN")
+  );
+}
+
 export function assertPreviewWorkflowTrust({ buildWorkflow, deployWorkflow }) {
   if (typeof buildWorkflow !== "string" || typeof deployWorkflow !== "string") {
     throw new Error("buildWorkflow and deployWorkflow YAML strings are required");
   }
 
-  if (buildWorkflow.includes("${{ secrets.")) {
+  if (/\$\{\{\s*secrets\./.test(buildWorkflow)) {
     throw new Error("Build Preview Artifact must not reference secrets");
   }
 
@@ -60,6 +69,19 @@ export function assertPreviewWorkflowTrust({ buildWorkflow, deployWorkflow }) {
   const buildTriggers = build?.on ?? {};
   if (!Object.prototype.hasOwnProperty.call(buildTriggers, "pull_request")) {
     throw new Error("Build Preview Artifact must trigger on pull_request");
+  }
+
+  const buildSteps = collectSteps(build);
+  const packageSteps = buildSteps.filter((step) => {
+    const run = stepRun(step);
+    return run.includes("preview-worker.tar") && run.includes(".open-next");
+  });
+  if (
+    packageSteps.length !== 1 ||
+    !stepRun(packageSteps[0]).includes("--dereference") ||
+    !stepRun(packageSteps[0]).includes("--hard-dereference")
+  ) {
+    throw new Error("Build Preview Artifact must dereference symbolic and hard links");
   }
 
   const deployTriggers = deploy?.on ?? {};
@@ -74,8 +96,8 @@ export function assertPreviewWorkflowTrust({ buildWorkflow, deployWorkflow }) {
   }
 
   const deployJobs = Object.values(deploy?.jobs ?? {});
-  if (deployJobs.length === 0) {
-    throw new Error("Deploy Preview must define a deploy job");
+  if (deployJobs.length !== 1) {
+    throw new Error("Deploy Preview must define exactly one deploy job");
   }
 
   const deploySteps = collectSteps(deploy);
@@ -89,6 +111,9 @@ export function assertPreviewWorkflowTrust({ buildWorkflow, deployWorkflow }) {
     const ref = step?.with?.ref;
     if (ref !== "main") {
       throw new Error("Deploy Preview checkout must use with.ref main");
+    }
+    if (step?.with?.["persist-credentials"] !== false) {
+      throw new Error("Deploy Preview checkout must not persist credentials");
     }
   }
 
@@ -112,25 +137,84 @@ export function assertPreviewWorkflowTrust({ buildWorkflow, deployWorkflow }) {
     }
   }
 
+  const trustedExtractionSteps = deploySteps.filter((step) =>
+    stepRun(step).includes("python3 scripts/extract-preview-artifact.py"),
+  );
+  if (trustedExtractionSteps.length !== 1 || deployWorkflow.includes("extractall(")) {
+    throw new Error("Deploy Preview must use the trusted preview artifact extractor");
+  }
+
   for (const step of deploySteps) {
-    if (!isSecretBearingRun(step)) {
+    const names = secretNames(step);
+    if (names.length === 0) {
       continue;
     }
-    if (isTrustedWranglerUpload(step) || isTrustedDeploymentSmoke(step)) {
+
+    if (isTrustedDeploymentSmoke(step)) {
+      throw new Error("Deploy Preview preview smoke must not receive secrets");
+    }
+
+    if (stepUses(step)) {
+      if (isTrustedArtifactDownload(step, names)) {
+        continue;
+      }
+      throw new Error("Deploy Preview secret-bearing action is not allowed");
+    }
+
+    if (isTrustedWranglerUpload(step) || isTrustedSecretIsolation(step)) {
       continue;
     }
-    // Secret-bearing env on a step whose run is trusted wrangler/smoke is allowed via env block
-    const envText = step.env ? JSON.stringify(step.env) : "";
-    const run = stepRun(step);
-    if (
-      envText.includes("secrets.") &&
-      (run.includes("wrangler versions upload") ||
-        run.includes("pnpm test:cf-deployment") ||
-        run.includes("test:cf-deployment"))
-    ) {
-      continue;
+    throw new Error("Deploy Preview secret-bearing steps must be trusted upload or isolation only");
+  }
+
+  const allSteps = [...buildSteps, ...deploySteps];
+  for (const step of allSteps) {
+    const uses = stepUses(step);
+    if (uses && !uses.startsWith("./") && !/@[0-9a-f]{40}$/.test(uses)) {
+      throw new Error("Preview workflows must pin third-party actions to full commit SHAs");
     }
-    throw new Error("Deploy Preview secret-bearing steps must be trusted upload or smoke only");
+  }
+
+  const downloadSteps = deploySteps.filter((step) =>
+    stepUses(step).startsWith("actions/download-artifact@"),
+  );
+  if (downloadSteps.length !== 1) {
+    throw new Error("Deploy Preview must download exactly one preview artifact");
+  }
+  const download = downloadSteps[0];
+  if (
+    download?.with?.["run-id"] !== "${{ github.event.workflow_run.id }}" ||
+    download?.with?.name !== "preview-worker-${{ github.event.workflow_run.id }}"
+  ) {
+    throw new Error("Deploy Preview must bind the artifact to workflow_run.id");
+  }
+
+  if (
+    deploy?.permissions?.actions !== "read" ||
+    deploy?.permissions?.contents !== "read" ||
+    Object.keys(deploy.permissions).length !== 2
+  ) {
+    throw new Error("Deploy Preview permissions must be actions: read and contents: read only");
+  }
+
+  if (
+    !deployWorkflow.includes("secrets.PREVIEW_CLOUDFLARE_ACCOUNT_ID") ||
+    !deployWorkflow.includes("secrets.PREVIEW_CLOUDFLARE_API_TOKEN") ||
+    deployWorkflow.includes("${{ secrets.CLOUDFLARE_ACCOUNT_ID") ||
+    deployWorkflow.includes("${{ secrets.CLOUDFLARE_API_TOKEN")
+  ) {
+    throw new Error("Deploy Preview must use preview-specific Cloudflare credentials");
+  }
+
+  const deployCondition = String(deployJobs[0]?.if ?? "");
+  for (const requiredCondition of [
+    "workflow_run.conclusion == 'success'",
+    "workflow_run.head_repository.full_name == github.repository",
+    "workflow_run.pull_requests[0].number != null",
+  ]) {
+    if (!deployCondition.includes(requiredCondition)) {
+      throw new Error("Deploy Preview must gate successful same-repository pull request runs");
+    }
   }
 
   return true;

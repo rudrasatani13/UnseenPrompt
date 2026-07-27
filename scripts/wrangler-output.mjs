@@ -14,6 +14,9 @@ function requireHttpsUrl(value, label) {
     throw new Error(`Wrangler did not report ${label}`);
   }
   const raw = String(value);
+  if (/[\r\n]/.test(raw)) {
+    throw new Error(`${label} must not contain line breaks`);
+  }
   const url = new URL(raw);
   if (url.protocol !== "https:") {
     throw new Error(`${label} must use HTTPS`);

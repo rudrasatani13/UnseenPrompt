@@ -45,20 +45,14 @@
         "binding": "CF_VERSION_METADATA",
       },
       "secrets": {
-        "required": ["HEALTHCHECK_TOKEN"],
+        "required": [],
       },
       "vars": {
         "APP_ENV": "preview",
         "NEXT_PUBLIC_APP_URL": "https://preview.unseenprompt.com",
         "RELEASE_SHA": "preview",
       },
-      "workflows": [
-        {
-          "name": "unseenprompt-health-preview",
-          "binding": "RUNTIME_HEALTH_WORKFLOW",
-          "class_name": "RuntimeHealthWorkflow",
-        },
-      ],
+      "workflows": [],
     },
     "staging": {
       "name": "unseenprompt-staging",

@@ -9,6 +9,18 @@ const jsonResponse = (body: unknown, status = 200) =>
   });
 
 describe("deployment verification", () => {
+  test("rejects an expected release that is not a full lowercase commit SHA", async () => {
+    await expect(
+      assertCloudflareDeployment({
+        deploymentUrl: "https://preview.example.test",
+        expectedReleaseSha: "short-sha",
+        fetchImpl: () => {
+          throw new Error("fetch must not run");
+        },
+      }),
+    ).rejects.toThrow("40-character lowercase commit SHA");
+  });
+
   test("rejects a healthy deployment with the wrong release", async () => {
     const fetchImpl = vi.fn(async () =>
       jsonResponse({
