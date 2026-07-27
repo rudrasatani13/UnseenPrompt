@@ -1,30 +1,49 @@
-const deploymentUrl = process.env.DEPLOYMENT_URL;
+import { pathToFileURL } from "node:url";
 
-if (!deploymentUrl) {
-  throw new Error("DEPLOYMENT_URL is required");
-}
+const defaultSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const baseUrl = new URL(deploymentUrl);
-const healthResponse = await fetch(new URL("/api/health", baseUrl), {
-  headers: { Accept: "application/json" },
-});
-const health = await healthResponse.json();
+export async function assertCloudflareDeployment({
+  deploymentUrl,
+  expectedReleaseSha,
+  healthcheckToken,
+  fetchImpl = fetch,
+  sleep = defaultSleep,
+}) {
+  if (!deploymentUrl) {
+    throw new Error("DEPLOYMENT_URL is required");
+  }
+  if (!expectedReleaseSha) {
+    throw new Error("GITHUB_SHA is required");
+  }
 
-if (!healthResponse.ok || health.service !== "unseenprompt" || health.status !== "ok") {
-  throw new Error(`Runtime health failed with HTTP ${healthResponse.status}`);
-}
+  const baseUrl = new URL(deploymentUrl);
+  const healthResponse = await fetchImpl(new URL("/api/health", baseUrl), {
+    headers: { Accept: "application/json" },
+  });
+  const health = await healthResponse.json();
 
-const token = process.env.HEALTHCHECK_TOKEN;
+  if (!healthResponse.ok || health.service !== "unseenprompt" || health.status !== "ok") {
+    throw new Error(`Runtime health failed with HTTP ${healthResponse.status}`);
+  }
 
-if (token) {
-  const idempotencyKey = `deploy-${process.env.GITHUB_SHA ?? "manual"}`.slice(0, 80);
+  if (health.release !== expectedReleaseSha) {
+    throw new Error(
+      `Runtime release mismatch: expected ${expectedReleaseSha}, received ${health.release ?? "missing"}`,
+    );
+  }
+
+  if (!healthcheckToken) {
+    return;
+  }
+
+  const idempotencyKey = `deploy-${expectedReleaseSha}`.slice(0, 80);
   let workflow;
 
   for (let attempt = 0; attempt < 20; attempt += 1) {
-    const response = await fetch(new URL("/api/internal/health/workflow", baseUrl), {
+    const response = await fetchImpl(new URL("/api/internal/health/workflow", baseUrl), {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${token}`,
+        Authorization: `Bearer ${healthcheckToken}`,
         "Idempotency-Key": idempotencyKey,
       },
     });
@@ -39,10 +58,23 @@ if (token) {
       throw new Error(`Workflow probe failed with HTTP ${response.status}`);
     }
 
-    await new Promise((resolve) => setTimeout(resolve, 1_000));
+    await sleep(1_000);
   }
 
   if (workflow?.status !== "complete" || workflow.output?.ok !== true) {
     throw new Error(`Workflow did not complete: ${workflow?.status ?? "unknown"}`);
   }
+}
+
+export async function main(env = process.env) {
+  await assertCloudflareDeployment({
+    deploymentUrl: env.DEPLOYMENT_URL,
+    expectedReleaseSha: env.GITHUB_SHA,
+    healthcheckToken: env.HEALTHCHECK_TOKEN,
+  });
+}
+
+const entryPath = process.argv[1];
+if (entryPath && pathToFileURL(entryPath).href === import.meta.url) {
+  await main();
 }
