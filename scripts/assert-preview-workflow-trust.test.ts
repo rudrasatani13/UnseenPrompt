@@ -21,8 +21,21 @@ describe("preview workflow trust boundary", () => {
     );
   });
 
+  test("rejects shell tar packaging that fails on dangling dependency links", async () => {
+    const deployWorkflow = await readFile(".github/workflows/deploy-preview.yml", "utf8");
+    const buildWorkflow = `on: { pull_request: {} }
+jobs:
+  build:
+    steps:
+      - run: tar --dereference --hard-dereference --create --file preview-worker.tar .open-next`;
+
+    expect(() => assertPreviewWorkflowTrust({ buildWorkflow, deployWorkflow })).toThrow(
+      "must use the safe preview artifact packager",
+    );
+  });
+
   test("rejects privileged extraction that can overwrite the trusted checkout", () => {
-    const buildWorkflow = `on: { pull_request: {} }\njobs: { build: { steps: [{ run: "tar --dereference --hard-dereference --create --file preview-worker.tar .open-next" }] } }`;
+    const buildWorkflow = `on: { pull_request: {} }\njobs: { build: { steps: [{ run: "python3 scripts/package-preview-artifact.py .open-next preview-worker.tar" }] } }`;
     const deployWorkflow = `on: { workflow_run: { workflows: [Build Preview Artifact] } }
 jobs:
   deploy:
@@ -40,7 +53,7 @@ jobs:
     );
   });
 
-  test("rejects build archives that preserve links", () => {
+  test("rejects build archives that bypass the safe packager", () => {
     const buildWorkflow = `on: { pull_request: {} }
 jobs:
   build:
@@ -55,12 +68,12 @@ jobs:
       - run: python3 scripts/extract-preview-artifact.py preview-worker.tar .`;
 
     expect(() => assertPreviewWorkflowTrust({ buildWorkflow, deployWorkflow })).toThrow(
-      "must dereference symbolic and hard links",
+      "must use the safe preview artifact packager",
     );
   });
 
   test("rejects a preview smoke step that receives a secret", () => {
-    const buildWorkflow = `on: { pull_request: {} }\njobs: { build: { steps: [{ run: "tar --dereference --hard-dereference --create --file preview-worker.tar .open-next" }] } }`;
+    const buildWorkflow = `on: { pull_request: {} }\njobs: { build: { steps: [{ run: "python3 scripts/package-preview-artifact.py .open-next preview-worker.tar" }] } }`;
     const deployWorkflow = `on: { workflow_run: { workflows: [Build Preview Artifact] } }
 jobs:
   deploy:
@@ -78,7 +91,7 @@ jobs:
   });
 
   test("rejects secret-bearing third-party action steps", () => {
-    const buildWorkflow = `on: { pull_request: {} }\njobs: { build: { steps: [{ run: "tar --dereference --hard-dereference --create --file preview-worker.tar .open-next" }] } }`;
+    const buildWorkflow = `on: { pull_request: {} }\njobs: { build: { steps: [{ run: "python3 scripts/package-preview-artifact.py .open-next preview-worker.tar" }] } }`;
     const deployWorkflow = `on: { workflow_run: { workflows: [Build Preview Artifact] } }
 jobs:
   deploy:

@@ -39,9 +39,7 @@ jobs:
       - name: Build Worker
         run: pnpm cf:build
       - name: Package preview Worker
-        run: >-
-          tar --dereference --hard-dereference
-          --create --file preview-worker.tar .open-next
+        run: python3 scripts/package-preview-artifact.py .open-next preview-worker.tar
       - name: Upload preview Worker
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:

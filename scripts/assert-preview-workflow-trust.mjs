@@ -91,10 +91,10 @@ export function assertPreviewWorkflowTrust({ buildWorkflow, deployWorkflow }) {
   });
   if (
     packageSteps.length !== 1 ||
-    !stepRun(packageSteps[0]).includes("--dereference") ||
-    !stepRun(packageSteps[0]).includes("--hard-dereference")
+    stepRun(packageSteps[0]).trim() !==
+      "python3 scripts/package-preview-artifact.py .open-next preview-worker.tar"
   ) {
-    throw new Error("Build Preview Artifact must dereference symbolic and hard links");
+    throw new Error("Build Preview Artifact must use the safe preview artifact packager");
   }
 
   const deployTriggers = deploy?.on ?? {};
