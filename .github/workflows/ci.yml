@@ -90,6 +90,8 @@ jobs:
         run: pnpm cf:types:check
       - name: Check Workers dependency policy
         run: pnpm check:workers-deps
+      - name: Check preview workflow trust boundary
+        run: pnpm check:preview-workflow-trust
       - name: Build Workers bundle
         run: pnpm cf:build
       - name: Assert bundle entry point
