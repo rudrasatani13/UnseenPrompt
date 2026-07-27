@@ -7,7 +7,7 @@
 **Status:** Approved Concept — Pre-Development  
 **Brand:** UnseenPrompt  
 **Product:** UnseenPrompt — Stateful Project Copilot  
-**Domain:** `unseenprompt.cloud` (planned; not yet purchased)  
+**Domain:** `unseenprompt.com` (purchased)  
 **Companion Doc:** `UnseenPrompt – DEVELOPMENT_PLAN.md`
 
 ---
@@ -105,7 +105,7 @@ UnseenPrompt sits between product discovery, lightweight project management, and
 |---|---|
 | Brand | UnseenPrompt |
 | Product | Stateful Project Copilot |
-| Planned domain | `unseenprompt.cloud` |
+| Primary domain | `unseenprompt.com` |
 | Platform | Responsive web application |
 | Supported projects | Websites and web applications |
 | Supported coding agents | Claude Code, OpenAI Codex, Cursor |
@@ -532,4 +532,4 @@ UnseenPrompt succeeds when:
 ---
 
 *UnseenPrompt Master Plan v1.0.0 — July 2026*  
-*Planned domain: unseenprompt.cloud*
+*Primary domain: unseenprompt.com*

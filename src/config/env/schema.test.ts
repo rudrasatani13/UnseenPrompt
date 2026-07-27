@@ -28,7 +28,7 @@ describe("parseEnvironment", () => {
     expect(() =>
       parseEnvironment({
         APP_ENV: "prod",
-        NEXT_PUBLIC_APP_URL: "unseenprompt.cloud",
+        NEXT_PUBLIC_APP_URL: "unseenprompt.com",
       }),
     ).toThrow();
   });
@@ -46,7 +46,7 @@ describe("parseEnvironment", () => {
     expect(() =>
       parseEnvironment({
         APP_ENV: "staging",
-        NEXT_PUBLIC_APP_URL: "http://staging.unseenprompt.cloud",
+        NEXT_PUBLIC_APP_URL: "http://staging.unseenprompt.com",
       }),
     ).toThrow(/HTTPS/);
   });

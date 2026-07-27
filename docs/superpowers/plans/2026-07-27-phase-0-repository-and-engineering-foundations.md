@@ -24,7 +24,7 @@
 - All state-changing operations are owner-scoped and idempotent.
 - Cloudflare runtime compatibility is verified before production deployment.
 - Do not create remote Cloudflare, Supabase, Sentry, PostHog, Paddle, or AI-provider resources in Phase 0.
-- Do not commit `.env*`, `.dev.vars*`, credentials, tokens, service-role keys, provider keys, production URLs, or generated build output.
+- Do not commit `.env*`, `.dev.vars*`, credentials, tokens, service-role keys, provider keys, or generated build output.
 - Use the exact direct-dependency versions recorded in this plan and commit `pnpm-lock.yaml`; dependency upgrades require a separate reviewed change.
 - Run all GitHub Actions with `permissions: contents: read`; do not grant write or OIDC permissions in Phase 0.
 
@@ -628,7 +628,7 @@ describe("parseEnvironment", () => {
     expect(() =>
       parseEnvironment({
         APP_ENV: "prod",
-        NEXT_PUBLIC_APP_URL: "unseenprompt.cloud",
+        NEXT_PUBLIC_APP_URL: "unseenprompt.com",
       }),
     ).toThrow();
   });
@@ -646,7 +646,7 @@ describe("parseEnvironment", () => {
     expect(() =>
       parseEnvironment({
         APP_ENV: "staging",
-        NEXT_PUBLIC_APP_URL: "http://staging.unseenprompt.cloud",
+        NEXT_PUBLIC_APP_URL: "http://staging.unseenprompt.com",
       }),
     ).toThrow(/HTTPS/);
   });
@@ -764,7 +764,7 @@ git commit -m "feat: add fail-closed environment validation"
 **Interfaces:**
 
 - Consumes: `getServerEnvironment()` from Task 3.
-- Produces: a neutral root page containing the accessible name `UnseenPrompt` and metadata prepared for `unseenprompt.cloud`.
+- Produces: a neutral root page containing the accessible name `UnseenPrompt` and metadata prepared for `unseenprompt.com`.
 
 - [ ] **Step 1: Configure Vitest**
 
@@ -1203,10 +1203,10 @@ Also prohibit ambiguous abbreviations, provider names in canonical domain types,
 
 `docs/development/environment-contract.md` must contain a matrix:
 
-| Variable              | Visibility | Local     | Preview             | Staging           | Production              | Owner    |
-| --------------------- | ---------- | --------- | ------------------- | ----------------- | ----------------------- | -------- |
-| `APP_ENV`             | Server     | `local`   | `preview`           | `staging`         | `production`            | Platform |
-| `NEXT_PUBLIC_APP_URL` | Public     | localhost | ephemeral HTTPS URL | staging HTTPS URL | verified production URL | Platform |
+| Variable              | Visibility | Local     | Preview             | Staging           | Production                 | Owner    |
+| --------------------- | ---------- | --------- | ------------------- | ----------------- | -------------------------- | -------- |
+| `APP_ENV`             | Server     | `local`   | `preview`           | `staging`         | `production`               | Platform |
+| `NEXT_PUBLIC_APP_URL` | Public     | localhost | ephemeral HTTPS URL | staging HTTPS URL | `https://unseenprompt.com` | Platform |
 
 State that future variables are added only in the phase introducing their consumer; every addition requires schema tests, `.env.example` dummy values where safe, CI/deployment configuration, and documentation. Secrets must never receive dummy-looking production-shaped values in a public variable.
 
@@ -1459,7 +1459,7 @@ Confirm manually:
 - Local/preview/staging/production environment contracts are documented without credentials.
 - CI contains lint, typecheck, unit, database, build, and Workers preview gates.
 - Both approved source plans remain present and unchanged.
-- Product identity is `UnseenPrompt`, and planned production metadata can use `unseenprompt.cloud` once purchased.
+- Product identity is `UnseenPrompt`, and production metadata uses `unseenprompt.com` after DNS and Cloudflare ownership verification.
 
 - [ ] **Step 6: Create the completion commit only if fixes were required**
 
@@ -1501,7 +1501,7 @@ Do not mark Phase 0 complete until the pull-request CI run passes.
 | Dummy-only environment template                                            | Task 3            | Secret scan plus tracked-file check                          |
 | CI: lint, typecheck, unit, database, build, preview                        | Task 8            | Three required GitHub Actions jobs                           |
 | Approved plans and design documentation                                    | Task 7            | Repository documentation index and Phase 0 architecture spec |
-| UnseenPrompt identity and planned domain metadata                          | Task 4            | Component test, metadata, preview assertion                  |
+| UnseenPrompt identity and primary domain metadata                          | Task 4            | Component test, metadata, preview assertion                  |
 | CI build exit criterion                                                    | Tasks 8–9         | `quality` job                                                |
 | Test runner executes                                                       | Tasks 3–5 and 8–9 | Vitest and pgTAP output                                      |
 | Missing environment values fail safely                                     | Task 3            | Negative schema test and empty-env command                   |
