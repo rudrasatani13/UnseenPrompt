@@ -35,9 +35,32 @@ describe("deployment verification", () => {
         deploymentUrl: "https://preview.example.test",
         expectedReleaseSha: "a".repeat(40),
         fetchImpl,
+        sleep: async () => undefined,
       }),
     ).rejects.toThrow("release mismatch");
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalledTimes(20);
+  });
+
+  test("retries a stale release during deployment propagation", async () => {
+    const expectedReleaseSha = "e".repeat(40);
+    const responses = [
+      jsonResponse({
+        service: "unseenprompt",
+        status: "ok",
+        release: "d".repeat(40),
+      }),
+      jsonResponse({ service: "unseenprompt", status: "ok", release: expectedReleaseSha }),
+    ];
+    const fetchImpl = vi.fn(async () => responses.shift()!);
+
+    await assertCloudflareDeployment({
+      deploymentUrl: "https://preview.example.test",
+      expectedReleaseSha,
+      fetchImpl,
+      sleep: async () => undefined,
+    });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
   test("retries an empty health response during deployment propagation", async () => {
