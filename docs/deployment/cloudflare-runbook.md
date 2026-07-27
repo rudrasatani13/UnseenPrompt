@@ -4,12 +4,12 @@ Operational procedures for UnseenPrompt Workers. Do **not** put real account IDs
 
 ## Environment mapping
 
-| Logical environment | Worker name               | Workflow name                    | Trigger                                         |
-| ------------------- | ------------------------- | -------------------------------- | ----------------------------------------------- |
-| Local               | `unseenprompt-local`      | `unseenprompt-health-local`      | Developer command                               |
-| Preview             | `unseenprompt-preview`    | `unseenprompt-health-preview`    | Pull request open/update (`deploy-preview.yml`) |
-| Staging             | `unseenprompt-staging`    | `unseenprompt-health-staging`    | Push to `main` (`deploy-release.yml`)           |
-| Production          | `unseenprompt-production` | `unseenprompt-health-production` | Manual dispatch + GitHub Environment approval   |
+| Logical environment | Worker name               | Workflow name                    | Trigger                                                                 |
+| ------------------- | ------------------------- | -------------------------------- | ----------------------------------------------------------------------- |
+| Local               | `unseenprompt-local`      | `unseenprompt-health-local`      | Developer command                                                       |
+| Preview             | `unseenprompt-preview`    | `unseenprompt-health-preview`    | `Build Preview Artifact` then trusted `Deploy Preview` (`workflow_run`) |
+| Staging             | `unseenprompt-staging`    | `unseenprompt-health-staging`    | Push to `main` (`deploy-release.yml`)                                   |
+| Production          | `unseenprompt-production` | `unseenprompt-health-production` | Manual dispatch + GitHub Environment approval                           |
 
 Wrangler named environments create separate Workers. Preview version aliases isolate code and URLs, but they share the preview Worker's bindings. Phase 3 must revisit data isolation when Supabase resources appear.
 
@@ -25,6 +25,15 @@ Wrangler named environments create separate Workers. Preview version aliases iso
 | `PRODUCTION_HEALTHCHECK_TOKEN` | GitHub Environment `production` | Platform | Must match production Worker secret                        |
 
 **Never copy production secrets into preview or staging.**
+
+### Operator rotation after Phase 1 review
+
+After any suspected exposure or after adopting the trusted-preview pipeline:
+
+1. Rotate `CLOUDFLARE_API_TOKEN` (new least-privilege token).
+2. Rotate `PREVIEW_HEALTHCHECK_TOKEN` (and the matching Worker secret).
+3. Prove the preview token **cannot** reach staging, production, zones, routes, or unrelated Workers.
+4. Update GitHub secrets to match.
 
 Generate a local token for Wrangler:
 
@@ -43,21 +52,31 @@ cp .dev.vars.example .dev.vars
 
 pnpm cf:types:check
 pnpm check:workers-deps
+pnpm check:preview-workflow-trust
 pnpm cf:build
 pnpm test:cf-preview
 ```
 
 Local preview URL: `http://127.0.0.1:8787`.
 
-## Remote preview
+## Remote preview (two-workflow pipeline)
 
-Handled by `.github/workflows/deploy-preview.yml` for same-repository, non-draft PRs. Outputs:
+Same-repository, non-draft PRs still get automatic previews, with a hard trust boundary:
 
-- versioned Workers preview URL
-- alias `pr-<number>`
-- remote smoke via `pnpm test:cf-deployment`
+1. **`Build Preview Artifact`** (`.github/workflows/build-preview.yml`) runs on `pull_request`.
+   - Checks out the PR head and runs `pnpm cf:build` **without secrets**.
+   - Packages `.open-next` as `preview-worker.tar` and uploads artifact `preview-worker-<run_id>`.
+2. **`Deploy Preview`** (`.github/workflows/deploy-preview.yml`) runs on `workflow_run` for successful
+   `Build Preview Artifact` completions.
+   - Workflow definition is **loaded from `main`** (not from the PR branch).
+   - Checks out **exactly** `ref: main` for Wrangler config, scripts, and lockfile.
+   - Downloads the untrusted tar artifact and extracts it with Python `tarfile` `filter="data"`.
+   - Never executes files from the artifact; never runs `pnpm cf:build` on the privileged runner.
+   - Uploads a preview Worker version with alias `pr-<number>` and `RELEASE_SHA` set to the PR head SHA.
+   - Resolves the preview URL via `node scripts/wrangler-output.mjs preview-url`.
+   - Smokes with `pnpm test:cf-deployment` requiring `GITHUB_SHA` equal to the PR head SHA.
 
-Fork PRs skip remote deploy (secrets unavailable); CI still runs.
+Fork PRs skip remote deploy (no secrets on untrusted forks); normal CI still runs.
 
 ## Staging
 
@@ -65,7 +84,10 @@ Automatic on push to `main`:
 
 1. Quality gates + `pnpm cf:build`
 2. `wrangler deploy --env staging --var RELEASE_SHA:<sha>`
-3. `DEPLOYMENT_URL=... HEALTHCHECK_TOKEN=... pnpm test:cf-deployment`
+3. Resolve URL with `node scripts/wrangler-output.mjs deployment-url`
+4. `DEPLOYMENT_URL=... HEALTHCHECK_TOKEN=... GITHUB_SHA=... pnpm test:cf-deployment`
+
+All remote smoke commands **require** `GITHUB_SHA` (the exact expected 40-character release identity).
 
 Manual smoke (values only via process environment, never committed):
 
@@ -96,7 +118,7 @@ pnpm exec wrangler deploy --env production --dry-run
 2. Ensure GitHub Environment variable `PRODUCTION_DOMAIN_VERIFIED` is exactly `true`.
 3. Run **Deploy Release** workflow_dispatch with `target=production` and the full 40-char SHA.
 4. Approve the `production` environment gate.
-5. Pipeline dry-runs, uploads a tagged version, promotes `VERSION_ID@100`, then smokes `https://unseenprompt.com`.
+5. Pipeline dry-runs, uploads a tagged version, promotes `VERSION_ID@100`, then smokes `https://unseenprompt.com` with `GITHUB_SHA` set to the release SHA.
 
 Production routes:
 
@@ -113,7 +135,7 @@ pnpm exec wrangler deployments list --env production
 pnpm exec wrangler versions deploy --env production "${PREVIOUS_VERSION_ID}@100" --yes
 ```
 
-After rollback, re-run runtime and Workflow smoke against `https://unseenprompt.com`. Worker version rollback does **not** roll back databases, object storage, or external state.
+After rollback, re-run runtime and Workflow smoke against `https://unseenprompt.com` with the rolled-back release `GITHUB_SHA`. Worker version rollback does **not** roll back databases, object storage, or external state.
 
 ## Logs
 

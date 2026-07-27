@@ -9,7 +9,7 @@ Run UnseenPrompt reproducibly on Cloudflare Workers in isolated local, preview, 
 | Logical environment | Cloudflare target         | Trigger                                                       | Public URL behavior                               |
 | ------------------- | ------------------------- | ------------------------------------------------------------- | ------------------------------------------------- |
 | Local               | Wrangler local simulator  | Developer command                                             | `http://127.0.0.1:8787`                           |
-| Preview             | `unseenprompt-preview`    | Pull request open/update                                      | Versioned URL plus alias `pr-<number>`            |
+| Preview             | `unseenprompt-preview`    | PR build artifact + trusted `workflow_run` deployer           | Versioned URL plus alias `pr-<number>`            |
 | Staging             | `unseenprompt-staging`    | Push to `main`                                                | Workers.dev URL; later `staging.unseenprompt.com` |
 | Production          | `unseenprompt-production` | Manual dispatch from `main` after GitHub Environment approval | `unseenprompt.com` and `www.unseenprompt.com`     |
 
@@ -21,6 +21,22 @@ Pull-request previews upload Worker **versions** with alias `pr-<number>`. Code 
 
 **Phase 3 requirement:** introduce per-PR data isolation when Supabase resources appear.
 
+## Trusted-main preview boundary
+
+Automatic same-repository PR previews use a two-workflow design:
+
+```text
+PR head -> credential-free OpenNext build -> untrusted artifact
+        -> trusted main workflow_run deployer -> preview version -> release-identity smoke
+```
+
+- **`Build Preview Artifact`** runs on `pull_request` with no repository secrets. It produces a tarred `.open-next` artifact only.
+- **`Deploy Preview`** is a `workflow_run` definition loaded from `main`. It checks out exactly `main`, installs trusted tooling, extracts the artifact with Python `tarfile` `filter="data"`, and never executes files from the artifact.
+- PR head SHA is used only as data (`RELEASE_SHA`, tags, smoke expectation), never as the checkout or script source for secret-bearing steps.
+- Remote smoke requires `GITHUB_SHA` to match `/api/health` `release`.
+
+Policy gate: `pnpm check:preview-workflow-trust`.
+
 ## Trust boundaries
 
 | Surface                                | Trust                                        | Notes                                                        |
@@ -30,6 +46,8 @@ Pull-request previews upload Worker **versions** with alias `pr-<number>`. Code 
 | OpenNext HTTP entry                    | Public origin for that environment           | Application routes remain unauthenticated until later phases |
 | Workflow class `RuntimeHealthWorkflow` | Worker-internal                              | No-op health step; product Workflows arrive later            |
 | Deployment credentials                 | GitHub secrets / Environment                 | Least-privilege API token; no repository write in Phase 1    |
+| PR preview build                       | Credential-free                              | No secrets; artifact is untrusted data                       |
+| PR preview deploy                      | Trusted main only                            | `workflow_run` + checkout `main`; preview-scoped secrets     |
 
 ## Custom Worker entry point
 
@@ -62,8 +80,8 @@ Never returns secrets, account IDs, or tokens. Returns `503` when the Workflow b
 
 ## Release flow and rollback limits
 
-1. **PR** → preview version upload + smoke
-2. **Merge to main** → staging deploy + smoke
+1. **PR** → credential-free build artifact → trusted-main preview version upload + release-identity smoke
+2. **Merge to main** → staging deploy + release-identity smoke
 3. **Manual production** → domain verification gate + dry-run + version upload + 100% promote + smoke
 
 Rollback restores a previous Worker version only. It does not roll back external state (databases, storage, third-party systems).

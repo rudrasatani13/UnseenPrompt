@@ -30,7 +30,8 @@ Worker must represent the pull request head SHA.
 
 ### Credential-free PR build workflow
 
-`deploy-preview.yml` remains a `pull_request` workflow for same-repository, non-draft pull requests. It:
+`build-preview.yml` (`Build Preview Artifact`) is the `pull_request` workflow for same-repository,
+non-draft pull requests. It:
 
 1. checks out the PR head SHA;
 2. installs dependencies and builds the Worker without repository secrets;
@@ -42,9 +43,9 @@ not from artifact-controlled metadata.
 
 ### Trusted preview deployment workflow
 
-A new `workflow_run` workflow is stored on `main` and reacts to successful completions of the
-credential-free preview build. Because `workflow_run` loads its workflow definition from the default
-branch, pull requests cannot modify the privileged job before merge.
+`deploy-preview.yml` (`Deploy Preview`) is a `workflow_run` workflow stored on `main` and reacts to
+successful completions of `Build Preview Artifact`. Because `workflow_run` loads its workflow
+definition from the default branch, pull requests cannot modify the privileged job before merge.
 
 The trusted workflow:
 
