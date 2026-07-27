@@ -4,48 +4,21 @@ Operational procedures for UnseenPrompt Workers. Do **not** put real account IDs
 
 ## Environment mapping
 
-| Logical environment | Worker name               | Workflow name                    | Trigger                                                                 |
-| ------------------- | ------------------------- | -------------------------------- | ----------------------------------------------------------------------- |
-| Local               | `unseenprompt-local`      | `unseenprompt-health-local`      | Developer command                                                       |
-| Preview             | `unseenprompt-preview`    | None                             | `Build Preview Artifact` then trusted `Deploy Preview` (`workflow_run`) |
-| Staging             | `unseenprompt-staging`    | `unseenprompt-health-staging`    | Push to `main` (`deploy-release.yml`)                                   |
-| Production          | `unseenprompt-production` | `unseenprompt-health-production` | Manual dispatch + GitHub Environment approval                           |
-
-Wrangler named environments create separate Workers. Preview version aliases isolate code and URLs, but they share the preview Worker's bindings. Phase 3 must revisit data isolation when Supabase resources appear.
+| Logical environment | Worker name               | Workflow name                    | Trigger                                              |
+| ------------------- | ------------------------- | -------------------------------- | ---------------------------------------------------- |
+| Local               | `unseenprompt-local`      | `unseenprompt-health-local`      | Developer command                                    |
+| Staging             | `unseenprompt-staging`    | `unseenprompt-health-staging`    | Push to `main` (`deploy-release.yml`)                |
+| Production          | `unseenprompt-production` | `unseenprompt-health-production` | Automatically after the staging job succeeds on main |
 
 ## Secret ownership and rotation
 
-| Secret                          | Where stored                        | Owner    | Rotation                                                   |
-| ------------------------------- | ----------------------------------- | -------- | ---------------------------------------------------------- |
-| `HEALTHCHECK_TOKEN`             | Local, staging, production only     | Platform | Generate ≥32 random bytes; never reuse across environments |
-| `PREVIEW_CLOUDFLARE_API_TOKEN`  | GitHub repository secret            | Platform | Workers Scripts access in preview-only account             |
-| `PREVIEW_CLOUDFLARE_ACCOUNT_ID` | GitHub repository secret            | Platform | Must differ from staging/production account                |
-| `CLOUDFLARE_API_TOKEN`          | `staging`/`production` Environments | Platform | Separate non-preview deployment credentials                |
-| `CLOUDFLARE_ACCOUNT_ID`         | `staging`/`production` Environments | Platform | Non-preview account identifier                             |
-| `STAGING_HEALTHCHECK_TOKEN`     | GitHub repository secret            | Platform | Must match staging Worker secret                           |
-| `PRODUCTION_HEALTHCHECK_TOKEN`  | GitHub Environment `production`     | Platform | Must match production Worker secret                        |
-
-**The preview Worker must have no secret or Workflow bindings. Never copy production secrets into
-preview or staging.**
-
-Repository variables `STAGING_CLOUDFLARE_ACCOUNT_ID` and `PRODUCTION_CLOUDFLARE_ACCOUNT_ID` are
-required by the trusted preview preflight. Deployment fails if the preview account matches either
-protected account or contains `unseenprompt-staging` / `unseenprompt-production`.
-
-### Operator rotation after Phase 1 review
-
-After any suspected exposure or after adopting the trusted-preview pipeline:
-
-1. Revoke the old repository-level `CLOUDFLARE_API_TOKEN`. Create
-   `PREVIEW_CLOUDFLARE_API_TOKEN` in a preview-only Cloudflare account and configure
-   `PREVIEW_CLOUDFLARE_ACCOUNT_ID`, `STAGING_CLOUDFLARE_ACCOUNT_ID`, and
-   `PRODUCTION_CLOUDFLARE_ACCOUNT_ID`.
-2. Delete `HEALTHCHECK_TOKEN` from `unseenprompt-preview` and delete the obsolete
-   `PREVIEW_HEALTHCHECK_TOKEN` GitHub secret.
-3. Confirm `wrangler secret list --env preview --format json` returns `[]`.
-4. Prove the preview account ID differs from staging/production and the preview token has no zone,
-   route, storage, or non-Worker permissions. Workers Scripts permissions are account-scoped, so
-   same-account isolation is insufficient.
+| Secret                         | Where stored                        | Owner    | Rotation                                                   |
+| ------------------------------ | ----------------------------------- | -------- | ---------------------------------------------------------- |
+| `HEALTHCHECK_TOKEN`            | Local, staging, production only     | Platform | Generate ≥32 random bytes; never reuse across environments |
+| `CLOUDFLARE_API_TOKEN`         | `staging`/`production` Environments | Platform | Separate credentials for each deployment environment       |
+| `CLOUDFLARE_ACCOUNT_ID`        | `staging`/`production` Environments | Platform | Cloudflare account identifier                              |
+| `STAGING_HEALTHCHECK_TOKEN`    | GitHub Environment `staging`        | Platform | Must match staging Worker secret                           |
+| `PRODUCTION_HEALTHCHECK_TOKEN` | GitHub Environment `production`     | Platform | Must match production Worker secret                        |
 
 Generate a local token for Wrangler:
 
@@ -53,13 +26,6 @@ Generate a local token for Wrangler:
 openssl rand -base64 48
 pnpm exec wrangler secret put HEALTHCHECK_TOKEN --env staging
 pnpm exec wrangler secret put HEALTHCHECK_TOKEN --env production
-```
-
-Do not provision a health token for preview. If one exists from the earlier design, remove it:
-
-```bash
-pnpm exec wrangler secret delete HEALTHCHECK_TOKEN --env preview
-pnpm exec wrangler secret list --env preview --format json
 ```
 
 ## Local commands
@@ -70,36 +36,13 @@ cp .dev.vars.example .dev.vars
 
 pnpm cf:types:check
 pnpm check:workers-deps
-pnpm check:preview-workflow-trust
 pnpm cf:build
 pnpm test:cf-preview
 ```
 
 Local preview URL: `http://127.0.0.1:8787`.
 
-## Remote preview (two-workflow pipeline)
-
-Same-repository, non-draft PRs still get automatic previews, with a hard trust boundary:
-
-1. **`Build Preview Artifact`** (`.github/workflows/build-preview.yml`) runs on `pull_request`.
-   - Checks out the PR head and runs `pnpm cf:build` **without secrets**.
-   - Dereferences build-time links, packages `.open-next` as `preview-worker.tar`, and uploads artifact
-     `preview-worker-<run_id>`.
-2. **`Deploy Preview`** (`.github/workflows/deploy-preview.yml`) runs on `workflow_run` for successful
-   `Build Preview Artifact` completions.
-   - Workflow definition is **loaded from `main`** (not from the PR branch).
-   - Checks out **exactly** `ref: main` for Wrangler config, scripts, and lockfile.
-   - Downloads the untrusted tar artifact and validates every member before extraction: paths must stay
-     under `.open-next`, and only regular files and directories are accepted. Python `tarfile`
-     `filter="data"` provides an additional extraction boundary.
-   - Never executes files from the artifact; never runs `pnpm cf:build` on the privileged runner.
-   - Fails before upload unless the preview Worker has zero Cloudflare secret bindings.
-   - Uploads a preview Worker version with alias `pr-<number>` and `RELEASE_SHA` set to the PR head SHA.
-   - Resolves the preview URL via `node scripts/wrangler-output.mjs preview-url`.
-   - Runs public release-identity smoke with `pnpm test:cf-deployment`; preview receives no health token
-     or Workflow binding.
-
-Fork PRs skip remote deploy (no secrets on untrusted forks); normal CI still runs.
+Pull requests run the local `cloudflare-preview` CI job but do not deploy a remote Worker.
 
 ## Staging
 
@@ -135,13 +78,12 @@ pnpm cf:dry-run:production
 pnpm exec wrangler deploy --env production --dry-run
 ```
 
-### Controlled promotion (GitHub Actions)
+### Automatic promotion (GitHub Actions)
 
-1. Ensure the commit is already on `main`.
-2. Ensure GitHub Environment variable `PRODUCTION_DOMAIN_VERIFIED` is exactly `true`.
-3. Run **Deploy Release** workflow_dispatch with `target=production` and the full 40-char SHA.
-4. Approve the `production` environment gate.
-5. Pipeline dry-runs, uploads a tagged version, promotes `VERSION_ID@100`, then smokes `https://unseenprompt.com` with `GITHUB_SHA` set to the release SHA.
+1. A push or merge to `main` deploys and smokes staging.
+2. The production job starts only after staging succeeds.
+3. The pipeline dry-runs, uploads a tagged production version for the same `github.sha`, promotes
+   `VERSION_ID@100`, then smokes `https://unseenprompt.com`.
 
 Production Custom Domains:
 
@@ -180,7 +122,6 @@ Log only instance IDs and terminal statuses for health probes. Never log `Author
 ## Incident: suspected secret exposure
 
 1. Revoke the Cloudflare API token immediately.
-2. Delete any preview `HEALTHCHECK_TOKEN`; rotate local, staging, and production health tokens (new
-   random values; update the matching non-preview GitHub secrets).
+2. Rotate local, staging, and production health tokens and update the matching GitHub secrets.
 3. Audit recent Worker versions and deployments.
 4. Re-issue least-privilege tokens only after access is restored.

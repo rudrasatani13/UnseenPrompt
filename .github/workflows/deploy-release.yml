@@ -3,28 +3,16 @@ name: Deploy Release
 on:
   push:
     branches: [main]
-  workflow_dispatch:
-    inputs:
-      target:
-        description: Deployment target
-        required: true
-        type: choice
-        options: [production]
-      release_sha:
-        description: Full commit SHA already present on main
-        required: true
-        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: deploy-${{ github.event_name == 'push' && 'staging' || inputs.target }}
+  group: deploy-release
   cancel-in-progress: false
 
 jobs:
   staging:
-    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     timeout-minutes: 25
     environment:
@@ -87,7 +75,7 @@ jobs:
         run: pnpm test:cf-deployment
 
   production:
-    if: github.event_name == 'workflow_dispatch' && inputs.target == 'production'
+    needs: staging
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment:
@@ -97,32 +85,14 @@ jobs:
       CI: "true"
       APP_ENV: production
       NEXT_PUBLIC_APP_URL: https://unseenprompt.com
-      RELEASE_SHA: ${{ inputs.release_sha }}
+      RELEASE_SHA: ${{ github.sha }}
       NODE_VERSION: 24
       PNPM_VERSION: 11.17.0
     steps:
-      - name: Validate release SHA format
+      - name: Require domain verification
         env:
-          RELEASE_SHA_INPUT: ${{ inputs.release_sha }}
-        run: |
-          if [[ ! "$RELEASE_SHA_INPUT" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "release_sha must be a full 40-character lowercase hex commit SHA"
-            exit 1
-          fi
-      - name: Check out repository
-        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
-        with:
-          fetch-depth: 0
-      - name: Require commit on main and domain verification
-        env:
-          RELEASE_SHA_INPUT: ${{ inputs.release_sha }}
           PRODUCTION_DOMAIN_VERIFIED: ${{ vars.PRODUCTION_DOMAIN_VERIFIED }}
         run: |
-          git fetch origin main
-          if ! git merge-base --is-ancestor "$RELEASE_SHA_INPUT" origin/main; then
-            echo "release_sha must already be an ancestor of origin/main"
-            exit 1
-          fi
           if [[ "$PRODUCTION_DOMAIN_VERIFIED" != "true" ]]; then
             echo "PRODUCTION_DOMAIN_VERIFIED must be exactly true before production promotion"
             exit 1
@@ -130,7 +100,7 @@ jobs:
       - name: Check out release SHA
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: ${{ inputs.release_sha }}
+          ref: ${{ github.sha }}
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
@@ -164,7 +134,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.ndjson
-          RELEASE_SHA_INPUT: ${{ inputs.release_sha }}
+          RELEASE_SHA_INPUT: ${{ github.sha }}
         run: |
           pnpm exec wrangler versions upload \
             --env production \
@@ -182,7 +152,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           VERSION_ID: ${{ steps.version.outputs.version_id }}
-          RELEASE_SHA_INPUT: ${{ inputs.release_sha }}
+          RELEASE_SHA_INPUT: ${{ github.sha }}
         run: |
           pnpm exec wrangler versions deploy \
             --env production \
@@ -193,5 +163,5 @@ jobs:
         env:
           DEPLOYMENT_URL: https://unseenprompt.com
           HEALTHCHECK_TOKEN: ${{ secrets.PRODUCTION_HEALTHCHECK_TOKEN }}
-          GITHUB_SHA: ${{ inputs.release_sha }}
+          GITHUB_SHA: ${{ github.sha }}
         run: pnpm test:cf-deployment

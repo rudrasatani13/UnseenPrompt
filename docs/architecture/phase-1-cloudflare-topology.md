@@ -6,59 +6,26 @@ Run UnseenPrompt reproducibly on Cloudflare Workers in isolated local, preview, 
 
 ## Four-environment topology
 
-| Logical environment | Cloudflare target         | Trigger                                                       | Public URL behavior                               |
-| ------------------- | ------------------------- | ------------------------------------------------------------- | ------------------------------------------------- |
-| Local               | Wrangler local simulator  | Developer command                                             | `http://127.0.0.1:8787`                           |
-| Preview             | `unseenprompt-preview`    | PR build artifact + trusted `workflow_run` deployer           | Versioned URL plus alias `pr-<number>`            |
-| Staging             | `unseenprompt-staging`    | Push to `main`                                                | Workers.dev URL; later `staging.unseenprompt.com` |
-| Production          | `unseenprompt-production` | Manual dispatch from `main` after GitHub Environment approval | `unseenprompt.com` and `www.unseenprompt.com`     |
+| Logical environment | Cloudflare target         | Trigger                                         | Public URL behavior                               |
+| ------------------- | ------------------------- | ----------------------------------------------- | ------------------------------------------------- |
+| Local               | Wrangler local simulator  | Developer command                               | `http://127.0.0.1:8787`                           |
+| Preview validation  | Local Wrangler simulator  | Pull-request CI                                 | No remote deployment                              |
+| Staging             | `unseenprompt-staging`    | Push to `main`                                  | Workers.dev URL; later `staging.unseenprompt.com` |
+| Production          | `unseenprompt-production` | After staging succeeds for the same `main` push | `unseenprompt.com` and `www.unseenprompt.com`     |
 
-Wrangler named environments create separate Workers. Preview is hosted in a preview-only Cloudflare
-account because Workers Scripts permissions are account-scoped. Local, staging, and production have
-distinct Workflow names bound as `RUNTIME_HEALTH_WORKFLOW`; preview intentionally has no Workflow or
-secret bindings.
-
-The trusted preview preflight compares the preview account against repository variables for staging and
-production and rejects any preview account containing the protected Worker names.
-
-## Preview code isolation
-
-Pull-request previews upload Worker **versions** with alias `pr-<number>`. Because every PR version can
-read its Worker's bindings, `unseenprompt-preview` has no secrets, Workflow capability, database,
-authentication, uploads, or user-controlled state. The trusted deployer fails before upload if
-Cloudflare reports any preview secret binding.
-
-**Phase 3 requirement:** introduce per-PR data isolation when Supabase resources appear.
-
-## Trusted-main preview boundary
-
-Automatic same-repository PR previews use a two-workflow design:
-
-```text
-PR head -> credential-free OpenNext build -> untrusted artifact
-        -> trusted main workflow_run deployer -> preview version -> release-identity smoke
-```
-
-- **`Build Preview Artifact`** runs on `pull_request` with no repository secrets. It dereferences links and produces a tarred `.open-next` artifact only.
-- **`Deploy Preview`** is a `workflow_run` definition loaded from `main`. It checks out exactly `main`, installs trusted tooling, rejects archive members outside `.open-next` and all non-regular entries, applies Python `tarfile` `filter="data"`, and never executes files from the artifact.
-- PR head SHA is used only as data (`RELEASE_SHA`, tags, smoke expectation), never as the checkout or script source for secret-bearing steps.
-- Preview smoke is public and requires `GITHUB_SHA` to match `/api/health` `release`; authenticated
-  Workflow smoke remains limited to staging and production.
-
-Policy gate: `pnpm check:preview-workflow-trust`.
+Pull requests run the OpenNext build and local Wrangler preview smoke without deployment credentials.
+Only pushes to `main` enter the staging-to-production release workflow.
 
 ## Trust boundaries
 
-| Surface                                | Trust                               | Notes                                                         |
-| -------------------------------------- | ----------------------------------- | ------------------------------------------------------------- |
-| `GET /api/health`                      | Public                              | Non-sensitive readiness only                                  |
-| `POST /api/internal/health/workflow`   | Bearer token (non-preview only)     | Timing-safe compare; no token in payload or logs              |
-| OpenNext HTTP entry                    | Public origin for that environment  | Application routes remain unauthenticated until later phases  |
-| Workflow class `RuntimeHealthWorkflow` | Worker-internal                     | No-op health step; product Workflows arrive later             |
-| Preview deployment credentials         | GitHub repository secrets           | Preview-only Cloudflare account; no zone or route authority   |
-| Release deployment credentials         | `staging`/`production` Environments | Separate from preview credentials                             |
-| PR preview build                       | Credential-free                     | No secrets; artifact is untrusted data                        |
-| PR preview deploy                      | Trusted main only                   | Cloudflare deploy credential stays on runner; Worker has none |
+| Surface                                | Trust                               | Notes                                                        |
+| -------------------------------------- | ----------------------------------- | ------------------------------------------------------------ |
+| `GET /api/health`                      | Public                              | Non-sensitive readiness only                                 |
+| `POST /api/internal/health/workflow`   | Bearer token (non-preview only)     | Timing-safe compare; no token in payload or logs             |
+| OpenNext HTTP entry                    | Public origin for that environment  | Application routes remain unauthenticated until later phases |
+| Workflow class `RuntimeHealthWorkflow` | Worker-internal                     | No-op health step; product Workflows arrive later            |
+| Release deployment credentials         | `staging`/`production` Environments | Separate from preview credentials                            |
+| PR Worker validation                   | Credential-free                     | Local build and smoke only; no remote deployment             |
 
 ## Custom Worker entry point
 
@@ -92,9 +59,9 @@ environments that require the binding return `503` when it is missing.
 
 ## Release flow and rollback limits
 
-1. **PR** → credential-free build artifact → trusted-main preview version upload + release-identity smoke
-2. **Merge to main** → staging deploy + release-identity smoke
-3. **Manual production** → domain verification gate + dry-run + version upload + 100% promote + smoke
+1. **PR** → credential-free Worker build and local preview smoke
+2. **Merge or push to main** → staging deploy + smoke
+3. **Successful staging** → production dry-run + version upload + 100% promote + smoke for the same SHA
 
 Rollback restores a previous Worker version only. It does not roll back external state (databases, storage, third-party systems).
 

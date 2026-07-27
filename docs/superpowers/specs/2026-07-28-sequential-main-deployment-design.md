@@ -23,8 +23,6 @@ deployment and smoke test.
 - Automatic release deployments trigger only on `push` to `main`.
 - The release workflow concurrency group is global and does not cancel in-progress releases. This
   prevents a later merge from overtaking an earlier staging-to-production sequence.
-- An optional manual recovery dispatch may deploy only a full commit SHA that is already an ancestor
-  of `origin/main`.
 - Pull-request events never receive staging or production deployment credentials.
 
 ## Preview Removal
