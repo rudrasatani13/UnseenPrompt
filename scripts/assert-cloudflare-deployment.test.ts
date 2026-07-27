@@ -38,7 +38,7 @@ describe("deployment verification", () => {
         sleep: async () => undefined,
       }),
     ).rejects.toThrow("release mismatch");
-    expect(fetchImpl).toHaveBeenCalledTimes(20);
+    expect(fetchImpl).toHaveBeenCalledTimes(60);
   });
 
   test("retries a stale release during deployment propagation", async () => {
