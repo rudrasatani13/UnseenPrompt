@@ -19,11 +19,11 @@ Use Node 24.x and pnpm 11.x. Do not hand-edit `pnpm-lock.yaml`.
 
 **Do not start local Supabase Docker on developer machines by default.** The images are large and are not required for day-to-day application work.
 
-| Gate | Where it runs |
-|---|---|
-| `pnpm format:check`, `lint`, `typecheck`, `test:unit`, `build` | Local + CI |
-| `pnpm cf:build`, `pnpm test:cf-preview` | Local + CI (Workers preview via Wrangler; no Supabase Docker) |
-| `pnpm test:db` | **GitHub Actions `database` job, or a shared cloud/staging runner** |
+| Gate                                                           | Where it runs                                                       |
+| -------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `pnpm format:check`, `lint`, `typecheck`, `test:unit`, `build` | Local + CI                                                          |
+| `pnpm cf:build`, `pnpm test:cf-preview`                        | Local + CI (Workers preview via Wrangler; no Supabase Docker)       |
+| `pnpm test:db`                                                 | **GitHub Actions `database` job, or a shared cloud/staging runner** |
 
 If you must run database tests locally, that is opt-in and requires a Docker-compatible runtime you accept the disk cost for. Prefer verifying on a PR against CI.
 

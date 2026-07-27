@@ -60,12 +60,12 @@ pnpm test:unit -- src/config/env/schema.test.ts
 
 ## Documentation
 
-| Document | Purpose |
-|---|---|
-| [docs/UnseenPrompt – Stateful Project Copilot.md](docs/UnseenPrompt%20%E2%80%93%20Stateful%20Project%20Copilot.md) | Product master plan |
-| [docs/UnseenPrompt – DEVELOPMENT_PLAN.md](docs/UnseenPrompt%20%E2%80%93%20DEVELOPMENT_PLAN.md) | Development roadmap |
-| [docs/architecture/phase-0-foundations.md](docs/architecture/phase-0-foundations.md) | Phase 0 architecture decisions |
-| [docs/conventions/naming.md](docs/conventions/naming.md) | Naming conventions |
-| [docs/development/environment-contract.md](docs/development/environment-contract.md) | Environment variable contract |
-| [CONTRIBUTING.md](CONTRIBUTING.md) | Contribution workflow |
-| [SECURITY.md](SECURITY.md) | Vulnerability and secret policy |
+| Document                                                                                                           | Purpose                         |
+| ------------------------------------------------------------------------------------------------------------------ | ------------------------------- |
+| [docs/UnseenPrompt – Stateful Project Copilot.md](docs/UnseenPrompt%20%E2%80%93%20Stateful%20Project%20Copilot.md) | Product master plan             |
+| [docs/UnseenPrompt – DEVELOPMENT_PLAN.md](docs/UnseenPrompt%20%E2%80%93%20DEVELOPMENT_PLAN.md)                     | Development roadmap             |
+| [docs/architecture/phase-0-foundations.md](docs/architecture/phase-0-foundations.md)                               | Phase 0 architecture decisions  |
+| [docs/conventions/naming.md](docs/conventions/naming.md)                                                           | Naming conventions              |
+| [docs/development/environment-contract.md](docs/development/environment-contract.md)                               | Environment variable contract   |
+| [CONTRIBUTING.md](CONTRIBUTING.md)                                                                                 | Contribution workflow           |
+| [SECURITY.md](SECURITY.md)                                                                                         | Vulnerability and secret policy |

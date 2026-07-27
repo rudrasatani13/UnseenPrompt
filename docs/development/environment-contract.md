@@ -2,10 +2,10 @@
 
 ## Phase 0 variables
 
-| Variable | Visibility | Local | Preview | Staging | Production | Owner |
-|---|---|---|---|---|---|---|
-| `APP_ENV` | Server | `local` | `preview` | `staging` | `production` | Platform |
-| `NEXT_PUBLIC_APP_URL` | Public | `http://localhost:3000` | ephemeral HTTPS URL | staging HTTPS URL | verified production URL | Platform |
+| Variable              | Visibility | Local                   | Preview             | Staging           | Production              | Owner    |
+| --------------------- | ---------- | ----------------------- | ------------------- | ----------------- | ----------------------- | -------- |
+| `APP_ENV`             | Server     | `local`                 | `preview`           | `staging`         | `production`            | Platform |
+| `NEXT_PUBLIC_APP_URL` | Public     | `http://localhost:3000` | ephemeral HTTPS URL | staging HTTPS URL | verified production URL | Platform |
 
 Test runners may use `APP_ENV=test` with `NEXT_PUBLIC_APP_URL=http://localhost:3000`.
 
