@@ -28,6 +28,7 @@
   },
   "include": [
     "next-env.d.ts",
+    "worker-configuration.d.ts",
     ".next/types/**/*.ts",
     "**/*.ts",
     "**/*.tsx",
