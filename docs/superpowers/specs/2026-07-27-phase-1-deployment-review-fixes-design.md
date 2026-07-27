@@ -34,10 +34,11 @@ Worker must represent the pull request head SHA.
 
 1. checks out the PR head SHA;
 2. installs dependencies and builds the Worker without repository secrets;
-3. packages only `.open-next` as a uniquely named GitHub Actions artifact; and
-4. records the PR number and head SHA as artifact metadata.
+3. packages only `.open-next` as a uniquely named GitHub Actions artifact.
 
 This workflow does not deploy, run a remote health probe, or reference Cloudflare credentials.
+The trusted deployer obtains the PR number and head SHA from the authoritative `workflow_run` event,
+not from artifact-controlled metadata.
 
 ### Trusted preview deployment workflow
 
@@ -51,7 +52,8 @@ The trusted workflow:
 2. checks out `main`, including trusted `package.json`, lockfile, Wrangler configuration, and scripts;
 3. installs dependencies from `main` on a fresh runner;
 4. downloads the exact artifact produced by the triggering workflow run;
-5. validates the artifact layout and rejects symlinks or unexpected top-level entries;
+5. extracts the tar artifact with Python's `tarfile` `data` filter and validates the expected
+   `.open-next/worker.js` layout;
 6. invokes trusted Wrangler with the preview environment and PR head SHA;
 7. resolves the preview alias URL through a tested repository script; and
 8. runs the trusted deployment smoke script with the expected PR head SHA.
@@ -86,8 +88,8 @@ the deployment runbook. The preview trusted workflow supplies the PR head SHA; s
 ## Failure Handling
 
 - A failed or canceled PR build does not trigger deployment.
-- Missing PR metadata, a fork-origin run, malformed artifact metadata, invalid artifact layout, or
-  unexpected Wrangler output fails before credentials are used for an upload.
+- Missing PR metadata, a fork-origin run, unsafe tar members, an invalid artifact layout, or unexpected
+  Wrangler output fails before credentials are used for an upload.
 - URL parsing never falls back to an unvalidated non-HTTPS value.
 - A release mismatch fails before the Workflow probe, preventing a stale deployment from satisfying the
   gate.
@@ -121,4 +123,3 @@ and credential rotation requirement for secrets previously exposed to unmerged s
 Deploying the workflow files does not rotate credentials automatically. Platform operators must rotate
 the Cloudflare API token and preview health token, then verify the Cloudflare API token cannot reach
 staging, production, zones, routes, or unrelated Workers.
-
