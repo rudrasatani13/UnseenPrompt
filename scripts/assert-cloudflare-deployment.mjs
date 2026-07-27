@@ -20,13 +20,38 @@ export async function assertCloudflareDeployment({
   }
 
   const baseUrl = new URL(deploymentUrl);
-  const healthResponse = await fetchImpl(new URL("/api/health", baseUrl), {
-    headers: { Accept: "application/json" },
-  });
-  const health = await healthResponse.json();
+  let healthResponse;
+  let health;
 
-  if (!healthResponse.ok || health.service !== "unseenprompt" || health.status !== "ok") {
-    throw new Error(`Runtime health failed with HTTP ${healthResponse.status}`);
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    healthResponse = await fetchImpl(new URL("/api/health", baseUrl), {
+      headers: { Accept: "application/json" },
+    });
+
+    try {
+      health = await healthResponse.json();
+    } catch {
+      if (attempt === 19) {
+        throw new Error(`Runtime health returned invalid JSON with HTTP ${healthResponse.status}`);
+      }
+
+      await sleep(1_000);
+      continue;
+    }
+
+    if (healthResponse.ok) {
+      break;
+    }
+
+    if (healthResponse.status < 500 || attempt === 19) {
+      throw new Error(`Runtime health failed with HTTP ${healthResponse.status}`);
+    }
+
+    await sleep(1_000);
+  }
+
+  if (!healthResponse?.ok || health.service !== "unseenprompt" || health.status !== "ok") {
+    throw new Error(`Runtime health failed with HTTP ${healthResponse?.status ?? "unknown"}`);
   }
 
   if (health.release !== expectedReleaseSha) {

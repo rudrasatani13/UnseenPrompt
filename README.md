@@ -2,7 +2,7 @@
 
 **Status:** Phase 1 — Cloudflare runtime and environment topology
 
-**Primary domain:** `https://unseenprompt.com` (purchased; DNS and Cloudflare zone verification pending before production traffic)
+**Primary domain:** `https://unseenprompt.com` (Cloudflare Worker Custom Domain)
 
 ## What this is not
 

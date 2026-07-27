@@ -87,12 +87,12 @@
       "preview_urls": false,
       "routes": [
         {
-          "pattern": "unseenprompt.com/*",
-          "zone_name": "unseenprompt.com",
+          "pattern": "unseenprompt.com",
+          "custom_domain": true,
         },
         {
-          "pattern": "www.unseenprompt.com/*",
-          "zone_name": "unseenprompt.com",
+          "pattern": "www.unseenprompt.com",
+          "custom_domain": true,
         },
       ],
       "observability": {
