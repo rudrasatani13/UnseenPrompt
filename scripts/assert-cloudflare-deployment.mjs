@@ -76,7 +76,16 @@ export async function assertCloudflareDeployment({
       },
     });
 
-    workflow = await response.json();
+    try {
+      workflow = await response.json();
+    } catch {
+      if (attempt === 19) {
+        throw new Error(`Workflow probe returned invalid JSON with HTTP ${response.status}`);
+      }
+
+      await sleep(1_000);
+      continue;
+    }
 
     if (response.status === 200 && workflow.status === "complete") {
       break;
