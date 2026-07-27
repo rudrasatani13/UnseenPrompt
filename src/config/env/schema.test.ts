@@ -8,11 +8,41 @@ describe("parseEnvironment", () => {
       parseEnvironment({
         APP_ENV: "local",
         NEXT_PUBLIC_APP_URL: "http://localhost:3000",
+        RELEASE_SHA: "local",
       }),
     ).toEqual({
       APP_ENV: "local",
       NEXT_PUBLIC_APP_URL: "http://localhost:3000",
+      RELEASE_SHA: "local",
     });
+  });
+
+  it("accepts a deployed release identifier", () => {
+    expect(
+      parseEnvironment({
+        APP_ENV: "staging",
+        NEXT_PUBLIC_APP_URL: "https://staging.unseenprompt.com",
+        RELEASE_SHA: "3546ac4f0c7c",
+      }),
+    ).toMatchObject({ APP_ENV: "staging", RELEASE_SHA: "3546ac4f0c7c" });
+  });
+
+  it("rejects an absent or malformed release identifier", () => {
+    expect(() =>
+      parseEnvironment({
+        APP_ENV: "staging",
+        NEXT_PUBLIC_APP_URL: "https://staging.unseenprompt.com",
+        RELEASE_SHA: undefined,
+      }),
+    ).toThrow(/RELEASE_SHA/);
+
+    expect(() =>
+      parseEnvironment({
+        APP_ENV: "staging",
+        NEXT_PUBLIC_APP_URL: "https://staging.unseenprompt.com",
+        RELEASE_SHA: "contains spaces",
+      }),
+    ).toThrow(/RELEASE_SHA/);
   });
 
   it("fails when a required value is absent", () => {
@@ -20,6 +50,7 @@ describe("parseEnvironment", () => {
       parseEnvironment({
         APP_ENV: "local",
         NEXT_PUBLIC_APP_URL: undefined,
+        RELEASE_SHA: "local",
       }),
     ).toThrow(/NEXT_PUBLIC_APP_URL/);
   });
@@ -29,6 +60,7 @@ describe("parseEnvironment", () => {
       parseEnvironment({
         APP_ENV: "prod",
         NEXT_PUBLIC_APP_URL: "unseenprompt.com",
+        RELEASE_SHA: "local",
       }),
     ).toThrow();
   });
@@ -38,6 +70,7 @@ describe("parseEnvironment", () => {
       parseEnvironment({
         APP_ENV: "production",
         NEXT_PUBLIC_APP_URL: "javascript:alert(1)",
+        RELEASE_SHA: "local",
       }),
     ).toThrow(/NEXT_PUBLIC_APP_URL/);
   });
@@ -47,6 +80,7 @@ describe("parseEnvironment", () => {
       parseEnvironment({
         APP_ENV: "staging",
         NEXT_PUBLIC_APP_URL: "http://staging.unseenprompt.com",
+        RELEASE_SHA: "local",
       }),
     ).toThrow(/HTTPS/);
   });

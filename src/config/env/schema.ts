@@ -14,6 +14,11 @@ const environmentSchema = z
   .object({
     APP_ENV: z.enum(["local", "preview", "staging", "production", "test"]),
     NEXT_PUBLIC_APP_URL: applicationUrlSchema,
+    RELEASE_SHA: z
+      .string()
+      .min(1)
+      .max(64)
+      .regex(/^[A-Za-z0-9._-]+$/, "RELEASE_SHA contains unsupported characters"),
   })
   .superRefine((environment, context) => {
     const requiresHttps = environment.APP_ENV === "staging" || environment.APP_ENV === "production";
