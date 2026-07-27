@@ -36,7 +36,7 @@ jobs:
           PY`;
 
     expect(() => assertPreviewWorkflowTrust({ buildWorkflow, deployWorkflow })).toThrow(
-      "must use the trusted preview artifact extractor",
+      "exact trusted preview artifact extraction",
     );
   });
 
@@ -151,6 +151,66 @@ jobs:
 
     expect(() => assertPreviewWorkflowTrust({ buildWorkflow, deployWorkflow })).toThrow(
       "preview-specific Cloudflare credentials",
+    );
+  });
+
+  test("rejects bracket-form secret references", async () => {
+    const [buildWorkflow, trustedDeployWorkflow] = await Promise.all([
+      readFile(".github/workflows/build-preview.yml", "utf8"),
+      readFile(".github/workflows/deploy-preview.yml", "utf8"),
+    ]);
+    const deployWorkflow = trustedDeployWorkflow.replace(
+      "          GITHUB_SHA: ${{ env.PR_HEAD_SHA }}",
+      "          GITHUB_SHA: ${{ env.PR_HEAD_SHA }}\n          TOKEN: \"${{ secrets['TOKEN'] }}\"",
+    );
+
+    expect(() => assertPreviewWorkflowTrust({ buildWorkflow, deployWorkflow })).toThrow(
+      "preview smoke must not receive secrets",
+    );
+  });
+
+  test("rejects access to the complete secrets context", async () => {
+    const [buildWorkflow, trustedDeployWorkflow] = await Promise.all([
+      readFile(".github/workflows/build-preview.yml", "utf8"),
+      readFile(".github/workflows/deploy-preview.yml", "utf8"),
+    ]);
+    const deployWorkflow = trustedDeployWorkflow.replace(
+      "          GITHUB_SHA: ${{ env.PR_HEAD_SHA }}",
+      "          GITHUB_SHA: ${{ env.PR_HEAD_SHA }}\n          ALL_SECRETS: ${{ toJSON(secrets) }}",
+    );
+
+    expect(() => assertPreviewWorkflowTrust({ buildWorkflow, deployWorkflow })).toThrow(
+      "preview smoke must not receive secrets",
+    );
+  });
+
+  test("rejects local actions that could be sourced from the artifact", async () => {
+    const [buildWorkflow, trustedDeployWorkflow] = await Promise.all([
+      readFile(".github/workflows/build-preview.yml", "utf8"),
+      readFile(".github/workflows/deploy-preview.yml", "utf8"),
+    ]);
+    const deployWorkflow = trustedDeployWorkflow.replace(
+      "      - name: Upload preview version",
+      "      - uses: ./.open-next/untrusted-action\n      - name: Upload preview version",
+    );
+
+    expect(() => assertPreviewWorkflowTrust({ buildWorkflow, deployWorkflow })).toThrow(
+      "must not use local actions",
+    );
+  });
+
+  test("rejects commands appended to artifact extraction", async () => {
+    const [buildWorkflow, trustedDeployWorkflow] = await Promise.all([
+      readFile(".github/workflows/build-preview.yml", "utf8"),
+      readFile(".github/workflows/deploy-preview.yml", "utf8"),
+    ]);
+    const deployWorkflow = trustedDeployWorkflow.replace(
+      'mv "$PREVIEW_EXTRACT_DIR/.open-next" .open-next',
+      'mv "$PREVIEW_EXTRACT_DIR/.open-next" .open-next\n          node .open-next/worker.js',
+    );
+
+    expect(() => assertPreviewWorkflowTrust({ buildWorkflow, deployWorkflow })).toThrow(
+      "exact trusted preview artifact extraction",
     );
   });
 });

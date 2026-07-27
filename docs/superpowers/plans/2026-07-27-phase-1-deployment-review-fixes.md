@@ -577,6 +577,8 @@ Document:
 - operators must replace the old repository token with `PREVIEW_CLOUDFLARE_API_TOKEN`, configure
   `PREVIEW_CLOUDFLARE_ACCOUNT_ID` for a preview-only Cloudflare account, delete the preview Worker
   health secret and obsolete `PREVIEW_HEALTHCHECK_TOKEN`, and verify the preview secret list is empty;
+- repository variables `STAGING_CLOUDFLARE_ACCOUNT_ID` and `PRODUCTION_CLOUDFLARE_ACCOUNT_ID` must be
+  configured for the live account-separation gate;
 - the preview account must contain no staging or production resources because Workers Scripts
   permissions are account-scoped.
 

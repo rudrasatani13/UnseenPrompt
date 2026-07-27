@@ -28,13 +28,18 @@ Wrangler named environments create separate Workers. Preview version aliases iso
 **The preview Worker must have no secret or Workflow bindings. Never copy production secrets into
 preview or staging.**
 
+Repository variables `STAGING_CLOUDFLARE_ACCOUNT_ID` and `PRODUCTION_CLOUDFLARE_ACCOUNT_ID` are
+required by the trusted preview preflight. Deployment fails if the preview account matches either
+protected account or contains `unseenprompt-staging` / `unseenprompt-production`.
+
 ### Operator rotation after Phase 1 review
 
 After any suspected exposure or after adopting the trusted-preview pipeline:
 
 1. Revoke the old repository-level `CLOUDFLARE_API_TOKEN`. Create
    `PREVIEW_CLOUDFLARE_API_TOKEN` in a preview-only Cloudflare account and configure
-   `PREVIEW_CLOUDFLARE_ACCOUNT_ID`.
+   `PREVIEW_CLOUDFLARE_ACCOUNT_ID`, `STAGING_CLOUDFLARE_ACCOUNT_ID`, and
+   `PRODUCTION_CLOUDFLARE_ACCOUNT_ID`.
 2. Delete `HEALTHCHECK_TOKEN` from `unseenprompt-preview` and delete the obsolete
    `PREVIEW_HEALTHCHECK_TOKEN` GitHub secret.
 3. Confirm `wrangler secret list --env preview --format json` returns `[]`.

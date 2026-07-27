@@ -33,13 +33,14 @@ describe("preview Worker secret isolation", () => {
   });
 
   test("accepts a new account where the preview Worker does not exist yet", async () => {
-    const fetchImpl = vi.fn(async () => apiResponse([{ id: "unseenprompt-staging" }]));
+    const fetchImpl = vi.fn(async () => apiResponse([{ id: "another-preview-worker" }]));
 
     await expect(
       verifyPreviewSecretIsolation({
         accountId: "account-id",
         apiToken: "api-token",
         fetchImpl,
+        protectedAccountIds: ["staging-account", "production-account"],
       }),
     ).resolves.toBeUndefined();
     expect(fetchImpl).toHaveBeenCalledTimes(1);
@@ -56,8 +57,35 @@ describe("preview Worker secret isolation", () => {
         accountId: "account-id",
         apiToken: "api-token",
         fetchImpl,
+        protectedAccountIds: ["staging-account", "production-account"],
       }),
     ).resolves.toBeUndefined();
     expect(fetchImpl).toHaveBeenCalledTimes(2);
+  });
+
+  test("rejects a preview credential configured for a protected account", async () => {
+    await expect(
+      verifyPreviewSecretIsolation({
+        accountId: "shared-account",
+        apiToken: "api-token",
+        fetchImpl: vi.fn(),
+        protectedAccountIds: ["shared-account", "production-account"],
+      }),
+    ).rejects.toThrow("must differ from staging and production");
+  });
+
+  test("rejects an account that already contains a protected Worker", async () => {
+    const fetchImpl = vi.fn(async () =>
+      apiResponse([{ id: "unseenprompt-production" }, { id: "unseenprompt-preview" }]),
+    );
+
+    await expect(
+      verifyPreviewSecretIsolation({
+        accountId: "preview-account",
+        apiToken: "api-token",
+        fetchImpl,
+        protectedAccountIds: ["staging-account", "production-account"],
+      }),
+    ).rejects.toThrow("contains protected Worker unseenprompt-production");
   });
 });

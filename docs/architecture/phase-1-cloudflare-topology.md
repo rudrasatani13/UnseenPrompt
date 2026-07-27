@@ -18,6 +18,9 @@ account because Workers Scripts permissions are account-scoped. Local, staging, 
 distinct Workflow names bound as `RUNTIME_HEALTH_WORKFLOW`; preview intentionally has no Workflow or
 secret bindings.
 
+The trusted preview preflight compares the preview account against repository variables for staging and
+production and rejects any preview account containing the protected Worker names.
+
 ## Preview code isolation
 
 Pull-request previews upload Worker **versions** with alias `pr-<number>`. Because every PR version can

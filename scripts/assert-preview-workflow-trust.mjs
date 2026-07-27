@@ -24,9 +24,21 @@ function isCheckoutStep(step) {
   return stepUses(step).startsWith("actions/checkout@");
 }
 
-function secretNames(step) {
-  const serialized = JSON.stringify(step);
-  return [...serialized.matchAll(/\$\{\{\s*secrets\.([A-Za-z0-9_]+)/g)].map((match) => match[1]);
+function collectStrings(value) {
+  if (typeof value === "string") {
+    return [value];
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap(collectStrings);
+  }
+  if (value && typeof value === "object") {
+    return Object.values(value).flatMap(collectStrings);
+  }
+  return [];
+}
+
+function secretReferences(step) {
+  return collectStrings(step).filter((value) => /\$\{\{[^}]*\bsecrets\b[^}]*\}\}/.test(value));
 }
 
 function isTrustedWranglerUpload(step) {
@@ -46,11 +58,12 @@ function isTrustedSecretIsolation(step) {
   return run.trim() === "node scripts/assert-preview-secret-isolation.mjs";
 }
 
-function isTrustedArtifactDownload(step, names) {
+function isTrustedArtifactDownload(step, references) {
   return (
     stepUses(step).startsWith("actions/download-artifact@") &&
-    names.length > 0 &&
-    names.every((name) => name === "GITHUB_TOKEN")
+    step?.with?.["github-token"] === "${{ secrets.GITHUB_TOKEN }}" &&
+    references.length === 1 &&
+    references[0] === "${{ secrets.GITHUB_TOKEN }}"
   );
 }
 
@@ -59,7 +72,7 @@ export function assertPreviewWorkflowTrust({ buildWorkflow, deployWorkflow }) {
     throw new Error("buildWorkflow and deployWorkflow YAML strings are required");
   }
 
-  if (/\$\{\{\s*secrets\./.test(buildWorkflow)) {
+  if (/\$\{\{[^}]*\bsecrets\b[^}]*\}\}/.test(buildWorkflow)) {
     throw new Error("Build Preview Artifact must not reference secrets");
   }
 
@@ -137,16 +150,9 @@ export function assertPreviewWorkflowTrust({ buildWorkflow, deployWorkflow }) {
     }
   }
 
-  const trustedExtractionSteps = deploySteps.filter((step) =>
-    stepRun(step).includes("python3 scripts/extract-preview-artifact.py"),
-  );
-  if (trustedExtractionSteps.length !== 1 || deployWorkflow.includes("extractall(")) {
-    throw new Error("Deploy Preview must use the trusted preview artifact extractor");
-  }
-
   for (const step of deploySteps) {
-    const names = secretNames(step);
-    if (names.length === 0) {
+    const references = secretReferences(step);
+    if (references.length === 0) {
       continue;
     }
 
@@ -155,7 +161,7 @@ export function assertPreviewWorkflowTrust({ buildWorkflow, deployWorkflow }) {
     }
 
     if (stepUses(step)) {
-      if (isTrustedArtifactDownload(step, names)) {
+      if (isTrustedArtifactDownload(step, references)) {
         continue;
       }
       throw new Error("Deploy Preview secret-bearing action is not allowed");
@@ -167,10 +173,25 @@ export function assertPreviewWorkflowTrust({ buildWorkflow, deployWorkflow }) {
     throw new Error("Deploy Preview secret-bearing steps must be trusted upload or isolation only");
   }
 
+  const trustedExtraction =
+    "python3 scripts/extract-preview-artifact.py \\\n" +
+    '  preview-artifact/preview-worker.tar "$PREVIEW_EXTRACT_DIR"\n' +
+    "test ! -e .open-next\n" +
+    'mv "$PREVIEW_EXTRACT_DIR/.open-next" .open-next';
+  const trustedExtractionSteps = deploySteps.filter(
+    (step) => stepRun(step).trim() === trustedExtraction,
+  );
+  if (trustedExtractionSteps.length !== 1 || deployWorkflow.includes("extractall(")) {
+    throw new Error("Deploy Preview must use the exact trusted preview artifact extraction");
+  }
+
   const allSteps = [...buildSteps, ...deploySteps];
   for (const step of allSteps) {
     const uses = stepUses(step);
-    if (uses && !uses.startsWith("./") && !/@[0-9a-f]{40}$/.test(uses)) {
+    if (uses.startsWith("./")) {
+      throw new Error("Preview workflows must not use local actions");
+    }
+    if (uses && !/@[0-9a-f]{40}$/.test(uses)) {
       throw new Error("Preview workflows must pin third-party actions to full commit SHAs");
     }
   }
@@ -201,7 +222,9 @@ export function assertPreviewWorkflowTrust({ buildWorkflow, deployWorkflow }) {
     !deployWorkflow.includes("secrets.PREVIEW_CLOUDFLARE_ACCOUNT_ID") ||
     !deployWorkflow.includes("secrets.PREVIEW_CLOUDFLARE_API_TOKEN") ||
     deployWorkflow.includes("${{ secrets.CLOUDFLARE_ACCOUNT_ID") ||
-    deployWorkflow.includes("${{ secrets.CLOUDFLARE_API_TOKEN")
+    deployWorkflow.includes("${{ secrets.CLOUDFLARE_API_TOKEN") ||
+    !deployWorkflow.includes("vars.STAGING_CLOUDFLARE_ACCOUNT_ID") ||
+    !deployWorkflow.includes("vars.PRODUCTION_CLOUDFLARE_ACCOUNT_ID")
   ) {
     throw new Error("Deploy Preview must use preview-specific Cloudflare credentials");
   }

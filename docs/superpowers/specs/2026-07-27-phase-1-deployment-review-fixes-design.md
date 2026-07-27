@@ -27,6 +27,8 @@ Worker must represent the pull request head SHA.
   credentials or capabilities.
 - Preview deployment credentials target a separate preview-only Cloudflare account because Workers
   Scripts permissions are account-scoped; they cannot authorize staging or production resources.
+- The deployer compares preview, staging, and production account IDs and rejects protected Worker names
+  before uploading PR code.
 - A deployment smoke test succeeds only when `/api/health` reports the expected release SHA.
 
 ## Architecture

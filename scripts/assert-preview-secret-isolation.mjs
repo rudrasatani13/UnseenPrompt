@@ -1,6 +1,7 @@
 import { pathToFileURL } from "node:url";
 
 const PREVIEW_WORKER_NAME = "unseenprompt-preview";
+const PROTECTED_WORKER_NAMES = ["unseenprompt-staging", "unseenprompt-production"];
 
 export function assertPreviewSecretIsolation(output) {
   let bindings;
@@ -38,9 +39,24 @@ async function requestCloudflareResult({ accountId, apiToken, path, fetchImpl })
   return payload.result;
 }
 
-export async function verifyPreviewSecretIsolation({ accountId, apiToken, fetchImpl = fetch }) {
+export async function verifyPreviewSecretIsolation({
+  accountId,
+  apiToken,
+  fetchImpl = fetch,
+  protectedAccountIds,
+}) {
   if (!accountId || !apiToken) {
     throw new Error("CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN are required");
+  }
+  if (
+    !Array.isArray(protectedAccountIds) ||
+    protectedAccountIds.length !== 2 ||
+    protectedAccountIds.some((value) => !value)
+  ) {
+    throw new Error("Staging and production Cloudflare account IDs are required");
+  }
+  if (protectedAccountIds.includes(accountId)) {
+    throw new Error("Preview Cloudflare account must differ from staging and production");
   }
 
   const scripts = await requestCloudflareResult({
@@ -49,6 +65,10 @@ export async function verifyPreviewSecretIsolation({ accountId, apiToken, fetchI
     path: "/workers/scripts",
     fetchImpl,
   });
+  const protectedWorker = scripts.find((script) => PROTECTED_WORKER_NAMES.includes(script?.id));
+  if (protectedWorker) {
+    throw new Error(`Preview Cloudflare account contains protected Worker ${protectedWorker.id}`);
+  }
   if (!scripts.some((script) => script?.id === PREVIEW_WORKER_NAME)) {
     return;
   }
@@ -66,6 +86,7 @@ export async function main(env = process.env) {
   await verifyPreviewSecretIsolation({
     accountId: env.CLOUDFLARE_ACCOUNT_ID,
     apiToken: env.CLOUDFLARE_API_TOKEN,
+    protectedAccountIds: [env.STAGING_CLOUDFLARE_ACCOUNT_ID, env.PRODUCTION_CLOUDFLARE_ACCOUNT_ID],
   });
 }
 
