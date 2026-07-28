@@ -29,8 +29,8 @@ export function ShellNavigation({
               <li key={item.id}>
                 <Link
                   href={item.href}
-                  aria-current={item.active ? "page" : undefined}
-                  onClick={onNavigate}
+                  {...(item.active ? { "aria-current": "page" as const } : {})}
+                  {...(onNavigate === undefined ? {} : { onClick: onNavigate })}
                   className={cn(
                     "flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium break-words lg:min-h-10",
                     "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand",
