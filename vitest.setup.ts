@@ -1,8 +1,33 @@
 import "@testing-library/jest-dom/vitest";
 import "vitest-axe/extend-expect";
-import { vi } from "vitest";
+
+import { cleanup } from "@testing-library/react";
+import { afterEach, expect, vi } from "vitest";
+import * as axeMatchers from "vitest-axe/matchers";
 
 vi.mock("server-only", () => ({}));
+
+/*
+ * `vitest-axe@0.1.0` ships an empty `extend-expect` build and augments the
+ * legacy `Vi` namespace, so the matcher is registered and typed explicitly
+ * against the installed Vitest version.
+ */
+expect.extend(axeMatchers);
+
+declare module "vitest" {
+  /* eslint-disable @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type, @typescript-eslint/no-unused-vars */
+  interface Assertion<T = any> extends axeMatchers.AxeMatchers {}
+  interface AsymmetricMatchersContaining extends axeMatchers.AxeMatchers {}
+  /* eslint-enable @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type, @typescript-eslint/no-unused-vars */
+}
+
+/*
+ * Testing Library only self-registers cleanup when Vitest globals are enabled.
+ * This project uses explicit imports, so unmount between tests here.
+ */
+afterEach(() => {
+  cleanup();
+});
 
 /*
  * Minimal jsdom shims required by Radix primitives. Each one is the smallest
