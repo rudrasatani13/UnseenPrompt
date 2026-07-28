@@ -42,6 +42,27 @@ if (!("ResizeObserver" in globalThis)) {
   };
 }
 
+/*
+ * Motion's useInView always constructs an IntersectionObserver, including for
+ * icons that only animate on an explicit prop. The shim is a no-op so unit
+ * tests can mount; real viewport behavior is covered in Chromium.
+ */
+if (!("IntersectionObserver" in globalThis)) {
+  globalThis.IntersectionObserver = class {
+    readonly root: Element | Document | null = null;
+    readonly rootMargin = "0px";
+    readonly scrollMargin = "0px";
+    readonly thresholds: ReadonlyArray<number> = [];
+
+    observe(): void {}
+    unobserve(): void {}
+    disconnect(): void {}
+    takeRecords(): IntersectionObserverEntry[] {
+      return [];
+    }
+  } as typeof globalThis.IntersectionObserver;
+}
+
 if (!HTMLElement.prototype.scrollIntoView) {
   HTMLElement.prototype.scrollIntoView = function scrollIntoView(): void {};
 }
