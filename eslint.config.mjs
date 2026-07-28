@@ -104,6 +104,26 @@ export default defineConfig([
       "architecture/no-cross-layer-imports": "error",
     },
   },
+  {
+    /*
+     * Vendored Animate UI icon source (see
+     * src/components/ui/icons/README.md). The upstream project predates the
+     * React Compiler lint rules: it creates Motion components inside `useMemo`,
+     * reads refs during render, and sets state inside effects. Only the rules it
+     * actually violates are relaxed, only for this directory, and only for the
+     * vendored files. The project's own icon tests and supply-chain audit still
+     * run against this source.
+     */
+    files: ["src/components/ui/icons/*.tsx"],
+    ignores: ["src/components/ui/icons/*.test.tsx"],
+    rules: {
+      "@typescript-eslint/ban-ts-comment": "off",
+      "react-hooks/refs": "off",
+      "react-hooks/set-state-in-effect": "off",
+      "react-hooks/component-hook-factories": "off",
+      "react-hooks/static-components": "off",
+    },
+  },
   globalIgnores([
     ".next/**",
     ".open-next/**",

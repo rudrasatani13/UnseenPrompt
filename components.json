@@ -13,9 +13,12 @@
   "iconLibrary": "lucide",
   "aliases": {
     "components": "@/components",
-    "ui": "@/components/ui",
     "utils": "@/components/ui/utils",
+    "ui": "@/components/ui",
     "lib": "@/components/ui",
     "hooks": "@/components/ui/hooks"
+  },
+  "registries": {
+    "@animate-ui": "https://animate-ui.com/r/{name}.json"
   }
 }
