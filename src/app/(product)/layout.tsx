@@ -1,8 +1,7 @@
 import type { ReactNode } from "react";
 
-import { ApplicationShell } from "@/components/shell/application-shell";
 import { MaintenanceNotice } from "@/components/shell/maintenance-notice";
-import { productNavigation } from "@/components/shell/navigation";
+import { ProductApplicationShell } from "@/components/shell/product-application-shell";
 import { getServerEnvironment } from "@/config/env/server";
 
 /**
@@ -15,8 +14,8 @@ export default function ProductLayout({ children }: Readonly<{ children: ReactNo
   const isMaintenance = environment.MAINTENANCE_MODE === "on";
 
   return (
-    <ApplicationShell navigation={productNavigation}>
+    <ProductApplicationShell>
       {isMaintenance ? <MaintenanceNotice /> : children}
-    </ApplicationShell>
+    </ProductApplicationShell>
   );
 }

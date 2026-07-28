@@ -560,13 +560,18 @@ export function DesignSystemGallery() {
           Warm Editorial inventory for UnseenPrompt. This gallery contains no production data and is
           hidden in production.
         </p>
-        <ul className="grid gap-1 text-sm text-ink-muted">
+        <ul className="grid gap-3 text-sm">
           {GALLERY_SECTIONS.map((section) => (
-            <li key={section.id}>
-              <a href={`#${section.id}`} className="text-brand underline-offset-2 hover:underline">
+            <li key={section.id} className="grid gap-1">
+              <a
+                href={`#${section.id}`}
+                className="w-fit font-medium text-brand underline underline-offset-2"
+              >
                 {section.title}
               </a>
-              {section.keyboardNote ? ` — ${section.keyboardNote}` : null}
+              {section.keyboardNote ? (
+                <p className="text-ink-muted">{section.keyboardNote}</p>
+              ) : null}
             </li>
           ))}
         </ul>
@@ -616,7 +621,7 @@ export function DesignSystemGallery() {
           </div>
         </Specimen>
         <Specimen title="Radius">
-          <div className="flex flex-wrap gap-3">
+          <ul className="flex flex-wrap gap-3">
             {[
               ["4px", "rounded-xs"],
               ["8px", "rounded-sm"],
@@ -624,13 +629,15 @@ export function DesignSystemGallery() {
               ["16px", "rounded-lg"],
               ["pill", "rounded-pill"],
             ].map(([label, className]) => (
-              <div
-                key={label}
-                className={`size-16 border border-control bg-surface-muted ${className}`}
-                aria-label={`Radius ${label}`}
-              />
+              <li key={label} className="grid justify-items-center gap-1">
+                <div
+                  aria-hidden="true"
+                  className={`size-16 border border-control bg-surface-muted ${className}`}
+                />
+                <span className="text-xs text-ink-muted">Radius {label}</span>
+              </li>
             ))}
-          </div>
+          </ul>
         </Specimen>
         <Specimen title="Elevation">
           <div className="flex flex-wrap gap-4">

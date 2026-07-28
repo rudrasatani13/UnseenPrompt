@@ -62,6 +62,7 @@ describe("ProductLayout", () => {
       MAINTENANCE_MODE: "on",
     });
 
+    vi.resetModules();
     const { default: ProductLayout } = await import("./layout");
 
     render(
@@ -86,6 +87,7 @@ describe("ProductLayout", () => {
       MAINTENANCE_MODE: "off",
     });
 
+    vi.resetModules();
     const { default: ProductLayout } = await import("./layout");
     const { container } = render(
       <ProductLayout>

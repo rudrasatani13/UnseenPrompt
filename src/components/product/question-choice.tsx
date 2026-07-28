@@ -76,19 +76,22 @@ export function QuestionChoice<TValue extends string>({
               data-disabled={option.disabled}
               className={cn(
                 "grid min-h-11 grid-cols-[auto_1fr] items-start gap-3 rounded-md border border-subtle bg-surface p-3 lg:min-h-10",
-                option.value === value && "border-brand bg-surface-muted",
-                option.disabled && "opacity-60",
+                option.value === value && !option.disabled && "border-brand bg-surface-muted",
+                option.disabled && "border-subtle bg-surface-muted",
               )}
             >
               <RadioGroupItem
                 id={itemId}
                 value={option.value}
                 disabled={option.disabled}
-                className="mt-0.5"
+                className={cn("mt-0.5", option.disabled && "disabled:opacity-100 opacity-100")}
                 {...(option.description === null ? {} : { "aria-describedby": descriptionId })}
               />
               <div className="grid gap-1">
-                <Label htmlFor={itemId} className="font-medium">
+                <Label
+                  htmlFor={itemId}
+                  className={cn("font-medium", option.disabled ? "text-ink-muted" : "text-ink")}
+                >
                   {option.label}
                 </Label>
                 {option.description === null ? null : (
