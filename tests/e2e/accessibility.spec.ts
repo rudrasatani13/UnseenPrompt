@@ -126,4 +126,3 @@ test.describe("accessibility", () => {
     await assertFocusedElementNotObscured(page);
   });
 });
-

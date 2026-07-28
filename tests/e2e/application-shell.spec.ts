@@ -44,7 +44,6 @@ test.describe("application shell", () => {
     }
   });
 
-
   test("mobile sheet traps focus and restores on close", async ({ page }, testInfo) => {
     test.skip(testInfo.project.name === "desktop" || testInfo.project.name === "wide");
 

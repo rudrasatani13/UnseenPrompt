@@ -1,7 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("maintenance mode @maintenance", () => {
-  test("shows maintenance on the product surface and keeps health ready", async ({ page, request }) => {
+  test("shows maintenance on the product surface and keeps health ready", async ({
+    page,
+    request,
+  }) => {
     await page.goto("/");
 
     await expect(
