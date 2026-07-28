@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Manrope } from "next/font/google";
 import type { ReactNode } from "react";
 
+import { AppProviders } from "@/components/providers/app-providers";
 import { getServerEnvironment } from "@/config/env/server";
 
 import "./globals.css";
@@ -31,7 +32,9 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="en">
-      <body className={`${manrope.variable} font-sans antialiased`}>{children}</body>
+      <body className={`${manrope.variable} font-sans antialiased`}>
+        <AppProviders>{children}</AppProviders>
+      </body>
     </html>
   );
 }
