@@ -1,0 +1,214 @@
+/*
+ * Warm Editorial visual system — single source of truth for UnseenPrompt tokens.
+ *
+ * This file owns one light token set. There is no dark variant and no second
+ * token set: every Tailwind utility and every shadcn-compatible alias below
+ * resolves to one of the locked semantic values declared on `:root`.
+ */
+
+:root {
+  /* Surfaces */
+  --canvas: #fefaf8;
+  --surface: #ffffff;
+  --surface-muted: #faf4f5;
+
+  /* Text */
+  --text-primary: #2b2426;
+  --text-secondary: #6f6266;
+
+  /* Brand action */
+  --brand-primary: #a64763;
+  --brand-primary-hover: #8d3852;
+  --brand-primary-active: #762c43;
+
+  /* Borders */
+  --border-control: #8f8185;
+  --border-subtle: #e9dfe1;
+
+  /* Status — each pair is independently legible without relying on hue alone */
+  --success-foreground: #17623a;
+  --success-background: #e7f6ed;
+  --warning-foreground: #7a4a00;
+  --warning-background: #fff4d6;
+  --danger-foreground: #8f2037;
+  --danger-background: #fdecef;
+  --info-foreground: #1f4e79;
+  --info-background: #eaf3fa;
+
+  /* Focus indicator: 2px indicator, 2px offset, >= 3:1 against adjacent colors */
+  --focus-ring-width: 2px;
+  --focus-ring-offset: 2px;
+  --focus-ring-color: var(--brand-primary);
+
+  /* Motion bounds */
+  --duration-micro-min: 120ms;
+  --duration-micro-max: 160ms;
+  --duration-overlay-min: 180ms;
+  --duration-overlay-max: 220ms;
+
+  /* Restrained warm elevation */
+  --panel-shadow: 0 1px 2px rgb(43 36 38 / 4%), 0 8px 24px rgb(43 36 38 / 6%);
+  --overlay-shadow: 0 4px 12px rgb(43 36 38 / 8%), 0 24px 48px rgb(43 36 38 / 12%);
+
+  /* Primary component radius consumed by generated primitives */
+  --radius: 12px;
+}
+
+@theme {
+  /* Spacing scale */
+  --spacing-1: 4px;
+  --spacing-2: 8px;
+  --spacing-3: 12px;
+  --spacing-4: 16px;
+  --spacing-6: 24px;
+  --spacing-8: 32px;
+  --spacing-10: 40px;
+  --spacing-12: 48px;
+  --spacing-16: 64px;
+  --spacing-24: 96px;
+
+  /* Radius scale */
+  --radius-xs: 4px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-pill: 9999px;
+
+  /* Type scale */
+  --text-xs: 12px;
+  --text-xs--line-height: 1.5;
+  --text-sm: 14px;
+  --text-sm--line-height: 1.55;
+  --text-base: 16px;
+  --text-base--line-height: 1.6;
+  --text-lg: 18px;
+  --text-lg--line-height: 1.55;
+  --text-2xl: 24px;
+  --text-2xl--line-height: 1.3;
+  --text-3xl: 32px;
+  --text-3xl--line-height: 1.2;
+  --text-5xl: 44px;
+  --text-5xl--line-height: 1.1;
+
+  /* Typography family — Manrope is emitted as a local build asset */
+  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+@theme inline {
+  /* Project colour vocabulary */
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-ink: var(--text-primary);
+  --color-ink-muted: var(--text-secondary);
+  --color-brand: var(--brand-primary);
+  --color-brand-hover: var(--brand-primary-hover);
+  --color-brand-active: var(--brand-primary-active);
+  --color-control: var(--border-control);
+  --color-subtle: var(--border-subtle);
+  --color-success: var(--success-foreground);
+  --color-success-surface: var(--success-background);
+  --color-warning: var(--warning-foreground);
+  --color-warning-surface: var(--warning-background);
+  --color-danger: var(--danger-foreground);
+  --color-danger-surface: var(--danger-background);
+  --color-info: var(--info-foreground);
+  --color-info-surface: var(--info-background);
+
+  /*
+   * shadcn-compatible aliases. These add no new values: each one points at a
+   * locked semantic token above so generated primitive source renders in the
+   * approved palette without a parallel token set.
+   */
+  --color-background: var(--canvas);
+  --color-foreground: var(--text-primary);
+  --color-card: var(--surface);
+  --color-card-foreground: var(--text-primary);
+  --color-popover: var(--surface);
+  --color-popover-foreground: var(--text-primary);
+  --color-primary: var(--brand-primary);
+  --color-primary-foreground: var(--surface);
+  --color-secondary: var(--surface-muted);
+  --color-secondary-foreground: var(--text-primary);
+  --color-muted: var(--surface-muted);
+  --color-muted-foreground: var(--text-secondary);
+  --color-accent: var(--surface-muted);
+  --color-accent-foreground: var(--text-primary);
+  --color-destructive: var(--danger-foreground);
+  --color-destructive-foreground: var(--surface);
+  --color-border: var(--border-subtle);
+  --color-input: var(--border-control);
+  --color-ring: var(--brand-primary);
+
+  /* Elevation utilities */
+  --shadow-panel: var(--panel-shadow);
+  --shadow-overlay: var(--overlay-shadow);
+}
+
+@layer base {
+  /*
+   * Zero-specificity focus indicator. Component classes can still opt out for
+   * composed controls, but nothing loses a visible indicator by default.
+   */
+  :where(:focus-visible) {
+    outline: var(--focus-ring-width) solid var(--focus-ring-color);
+    outline-offset: var(--focus-ring-offset);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /*
+   * Keep animations running long enough for Radix presence detection while
+   * removing perceptible duration and all translate/scale/rotate movement.
+   * Text and icon state changes remain the primary feedback.
+   */
+  *,
+  *::before,
+  *::after {
+    animation-delay: 0ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-delay: 0ms !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+    --tw-enter-translate-x: 0;
+    --tw-enter-translate-y: 0;
+    --tw-exit-translate-x: 0;
+    --tw-exit-translate-y: 0;
+    --tw-enter-scale: 1;
+    --tw-exit-scale: 1;
+    --tw-enter-rotate: 0;
+    --tw-exit-rotate: 0;
+    --tw-enter-blur: 0;
+    --tw-exit-blur: 0;
+  }
+}
+
+@media (forced-colors: active) {
+  :where(:focus-visible) {
+    outline: var(--focus-ring-width) solid CanvasText;
+    outline-offset: var(--focus-ring-offset);
+  }
+
+  [data-slot="button"],
+  [data-slot="input"],
+  [data-slot="textarea"],
+  [data-slot="radio-group-item"],
+  [data-slot="card"],
+  [data-slot="badge"],
+  [data-slot="dialog-content"],
+  [data-slot="alert-dialog-content"],
+  [data-slot="sheet-content"] {
+    border: 1px solid ButtonBorder;
+  }
+
+  [aria-current="page"],
+  [aria-selected="true"],
+  [data-state="active"],
+  [data-state="checked"],
+  [data-state="on"] {
+    forced-color-adjust: none;
+    background-color: Highlight;
+    color: HighlightText;
+  }
+}
