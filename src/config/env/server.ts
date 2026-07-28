@@ -7,5 +7,6 @@ export function getServerEnvironment(): AppEnvironment {
     APP_ENV: process.env.APP_ENV,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     RELEASE_SHA: process.env.RELEASE_SHA,
+    MAINTENANCE_MODE: process.env.MAINTENANCE_MODE,
   });
 }

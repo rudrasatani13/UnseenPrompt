@@ -23,6 +23,7 @@ jobs:
       APP_ENV: staging
       NEXT_PUBLIC_APP_URL: https://staging.unseenprompt.com
       RELEASE_SHA: ${{ github.sha }}
+      MAINTENANCE_MODE: "off"
       NODE_VERSION: 24
       PNPM_VERSION: 11.17.0
     steps:
@@ -86,6 +87,7 @@ jobs:
       APP_ENV: production
       NEXT_PUBLIC_APP_URL: https://unseenprompt.com
       RELEASE_SHA: ${{ github.sha }}
+      MAINTENANCE_MODE: "off"
       NODE_VERSION: 24
       PNPM_VERSION: 11.17.0
     steps:

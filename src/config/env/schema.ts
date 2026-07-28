@@ -19,6 +19,7 @@ const environmentSchema = z
       .min(1)
       .max(64)
       .regex(/^[A-Za-z0-9._-]+$/, "RELEASE_SHA contains unsupported characters"),
+    MAINTENANCE_MODE: z.enum(["off", "on"]).default("off"),
   })
   .superRefine((environment, context) => {
     const requiresHttps = environment.APP_ENV === "staging" || environment.APP_ENV === "production";

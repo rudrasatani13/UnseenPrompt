@@ -14,6 +14,7 @@ describe("parseEnvironment", () => {
       APP_ENV: "local",
       NEXT_PUBLIC_APP_URL: "http://localhost:3000",
       RELEASE_SHA: "local",
+      MAINTENANCE_MODE: "off",
     });
   });
 
@@ -83,5 +84,38 @@ describe("parseEnvironment", () => {
         RELEASE_SHA: "local",
       }),
     ).toThrow(/HTTPS/);
+  });
+});
+
+describe("parseEnvironment maintenance contract", () => {
+  const baseEnvironment = {
+    APP_ENV: "local",
+    NEXT_PUBLIC_APP_URL: "http://localhost:3000",
+    RELEASE_SHA: "local",
+  } as const;
+
+  it("defaults an absent maintenance value to off", () => {
+    expect(parseEnvironment({ ...baseEnvironment }).MAINTENANCE_MODE).toBe("off");
+    expect(
+      parseEnvironment({ ...baseEnvironment, MAINTENANCE_MODE: undefined }).MAINTENANCE_MODE,
+    ).toBe("off");
+  });
+
+  it("preserves an explicit off value", () => {
+    expect(parseEnvironment({ ...baseEnvironment, MAINTENANCE_MODE: "off" }).MAINTENANCE_MODE).toBe(
+      "off",
+    );
+  });
+
+  it("accepts an explicit on value", () => {
+    expect(parseEnvironment({ ...baseEnvironment, MAINTENANCE_MODE: "on" }).MAINTENANCE_MODE).toBe(
+      "on",
+    );
+  });
+
+  it.each(["true", "1", "", "ON"])("rejects the unsupported value %o", (value) => {
+    expect(() => parseEnvironment({ ...baseEnvironment, MAINTENANCE_MODE: value })).toThrow(
+      /MAINTENANCE_MODE/,
+    );
   });
 });

@@ -18,6 +18,7 @@ env:
   APP_ENV: test
   NEXT_PUBLIC_APP_URL: http://localhost:3000
   RELEASE_SHA: test
+  MAINTENANCE_MODE: "off"
   PNPM_VERSION: 11.17.0
   NODE_VERSION: 24
 
