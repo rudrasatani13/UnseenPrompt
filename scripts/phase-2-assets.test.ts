@@ -123,6 +123,51 @@ describe("phase 2 brand asset contract", () => {
 
     expect(sha256(openGraphPath)).toBe(sha256(twitterPath));
   });
+
+  it("keeps social cards free of unexpected PNG text chunks", () => {
+    for (const relativePath of socialCardPaths) {
+      const bytes = readRepositoryFile(relativePath);
+      const chunkTypes: string[] = [];
+      let offset = 8;
+
+      while (offset + 8 <= bytes.byteLength) {
+        const length = bytes.readUInt32BE(offset);
+        const type = bytes.subarray(offset + 4, offset + 8).toString("ascii");
+        chunkTypes.push(type);
+
+        if (type === "tEXt" || type === "iTXt" || type === "zTXt") {
+          const payload = bytes.subarray(offset + 8, offset + 8 + length).toString("utf8");
+          expect(payload).not.toMatch(/Users\/|fonts\.googleapis|fonts\.gstatic|https?:\/\//i);
+        }
+
+        offset += 12 + length;
+        if (type === "IEND") {
+          break;
+        }
+      }
+
+      expect(chunkTypes).toContain("IHDR");
+      expect(chunkTypes).toContain("IEND");
+    }
+  });
+
+  it("documents a local-only social-card generator contract", () => {
+    const source = readRepositoryText("scripts/generate-social-card.mjs");
+
+    expect(source).toContain("assets/brand/logo-source.png");
+    expect(source).toContain(
+      "node_modules/@fontsource-variable/manrope/files/manrope-latin-wght-normal.woff2",
+    );
+    expect(source).toContain("width: 1200");
+    expect(source).toContain("height: 630");
+    expect(source).toContain("deviceScaleFactor: 1");
+    expect(source).toContain("UnseenPrompt");
+    expect(source).toContain("Stateful Project Copilot for AI-assisted web development.");
+    expect(source).toContain('animations: "disabled"');
+    expect(source).toContain("src/app/opengraph-image.png");
+    expect(source).toContain("src/app/twitter-image.png");
+    expect(source).not.toMatch(/https?:\/\/fonts\.|fetch\(/);
+  });
 });
 
 describe("phase 2 repository metadata", () => {

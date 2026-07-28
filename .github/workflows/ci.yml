@@ -26,7 +26,7 @@ jobs:
   quality:
     name: Quality
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 30
     steps:
       - name: Check out repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -38,6 +38,8 @@ jobs:
         run: npm install --global pnpm@${PNPM_VERSION}
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
       - name: Check formatting
         run: pnpm format:check
       - name: Lint
@@ -46,8 +48,23 @@ jobs:
         run: pnpm typecheck
       - name: Run unit tests
         run: pnpm test:unit
+      - name: Run browser tests
+        run: pnpm test:e2e
+      - name: Run maintenance browser tests
+        run: pnpm test:e2e:maintenance
+      - name: Run production-guard browser tests
+        run: pnpm test:e2e:production
       - name: Build Next.js
         run: pnpm build
+      - name: Upload Playwright artifacts on failure
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-artifacts
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
 
   database:
     name: Database

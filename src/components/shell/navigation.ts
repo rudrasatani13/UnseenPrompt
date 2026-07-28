@@ -1,10 +1,4 @@
-import {
-  ChartNoAxesColumn,
-  Folder,
-  Plus,
-  UserRound,
-  type LucideIcon,
-} from "lucide-react";
+import { ChartNoAxesColumn, Folder, Plus, UserRound, type LucideIcon } from "lucide-react";
 
 export type ShellNavigationItem =
   | {

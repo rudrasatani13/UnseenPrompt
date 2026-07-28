@@ -21,8 +21,7 @@ export default function GlobalError({ reset }: GlobalErrorProps) {
           minHeight: "100vh",
           background: "#FEFAF8",
           color: "#2B2426",
-          fontFamily:
-            'ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif',
+          fontFamily: 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif',
           display: "flex",
           alignItems: "flex-start",
           justifyContent: "center",

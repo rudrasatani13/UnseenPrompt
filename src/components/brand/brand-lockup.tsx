@@ -15,11 +15,7 @@ export function BrandLockup({ variant, priority = false }: BrandLockupProps) {
   const showWordmark = variant === "full";
 
   return (
-    <div
-      data-slot="brand-lockup"
-      data-variant={variant}
-      className="flex items-center gap-3"
-    >
+    <div data-slot="brand-lockup" data-variant={variant} className="flex items-center gap-3">
       <Image
         src="/brand/icon-192.png"
         alt={showWordmark ? "" : "UnseenPrompt"}

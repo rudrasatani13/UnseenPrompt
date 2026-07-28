@@ -21,6 +21,7 @@
     "test:e2e:maintenance": "E2E_MAINTENANCE_MODE=on playwright test --grep '@maintenance'",
     "test:e2e:production": "E2E_APP_ENV=production playwright test --grep '@production'",
     "test:e2e:update": "playwright test tests/e2e/visual.spec.ts --update-snapshots",
+    "brand:social": "node scripts/generate-social-card.mjs",
     "test:db": "supabase test db",
     "cf:build": "opennextjs-cloudflare build",
     "cf:preview": "opennextjs-cloudflare preview --port 8787",
@@ -33,7 +34,7 @@
     "test:preview:assert": "node scripts/assert-cloudflare-preview.mjs",
     "test:cf-preview": "start-server-and-test cf:preview http://127.0.0.1:8787 test:preview:assert",
     "test:cf-deployment": "node scripts/assert-cloudflare-deployment.mjs",
-    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm build"
+    "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:e2e && pnpm test:e2e:maintenance && pnpm test:e2e:production && pnpm build"
   },
   "dependencies": {
     "class-variance-authority": "0.7.1",
