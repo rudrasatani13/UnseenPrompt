@@ -1,6 +1,6 @@
 # UnseenPrompt — Stateful Project Copilot
 
-**Status:** Phase 1 — Cloudflare runtime and environment topology
+**Status:** Phase 2 — Design system and application shell
 
 **Primary domain:** `https://unseenprompt.com` (Cloudflare Worker Custom Domain)
 
@@ -35,6 +35,12 @@ pnpm dev
 
 `.dev.vars` is ignored; never commit real tokens.
 
+## Design system
+
+See [docs/development/design-system.md](docs/development/design-system.md) for
+Warm Editorial tokens, component ownership, shell dimensions, gallery exposure,
+and social-card regeneration (`pnpm brand:social`).
+
 ## Canonical quality commands
 
 Run these locally (no Docker):
@@ -45,6 +51,9 @@ pnpm format:check
 pnpm lint
 pnpm typecheck
 pnpm test:unit
+pnpm test:e2e
+pnpm test:e2e:maintenance
+pnpm test:e2e:production
 pnpm build
 pnpm cf:types:check
 pnpm check:workers-deps
@@ -76,15 +85,15 @@ pnpm test:unit -- src/config/env/schema.test.ts
 
 ## Phase 1 status
 
-| Gate                                      | State                                        |
-| ----------------------------------------- | -------------------------------------------- |
-| Local Worker topology + Workflows binding | Implemented                                  |
-| Public `/api/health`                      | Implemented                                  |
-| Token-protected Workflow probe            | Implemented                                  |
-| PR validation                             | Local Worker build + smoke in GitHub Actions |
-| Staging deployment                        | Automatic on every push to `main`            |
-| Production deployment                     | Automatic after staging passes               |
-| Production traffic                        | Live on `unseenprompt.com` and `www`         |
+| Gate                                      | State                                          |
+| ----------------------------------------- | ---------------------------------------------- |
+| Local Worker topology + Workflows binding | Implemented                                    |
+| Public `/api/health`                      | Implemented                                    |
+| Token-protected Workflow probe            | Implemented                                    |
+| PR validation                             | Local Worker build + smoke in GitHub Actions   |
+| Staging deployment                        | Automatic on every push to `main`              |
+| Production deployment                     | Paused unless `PRODUCTION_DEPLOY_ENABLED=true` |
+| Production traffic                        | Live on `unseenprompt.com` and `www`           |
 
 Operator procedures: [docs/deployment/cloudflare-runbook.md](docs/deployment/cloudflare-runbook.md).
 

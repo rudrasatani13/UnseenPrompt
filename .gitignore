@@ -5,6 +5,7 @@ node_modules/
 coverage/
 test-results/
 playwright-report/
+blob-report/
 *.tsbuildinfo
 
 .env
@@ -16,6 +17,8 @@ playwright-report/
 
 supabase/.branches/
 supabase/.temp/
+
+.superpowers/
 
 .DS_Store
 *.log

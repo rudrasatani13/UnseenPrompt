@@ -9,6 +9,7 @@ describe("sequential main release workflow", () => {
 
     expect(workflow.on.push.branches).toEqual(["main"]);
     expect(workflow.jobs.production.needs).toBe("staging");
+    expect(workflow.jobs.production.if).toBe("${{ vars.PRODUCTION_DEPLOY_ENABLED == 'true' }}");
     expect(workflow.jobs.production.env.RELEASE_SHA).toBe("${{ github.sha }}");
 
     const releaseCheckout = workflow.jobs.production.steps.find(

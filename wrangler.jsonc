@@ -24,6 +24,7 @@
     "APP_ENV": "local",
     "NEXT_PUBLIC_APP_URL": "http://127.0.0.1:8787",
     "RELEASE_SHA": "local",
+    "MAINTENANCE_MODE": "off",
   },
   "workflows": [
     {
@@ -51,6 +52,7 @@
         "APP_ENV": "preview",
         "NEXT_PUBLIC_APP_URL": "https://preview.unseenprompt.com",
         "RELEASE_SHA": "preview",
+        "MAINTENANCE_MODE": "off",
       },
       "workflows": [],
     },
@@ -72,6 +74,7 @@
         "APP_ENV": "staging",
         "NEXT_PUBLIC_APP_URL": "https://staging.unseenprompt.com",
         "RELEASE_SHA": "staging",
+        "MAINTENANCE_MODE": "off",
       },
       "workflows": [
         {
@@ -109,6 +112,7 @@
         "APP_ENV": "production",
         "NEXT_PUBLIC_APP_URL": "https://unseenprompt.com",
         "RELEASE_SHA": "production",
+        "MAINTENANCE_MODE": "off",
       },
       "workflows": [
         {
