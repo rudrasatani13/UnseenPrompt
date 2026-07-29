@@ -87,6 +87,7 @@ jobs:
       CI: "true"
       APP_ENV: production
       NEXT_PUBLIC_APP_URL: https://unseenprompt.com
+      NEXT_PUBLIC_TURNSTILE_SITE_KEY: 0x4AAAAAAEA6pueCMCfbUmae
       RELEASE_SHA: ${{ github.sha }}
       MAINTENANCE_MODE: "off"
       NODE_VERSION: 24
