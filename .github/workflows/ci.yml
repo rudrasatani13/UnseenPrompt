@@ -71,7 +71,7 @@ jobs:
   database:
     name: Database
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Check out repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -85,8 +85,18 @@ jobs:
         run: pnpm install --frozen-lockfile
       - name: Start isolated test database
         run: pnpm exec supabase db start
+      - name: Reset database from migrations and seed
+        run: pnpm exec supabase db reset --yes
+      - name: Lint database schema
+        run: pnpm db:lint
       - name: Run database tests
         run: pnpm test:db
+      - name: Run concurrent idempotency integration tests
+        env:
+          SUPABASE_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
+        run: pnpm test:db:concurrency
+      - name: Check generated database types
+        run: pnpm db:types:check
       - name: Stop isolated test database
         if: always()
         run: pnpm exec supabase stop --no-backup

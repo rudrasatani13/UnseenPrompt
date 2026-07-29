@@ -38,7 +38,45 @@ Secrets must never receive dummy-looking production-shaped values in a public (`
 
 ## Database environment note
 
-Local developer machines do not run Supabase via Docker. Database configuration under `supabase/` is exercised against an isolated database on a GitHub-hosted Actions runner. Shared staging and production are not unit-test targets. Remote Supabase projects and isolated Preview Branches are provisioned in later phases, not Phase 0.
+Local developer machines do not run Supabase via Docker. Database configuration under `supabase/` is exercised against an isolated database on a GitHub-hosted Actions runner. Shared staging and production are not unit-test targets.
+
+PR CI never receives remote Supabase credentials. Forked PR code must never be able to write a remote database.
+
+## Phase 3 data realms
+
+| Realm       | Implementation                                         | Data rule                    | Mutation source            |
+| ----------- | ------------------------------------------------------ | ---------------------------- | -------------------------- |
+| CI/PR       | Ephemeral local Supabase stack on GitHub-hosted runner | Synthetic seed only          | CI `database` job          |
+| Development | Persistent Supabase branch or separate project         | Synthetic data only          | Explicit migration job     |
+| Staging     | Persistent Supabase branch or separate project         | Synthetic/staging data only  | Release workflow           |
+| Production  | Existing production Supabase project                   | Real waitlist + product data | Protected release workflow |
+
+Prefer persistent Supabase branches when the account supports them; otherwise use separate projects with the same migrations. This repository uses a custom GitHub Actions migration gate ordered with the Cloudflare release (not Supabase automatic production deploy from GitHub).
+
+## Phase 3 remote migration secrets (environment-scoped)
+
+Store these only in protected GitHub Environments. Never commit values or put them in PR jobs.
+
+| Name                               | Environment  | Purpose                                    |
+| ---------------------------------- | ------------ | ------------------------------------------ |
+| `STAGING_SUPABASE_ACCESS_TOKEN`    | `staging`    | Supabase CLI access token for staging      |
+| `STAGING_SUPABASE_PROJECT_REF`     | `staging`    | Staging project reference                  |
+| `STAGING_SUPABASE_DB_PASSWORD`     | `staging`    | Database password when required by the CLI |
+| `PRODUCTION_SUPABASE_ACCESS_TOKEN` | `production` | Supabase CLI access token for production   |
+| `PRODUCTION_SUPABASE_PROJECT_REF`  | `production` | Production project reference               |
+| `PRODUCTION_SUPABASE_DB_PASSWORD`  | `production` | Database password when required by the CLI |
+
+| Variable / secret                  | Environment  | Purpose                                                              |
+| ---------------------------------- | ------------ | -------------------------------------------------------------------- |
+| `PRODUCTION_DB_RECOVERY_CONFIRMED` | `production` | GitHub Environment variable; must be exactly `true` before `db push` |
+
+Staging and production migration steps fail closed when any required Supabase credential is missing.
+`Deploy Release` runs only after `Continuous Integration` succeeds for the same commit SHA
+(`workflow_run`), not on an independent `push` race.
+
+Seed SQL runs only on ephemeral CI reset / local non-production reset. Release workflows must never execute seed against staging or production.
+
+Application Supabase clients for product auth remain Phase 4. Production waitlist continues to use server-only `SUPABASE_URL` / `SUPABASE_SECRET_KEY` (do not rename or expose those as public client keys).
 
 ## Production waitlist (production only)
 

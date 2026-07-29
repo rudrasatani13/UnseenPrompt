@@ -46,12 +46,18 @@ Pull requests run the local `cloudflare-preview` CI job but do not deploy a remo
 
 ## Staging
 
-Automatic on push to `main`:
+Automatic after **Continuous Integration succeeds** for a push to `main` (`workflow_run`, same commit SHA):
 
-1. Quality gates + `pnpm cf:build`
-2. `wrangler deploy --env staging --var RELEASE_SHA:<sha>`
-3. Resolve URL with `node scripts/wrangler-output.mjs deployment-url`
-4. `DEPLOYMENT_URL=... HEALTHCHECK_TOKEN=... GITHUB_SHA=... pnpm test:cf-deployment`
+1. Quality gates on the release SHA
+2. Require all staging Supabase secrets (fail closed if any are missing)
+3. Staging database dry-run + apply pending migrations (`supabase db push`)
+4. `pnpm cf:build`
+5. `wrangler deploy --env staging --var RELEASE_SHA:<sha>`
+6. Resolve URL with `node scripts/wrangler-output.mjs deployment-url`
+7. `DEPLOYMENT_URL=... HEALTHCHECK_TOKEN=... GITHUB_SHA=... pnpm test:cf-deployment`
+
+Database migration must succeed before the Worker deploy for the same commit. Never run `supabase/seed.sql` against staging.
+Staging secrets are mandatory; the job does not skip migration and deploy the Worker alone.
 
 All remote smoke commands **require** `GITHUB_SHA` (the exact expected 40-character release identity).
 
@@ -80,15 +86,41 @@ pnpm exec wrangler deploy --env production --dry-run
 
 ### Gated promotion (GitHub Actions)
 
-1. A push or merge to `main` deploys and smokes staging.
-2. The production job starts only after staging succeeds and the repository variable
+1. Continuous Integration must finish successfully for the push SHA on `main`.
+2. Deploy Release starts via `workflow_run` for that exact SHA (not a parallel `push` race).
+3. Staging migrates and deploys that SHA.
+4. The production job starts only after staging succeeds and the repository variable
    `PRODUCTION_DEPLOY_ENABLED` is exactly `true`.
-3. The pipeline dry-runs, uploads a tagged production version for the same `github.sha`, promotes
+5. Production database dry-run + apply the same already-tested migration set (never seed).
+6. Production Environment variable `PRODUCTION_DB_RECOVERY_CONFIRMED` must be exactly `true`
+   (operator confirms backup/PITR coverage for this project) before `db push`.
+7. The pipeline dry-runs, uploads a tagged production version for the same release SHA, promotes
    `VERSION_ID@100`, then smokes `https://unseenprompt.com`.
 
 Keep `PRODUCTION_DEPLOY_ENABLED=false` while production promotion is paused. Enabling it affects
 future `Deploy Release` runs; it does not deploy by itself. Change the variable only after the
-production artifact and release timing are approved.
+production artifact and release timing are approved. Set `PRODUCTION_DB_RECOVERY_CONFIRMED=false`
+again after a promote window if you want the next production migrate to re-require confirmation.
+
+### Database failure and forward repair
+
+Do **not** automatically roll back a failed production database migration with destructive down SQL.
+Stop deployment, preserve evidence, and ship a reviewed forward repair migration. Worker rollback does
+not roll back PostgreSQL or Storage. Every migration must remain backward-compatible with the
+currently running Worker so a Worker-only rollback remains valid.
+
+Required production Environment secrets:
+
+- `PRODUCTION_SUPABASE_ACCESS_TOKEN`
+- `PRODUCTION_SUPABASE_PROJECT_REF`
+- `PRODUCTION_SUPABASE_DB_PASSWORD`
+
+Required production Environment variable:
+
+- `PRODUCTION_DB_RECOVERY_CONFIRMED` = `true` only after operator-reviewed backup/PITR readiness
+
+Staging Environment secrets use the `STAGING_` prefix with the same shapes and are required
+(fail closed).
 
 Production Custom Domains:
 
