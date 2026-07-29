@@ -119,8 +119,8 @@
         "NEXT_PUBLIC_APP_URL": "https://unseenprompt.com",
         "RELEASE_SHA": "production",
         "MAINTENANCE_MODE": "off",
-        "NEXT_PUBLIC_TURNSTILE_SITE_KEY": "",
-        "SUPABASE_URL": "",
+        "NEXT_PUBLIC_TURNSTILE_SITE_KEY": "0x4AAAAAAEA6pueCMCfbUmae",
+        "SUPABASE_URL": "https://tbhwcasvyfvqvdwcmdvx.supabase.co",
         "WAITLIST_FROM_EMAIL": "UnseenPrompt <hello@unseenprompt.com>",
       },
       "ratelimits": [
