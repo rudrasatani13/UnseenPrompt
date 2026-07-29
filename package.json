@@ -38,6 +38,7 @@
     "check": "pnpm format:check && pnpm lint && pnpm typecheck && pnpm test:unit && pnpm test:e2e && pnpm test:e2e:maintenance && pnpm test:e2e:production && pnpm build"
   },
   "dependencies": {
+    "@supabase/supabase-js": "2.111.0",
     "class-variance-authority": "0.7.1",
     "clsx": "2.1.1",
     "lucide-react": "1.27.0",

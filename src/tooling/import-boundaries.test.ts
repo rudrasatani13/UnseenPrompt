@@ -55,4 +55,42 @@ describe("architectural import boundaries", () => {
     },
     eslintBootstrapTimeout,
   );
+
+  it("keeps waitlist server config out of client modules", async () => {
+    const { readdirSync, readFileSync, statSync } = await import("node:fs");
+    const { join } = await import("node:path");
+
+    const clientRoots = ["src/components", "src/features", "src/app"];
+    const offenders: string[] = [];
+
+    function walk(directory: string): void {
+      for (const entry of readdirSync(directory)) {
+        const fullPath = join(directory, entry);
+        const stats = statSync(fullPath);
+        if (stats.isDirectory()) {
+          walk(fullPath);
+          continue;
+        }
+        if (!/\.(tsx|ts|jsx|js)$/u.test(entry)) {
+          continue;
+        }
+        if (fullPath.includes("/api/")) {
+          continue;
+        }
+        const source = readFileSync(fullPath, "utf8");
+        if (source.includes("@/config/waitlist/server") || source.includes("config/waitlist/server")) {
+          // Server Components under app may import server modules; only flag "use client".
+          if (source.includes('"use client"') || source.includes("'use client'")) {
+            offenders.push(fullPath);
+          }
+        }
+      }
+    }
+
+    for (const root of clientRoots) {
+      walk(join(process.cwd(), root));
+    }
+
+    expect(offenders).toEqual([]);
+  });
 });
