@@ -5,12 +5,12 @@ import type * as React from "react";
 import { cn } from "@/components/ui/utils";
 
 /**
- * Status variants use the independent status token pairs so a badge never
+ * Status variants use monochrome surfaces and visible borders so a badge never
  * depends on hue alone: consumers always supply text, and usually an icon too.
  */
 const badgeVariants = cva(
   [
-    "inline-flex w-fit shrink-0 items-center justify-center gap-1 rounded-pill border px-2 py-0.5",
+    "inline-flex w-fit shrink-0 items-center justify-center gap-1 rounded-sm border px-2 py-0.5",
     "text-xs font-medium",
     "transition-colors duration-(--duration-micro-min)",
     "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand",
@@ -22,10 +22,10 @@ const badgeVariants = cva(
         default: "border-transparent bg-brand text-surface",
         secondary: "border-transparent bg-surface-muted text-ink",
         outline: "border-subtle bg-surface text-ink",
-        success: "border-transparent bg-success-surface text-success",
-        warning: "border-transparent bg-warning-surface text-warning",
-        danger: "border-transparent bg-danger-surface text-danger",
-        info: "border-transparent bg-info-surface text-info",
+        success: "border-success-border bg-success-surface text-success",
+        warning: "border-warning-border bg-warning-surface text-warning",
+        danger: "border-2 border-danger-border bg-danger-surface text-danger",
+        info: "border-info-border bg-info-surface text-info",
       },
     },
     defaultVariants: {

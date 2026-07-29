@@ -11,8 +11,8 @@ describe("web application manifest", () => {
         "Start with the messy version. Keep the decisions together and know what to ask for next.",
       start_url: "/",
       display: "standalone",
-      background_color: "#FEFAF8",
-      theme_color: "#FEFAF8",
+      background_color: "#FFFFFF",
+      theme_color: "#FFFFFF",
       icons: [
         {
           src: "/brand/icon-192.png",

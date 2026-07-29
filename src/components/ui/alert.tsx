@@ -4,9 +4,9 @@ import type * as React from "react";
 import { cn } from "@/components/ui/utils";
 
 /**
- * Every variant pairs a status surface with its own legible foreground token.
- * Titles and descriptions wrap: there is no truncation, because a partially
- * visible warning is not a warning.
+ * Every status variant pairs a monochrome surface, a visible border, black
+ * text, and an icon slot. Titles and descriptions wrap: there is no truncation,
+ * because a partially visible warning is not a warning.
  */
 const alertVariants = cva(
   [
@@ -18,10 +18,10 @@ const alertVariants = cva(
     variants: {
       variant: {
         default: "border-subtle bg-surface text-ink",
-        info: "border-transparent bg-info-surface text-info",
-        success: "border-transparent bg-success-surface text-success",
-        warning: "border-transparent bg-warning-surface text-warning",
-        destructive: "border-transparent bg-danger-surface text-danger",
+        info: "border border-info-border bg-info-surface text-info",
+        success: "border border-success-border bg-success-surface text-success",
+        warning: "border border-warning-border bg-warning-surface text-warning",
+        destructive: "border-2 border-danger-border bg-danger-surface text-danger",
       },
     },
     defaultVariants: {

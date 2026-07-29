@@ -58,7 +58,7 @@ export default function HomePage() {
         <h2 id="preview-request-label" className="text-sm font-semibold text-ink">
           Example project request
         </h2>
-        <Card className="border-subtle shadow-panel">
+        <Card className="border-subtle">
           <CardContent className="pt-6">
             <p className="font-mono text-sm break-words whitespace-pre-wrap text-ink">
               {EXAMPLE_PROMPT}

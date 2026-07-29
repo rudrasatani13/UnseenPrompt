@@ -32,7 +32,7 @@ describe("EvidenceLabel", () => {
     const label = container.querySelector('[data-slot="evidence-label"]');
 
     expect(label?.className).toContain("mt-4");
-    expect(label?.className).toContain("rounded-pill");
+    expect(label?.className).toContain("rounded-sm");
   });
 
   it("exposes exactly the four approved states", () => {

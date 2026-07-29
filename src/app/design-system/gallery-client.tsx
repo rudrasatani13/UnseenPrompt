@@ -67,81 +67,81 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const TOKEN_SWATCHES = [
-  { name: "canvas", hex: "#FEFAF8", role: "Page background", contrastPair: null },
+  { name: "canvas", hex: "#FFFFFF", role: "Page background", contrastPair: null },
   { name: "surface", hex: "#FFFFFF", role: "Raised surface", contrastPair: null },
-  { name: "surface-muted", hex: "#FAF4F5", role: "Muted surface / active nav", contrastPair: null },
+  { name: "surface-muted", hex: "#F5F5F5", role: "Muted surface / active nav", contrastPair: null },
   {
     name: "text-primary",
-    hex: "#2B2426",
+    hex: "#000000",
     role: "Primary text",
-    contrastPair: "on canvas ≈ 14.64:1",
+    contrastPair: "on canvas ≈ 21:1",
   },
   {
     name: "text-secondary",
-    hex: "#6F6266",
+    hex: "#525252",
     role: "Secondary text",
-    contrastPair: "on canvas ≈ 5.60:1",
+    contrastPair: "on canvas ≈ 7.81:1",
   },
   {
     name: "brand-primary",
-    hex: "#A64763",
+    hex: "#000000",
     role: "Primary action",
-    contrastPair: "white on brand ≈ 5.67:1; brand on canvas ≈ 5.47:1",
+    contrastPair: "white on brand ≈ 21:1; brand on canvas ≈ 21:1",
   },
   {
     name: "border-control",
-    hex: "#8F8185",
+    hex: "#737373",
     role: "Control border",
-    contrastPair: "on canvas ≈ 3.59:1",
+    contrastPair: "on canvas ≈ 4.74:1",
   },
-  { name: "border-subtle", hex: "#E9DFE1", role: "Subtle border", contrastPair: null },
+  { name: "border-subtle", hex: "#D4D4D4", role: "Subtle border", contrastPair: null },
   {
     name: "success-foreground",
-    hex: "#17623A",
+    hex: "#000000",
     role: "Success text",
-    contrastPair: "on success-background ≈ 6.61:1",
+    contrastPair: "on success-background ≈ 19.60:1",
   },
   {
     name: "success-background",
-    hex: "#E7F6ED",
+    hex: "#F7F7F7",
     role: "Success surface",
-    contrastPair: null,
+    contrastPair: "border #737373 1px",
   },
   {
     name: "warning-foreground",
-    hex: "#7A4A00",
+    hex: "#000000",
     role: "Warning text",
-    contrastPair: "on warning-background ≈ 6.83:1",
+    contrastPair: "on warning-background ≈ 18.26:1",
   },
   {
     name: "warning-background",
-    hex: "#FFF4D6",
+    hex: "#EFEFEF",
     role: "Warning surface",
-    contrastPair: null,
+    contrastPair: "border #525252 1px",
   },
   {
     name: "danger-foreground",
-    hex: "#8F2037",
+    hex: "#000000",
     role: "Danger text",
-    contrastPair: "on danger-background ≈ 7.58:1",
+    contrastPair: "on danger-background ≈ 17.14:1",
   },
   {
     name: "danger-background",
-    hex: "#FDECEF",
+    hex: "#E8E8E8",
     role: "Danger surface",
-    contrastPair: null,
+    contrastPair: "border #000000 2px",
   },
   {
     name: "info-foreground",
-    hex: "#1F4E79",
+    hex: "#000000",
     role: "Info text",
-    contrastPair: "on info-background ≈ 7.71:1",
+    contrastPair: "on info-background ≈ 19.26:1",
   },
   {
     name: "info-background",
-    hex: "#EAF3FA",
+    hex: "#F5F5F5",
     role: "Info surface",
-    contrastPair: null,
+    contrastPair: "border #737373 1px",
   },
 ] as const;
 
@@ -237,7 +237,7 @@ function CoreGallery() {
             <CardDescription>Surface elevation specimen.</CardDescription>
           </CardHeader>
           <CardContent>
-            <p className="text-sm text-ink-muted">Warm Editorial panel surface.</p>
+            <p className="text-sm text-ink-muted">Pure monochrome panel surface.</p>
           </CardContent>
         </Card>
       </Specimen>
@@ -694,7 +694,7 @@ export function DesignSystemGallery() {
           Design System
         </h1>
         <p className="max-w-prose text-base text-ink-muted">
-          Warm Editorial inventory for UnseenPrompt. This gallery contains no production data and is
+          Pure monochrome inventory for UnseenPrompt. This gallery contains no production data and is
           hidden in production.
         </p>
         <ul className="grid gap-3 text-sm">
@@ -763,10 +763,10 @@ export function DesignSystemGallery() {
         <Specimen title="Radius">
           <ul className="flex flex-wrap gap-3">
             {[
-              ["4px", "rounded-xs"],
-              ["8px", "rounded-sm"],
-              ["12px", "rounded-md"],
-              ["16px", "rounded-lg"],
+              ["0px", "rounded-xs"],
+              ["2px", "rounded-sm"],
+              ["4px", "rounded-md"],
+              ["8px", "rounded-lg"],
               ["pill", "rounded-pill"],
             ].map(([label, className]) => (
               <li key={label} className="grid justify-items-center gap-1">
@@ -781,8 +781,8 @@ export function DesignSystemGallery() {
         </Specimen>
         <Specimen title="Elevation">
           <div className="flex flex-wrap gap-4">
-            <div className="rounded-md bg-surface p-6 shadow-panel">Panel shadow</div>
-            <div className="rounded-md bg-surface p-6 shadow-overlay">Overlay shadow</div>
+            <div className="rounded-md border border-subtle bg-surface p-6">Panel border (no shadow)</div>
+            <div className="rounded-md border border-subtle bg-surface p-6 shadow-overlay">Overlay shadow</div>
           </div>
         </Specimen>
         <Specimen title="Focus">
