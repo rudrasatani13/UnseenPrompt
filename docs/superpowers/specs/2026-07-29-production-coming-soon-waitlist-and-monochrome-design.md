@@ -2,7 +2,7 @@
 
 **Date:** 2026-07-29
 
-**Status:** Approved in conversation; awaiting written-spec review
+**Status:** Approved
 
 **Scope:** Production landing page, waitlist, environment isolation, project-wide copy rules, and
 project-wide colour-system migration
@@ -94,6 +94,8 @@ Technical choices follow:
 
 - [Cloudflare Turnstile server-side validation](https://developers.cloudflare.com/turnstile/get-started/server-side-validation/).
 - [Cloudflare Turnstile test keys](https://developers.cloudflare.com/turnstile/troubleshooting/testing/).
+- [Cloudflare Workers rate-limiting bindings](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/).
+- [Cloudflare Workers version overrides](https://developers.cloudflare.com/workers/versions-and-deployments/version-overrides/).
 - [Supabase server-side secret-key guidance](https://supabase.com/docs/guides/troubleshooting/performing-administration-tasks-on-the-server-side-with-the-servicerole-secret-BYM4Fa).
 - [Supabase Cron](https://supabase.com/docs/guides/cron).
 - [Resend idempotency keys](https://resend.com/docs/dashboard/emails/idempotency-keys).
@@ -439,7 +441,7 @@ A waitlist domain module owns:
 
 - email normalization and validation;
 - Turnstile result validation;
-- random confirmation-token creation;
+- domain-separated confirmation-token derivation;
 - SHA-256 confirmation-token hashing;
 - confirmation expiry;
 - request and delivery idempotency;
@@ -453,7 +455,8 @@ External dependencies sit behind narrow interfaces:
 - `TurnstileVerifier`
 - `WaitlistRepository`
 - `ConfirmationMailer`
-- `TokenGenerator`
+- `TokenCodec`
+- `IdempotencyKeyGenerator`
 - `Clock`
 
 Tests use deterministic implementations of these interfaces. Production adapters use Cloudflare,
@@ -492,7 +495,7 @@ Create an isolated `public.waitlist_entries` table with:
 | `confirmation_token_hash`      | SHA-256 hash; raw token is never stored                   |
 | `confirmation_expires_at`      | 24-hour confirmation deadline                             |
 | `confirmation_sent_at`         | Delivery cooldown and audit boundary                      |
-| `confirmation_idempotency_key` | Stable key for retrying the same Resend request           |
+| `confirmation_idempotency_key` | Random UUID for reproducing and retrying one delivery     |
 | `confirmed_at`                 | Server confirmation timestamp                             |
 | `management_version`           | Integer used to revoke signed removal links               |
 | `removed_at`                   | Server removal timestamp                                  |
@@ -515,7 +518,9 @@ fixtures, or deployment artifacts.
 - Never import the server client into a client component.
 - Never prefix the secret key with `NEXT_PUBLIC_`.
 - Fix function `search_path` values explicitly.
-- Use constrained function arguments and return enums rather than rows containing email.
+- Use constrained function arguments and return an action enum plus the effective opaque delivery
+  idempotency key only when delivery is required; never return rows containing email or token
+  hashes.
 
 Database functions make concurrent transitions atomic:
 
@@ -526,7 +531,9 @@ Database functions make concurrent transitions atomic:
 
 The request function owns unique-email concurrency and returns only the internal action the server
 must take: send confirmation, respect cooldown, return already-confirmed without sending mail, or
-retry failed delivery. Public HTTP responses remain non-enumerating.
+retry failed delivery. For `send`, it also returns the effective stored delivery idempotency key so
+the server can reproduce the same raw token after an ambiguous earlier delivery. Public HTTP
+responses remain non-enumerating.
 
 ### Retention
 
@@ -555,9 +562,13 @@ that the hosted cron job exists and records successful runs.
 6. It validates `success`, the expected action, and the approved hostname.
 7. The server normalizes the email.
 8. The database function atomically creates or updates the pending entry.
-9. When delivery is required, Resend receives HTML and plain text with the stored idempotency key.
-10. The server records successful delivery metadata without storing the provider response body.
-11. The public response displays the same success message for new, pending, and confirmed
+9. When delivery is required, the server derives the opaque confirmation token as
+   `base64url(HMAC-SHA256(WAITLIST_TOKEN_SECRET, "confirmation:" + idempotency_key))`.
+10. Resend receives HTML and plain text with the stored idempotency key.
+11. An ambiguous Resend timeout is retried with the same derived token, payload, and idempotency
+    key; the raw confirmation token is never persisted.
+12. The server records successful delivery metadata without storing the provider response body.
+13. The public response displays the same success message for new, pending, and confirmed
     addresses.
 
 Turnstile validation uses a UUID idempotency key for retrying a transient Siteverify failure. It
@@ -575,7 +586,10 @@ Resend delivery is synchronous for this low-volume waitlist. No queue or Workflo
 
 - The same confirmation email retry reuses its Resend idempotency key.
 - A pending address cannot trigger another new message within ten minutes.
-- After the cooldown, the server rotates the confirmation token and expiry before sending again.
+- After the cooldown, the server rotates the delivery idempotency key, derived confirmation token,
+  token hash, and expiry before sending again.
+- An unsent retry reuses its stored delivery key while its confirmation window remains valid; after
+  expiry it rotates to a new key and confirmation window.
 - A lost Resend response is retried with the same payload and idempotency key.
 - A confirmed address receives the same public form response. It must not trigger repeated
   confirmation mail.
@@ -620,6 +634,10 @@ or application-secret rotation; manual removal remains available through the pri
 
 The privacy page also provides `privacy@unseenprompt.com` for manual requests. No marketing message
 may be sent until its removal path is verified end to end.
+
+Before any post-confirmation message exists, controlled release verification uses an owner-only
+local script to sign a removal URL from an entry UUID and `management_version`. The script is not
+deployed, does not accept an email address, and must never run in CI or write its token to a file.
 
 ## Privacy and Legal Surface
 
@@ -724,7 +742,8 @@ missing or malformed. Non-production product preview builds do not require real 
 - Generated Worker types.
 - Worker dependency policy.
 - Public health and authenticated Workflow smoke.
-- Immutable candidate URL reports the expected release SHA.
+- The 0%-traffic candidate version, requested through a version-override header, reports the
+  expected release SHA.
 - Candidate `/`, `/design-system`, confirmation page, and API method behavior.
 
 ## Release Design
@@ -735,8 +754,9 @@ missing or malformed. Non-production product preview builds do not require real 
 2. Run full local verification.
 3. Run PR Quality, Database, Cloudflare Preview, and secret scanning.
 4. Build and test with `APP_ENV=production`.
-5. Upload an immutable production candidate without assigning live traffic.
-6. Smoke the candidate URL and review the final screenshots and real page.
+5. Upload an immutable production candidate and attach it to the current deployment at 0% traffic.
+6. Smoke the production hostname with Cloudflare's version-override header and review the final
+   screenshots and real page.
 
 Candidate validation is non-mutating: it checks page rendering, route status, headers, and rejected
 HTTP methods but never submits the live form. Domain integration tests use deterministic test
@@ -752,7 +772,7 @@ production hostname, then confirmed and removed during the same smoke procedure.
 5. Invoke the protected release workflow for the exact `main` SHA.
 6. Upload and promote the production version.
 7. Smoke the production hostname, release identity, landing page, hard design-system 404, and one
-   controlled waitlist path.
+   controlled request → email → confirm → owner-signed removal path.
 8. Set `PRODUCTION_DEPLOY_ENABLED=false` immediately after successful smoke.
 9. Verify the variable read-back is exactly `false`.
 
@@ -809,6 +829,6 @@ The work is complete only when:
 10. Removal works without exposing whether another address exists.
 11. No client bundle, log, response, or artifact contains a secret or waitlist email.
 12. Accessibility and platform-specific visual gates pass.
-13. The immutable candidate and production release report the expected SHA.
+13. The 0%-traffic candidate override and production release report the expected SHA.
 14. Production promotion is paused again after release.
 15. Staging continues to deploy automatically for later Phase work.
