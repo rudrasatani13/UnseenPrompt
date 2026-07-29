@@ -21,15 +21,21 @@ describe("createResendMailer", () => {
 
     await expect(mailer.send(input)).resolves.toBe("sent");
 
-    const call = fetchImpl.mock.calls[0];
-    expect(call).toBeDefined();
-    const init = call![1] as RequestInit;
-    expect(init.headers).toMatchObject({
-      "Idempotency-Key": input.idempotencyKey,
-    });
-    const body = JSON.parse(String(init.body)) as Record<string, unknown>;
+    expect(fetchImpl).toHaveBeenCalledWith(
+      "https://api.resend.com/emails",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({
+          "Idempotency-Key": input.idempotencyKey,
+        }),
+        body: expect.stringContaining("Confirm your UnseenPrompt email"),
+      }),
+    );
+    const bodyArg = (fetchImpl.mock.calls as unknown as Array<[string, RequestInit]>)[0]?.[1]
+      ?.body;
+    const body = JSON.parse(String(bodyArg)) as Record<string, unknown>;
     expect(body.from).toBe(options.fromEmail);
-    expect(body.subject).toBe("Confirm your UnseenPrompt waitlist email");
+    expect(body.subject).toBe("Confirm your UnseenPrompt email");
     expect(String(body.html)).toContain("Confirm my email");
     expect(String(body.text)).toContain(input.confirmationUrl);
   });

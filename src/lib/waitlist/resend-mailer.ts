@@ -2,7 +2,7 @@ import type { ConfirmationMailer } from "@/domain/waitlist/contracts";
 
 const RESEND_URL = "https://api.resend.com/emails";
 const TIMEOUT_MS = 5_000;
-const SUBJECT = "Confirm your UnseenPrompt waitlist email";
+const SUBJECT = "Confirm your UnseenPrompt email";
 
 export interface ResendMailerOptions {
   readonly apiKey: string;
@@ -13,18 +13,18 @@ export interface ResendMailerOptions {
 
 function buildBodies(confirmationUrl: string): { html: string; text: string } {
   const text = [
-    "Confirm your UnseenPrompt waitlist email",
+    "You asked to hear when UnseenPrompt is ready to try.",
     "",
-    "You asked to join the UnseenPrompt waitlist. Open this link and press Confirm my email:",
+    "Confirm my email:",
     confirmationUrl,
     "",
-    "If you did not request this, you can ignore the message.",
+    "This link expires in 24 hours. If you did not ask for this, ignore this email.",
   ].join("\n");
 
   const html = [
-    "<p>You asked to join the UnseenPrompt waitlist.</p>",
+    "<p>You asked to hear when UnseenPrompt is ready to try.</p>",
     `<p><a href="${confirmationUrl}">Confirm my email</a></p>`,
-    "<p>If you did not request this, you can ignore the message.</p>",
+    "<p>This link expires in 24 hours. If you did not ask for this, ignore this email.</p>",
   ].join("");
 
   return { html, text };
