@@ -61,12 +61,12 @@ describe("RootLayout", () => {
     expect(markup.match(/workspace content/g)).toHaveLength(1);
   });
 
-  it("keeps the approved application metadata and environment-derived base URL", async () => {
+  it("keeps environment-aware metadata and the environment-derived base URL", async () => {
     const { metadata } = await importLayout();
 
     expect(metadata.applicationName).toBe("UnseenPrompt");
     expect(metadata.description).toBe(
-      "Start with the messy version. Keep the decisions together and know what to ask for next.",
+      "UnseenPrompt product preview. Start with the messy version — this environment is not production.",
     );
     expect(metadata.title).toEqual({
       default: "UnseenPrompt",
