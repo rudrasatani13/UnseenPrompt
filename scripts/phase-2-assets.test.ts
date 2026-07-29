@@ -14,6 +14,11 @@ interface PngDimensions {
   readonly height: number;
 }
 
+interface PngAlphaStats {
+  readonly transparentPixels: number;
+  readonly visiblePixels: number;
+}
+
 function readRepositoryFile(relativePath: string): Buffer {
   return readFileSync(path.join(repositoryRoot, relativePath));
 }
@@ -52,7 +57,7 @@ function readPngDimensions(relativePath: string): PngDimensions {
  * Decodes PNG pixels and rejects non-neutral colors where max(r,g,b)-min(r,g,b) > 2.
  * Supports 8-bit grayscale and RGB/RGBA, with or without tRNS, filter method 0.
  */
-function assertNeutralPixels(relativePath: string): void {
+function assertNeutralPixels(relativePath: string): PngAlphaStats {
   const bytes = readRepositoryFile(relativePath);
 
   if (!bytes.subarray(0, 8).equals(PNG_SIGNATURE)) {
@@ -138,11 +143,15 @@ function assertNeutralPixels(relativePath: string): void {
     prev = out;
   }
 
+  let transparentPixels = 0;
+  let visiblePixels = 0;
+
   for (let i = 0; i < width * height; i += 1) {
     const base = i * channels;
     let r = 0;
     let g = 0;
     let b = 0;
+    let alpha = 255;
 
     if (colorType === 0) {
       r = g = b = raw[base]!;
@@ -152,11 +161,16 @@ function assertNeutralPixels(relativePath: string): void {
       b = raw[base + 2]!;
     } else if (colorType === 4) {
       r = g = b = raw[base]!;
+      alpha = raw[base + 1]!;
     } else {
       r = raw[base]!;
       g = raw[base + 1]!;
       b = raw[base + 2]!;
+      alpha = raw[base + 3]!;
     }
+
+    if (alpha === 0) transparentPixels += 1;
+    else visiblePixels += 1;
 
     const chroma = Math.max(r, g, b) - Math.min(r, g, b);
     if (chroma > 2) {
@@ -165,10 +179,12 @@ function assertNeutralPixels(relativePath: string): void {
       );
     }
   }
+
+  return { transparentPixels, visiblePixels };
 }
 
 const brandAssetPaths = [
-  "assets/brand/logo-monochrome.svg",
+  "assets/brand/logo-transparent.png",
   "public/brand/icon-192.png",
   "public/brand/icon-512.png",
   "public/brand/icon-maskable-512.png",
@@ -181,6 +197,7 @@ const brandAssetPaths = [
 ] as const;
 
 const expectedDimensions = {
+  "assets/brand/logo-transparent.png": { width: 1024, height: 1024 },
   "public/brand/icon-192.png": { width: 192, height: 192 },
   "public/brand/icon-512.png": { width: 512, height: 512 },
   "public/brand/icon-maskable-512.png": { width: 512, height: 512 },
@@ -189,6 +206,7 @@ const expectedDimensions = {
 } as const satisfies Record<string, PngDimensions>;
 
 const rasterNeutralPaths = [
+  "assets/brand/logo-transparent.png",
   "public/brand/icon-192.png",
   "public/brand/icon-512.png",
   "public/brand/icon-maskable-512.png",
@@ -196,6 +214,14 @@ const rasterNeutralPaths = [
   "src/app/apple-icon.png",
   "src/app/opengraph-image.png",
   "src/app/twitter-image.png",
+] as const;
+
+const transparentRasterPaths = [
+  "assets/brand/logo-transparent.png",
+  "public/brand/icon-192.png",
+  "public/brand/icon-512.png",
+  "src/app/icon.png",
+  "src/app/apple-icon.png",
 ] as const;
 
 const socialCardPaths = ["src/app/opengraph-image.png", "src/app/twitter-image.png"] as const;
@@ -209,23 +235,19 @@ describe("monochrome brand asset contract", () => {
     }
   });
 
-  it("rejects the retired pink logo source", () => {
+  it("removes the retired brand sources", () => {
     expect(existsSync(path.join(repositoryRoot, "assets/brand/logo-source.png"))).toBe(false);
+    expect(existsSync(path.join(repositoryRoot, "assets/brand/logo-monochrome.svg"))).toBe(false);
   });
 
-  it("requires the canonical SVG to use only black, white, and none", () => {
-    const svg = readRepositoryText("assets/brand/logo-monochrome.svg");
-    const colors = [...svg.matchAll(/#([0-9a-fA-F]{3,8})\b/g)].map((match) =>
-      match[0]!.toUpperCase(),
-    );
+  it("keeps the canonical logo as a transparent RGBA PNG", () => {
+    const bytes = readRepositoryFile("assets/brand/logo-transparent.png");
+    const stats = assertNeutralPixels("assets/brand/logo-transparent.png");
 
-    for (const color of colors) {
-      expect(["#000000", "#FFFFFF", "#000", "#FFF"]).toContain(color);
-    }
-
-    expect(svg).toMatch(/ellipse/i);
-    expect(svg).toMatch(/viewBox="0 0 1024 1024"/);
-    expect(svg).not.toMatch(/#(?:FEFAF8|A64763|8D3852|762C43|FAF4F5|E9DFE1)/i);
+    expect(bytes[24]).toBe(8);
+    expect(bytes[25]).toBe(6);
+    expect(stats.transparentPixels).toBeGreaterThan(0);
+    expect(stats.visiblePixels).toBeGreaterThan(0);
   });
 
   it("preserves the required raster dimensions", () => {
@@ -238,6 +260,16 @@ describe("monochrome brand asset contract", () => {
     for (const relativePath of rasterNeutralPaths) {
       expect(() => assertNeutralPixels(relativePath)).not.toThrow();
     }
+  });
+
+  it("keeps browser and app marks transparent while the maskable icon stays opaque", () => {
+    for (const relativePath of transparentRasterPaths) {
+      const stats = assertNeutralPixels(relativePath);
+      expect(stats.transparentPixels, relativePath).toBeGreaterThan(0);
+      expect(stats.visiblePixels, relativePath).toBeGreaterThan(0);
+    }
+
+    expect(assertNeutralPixels("public/brand/icon-maskable-512.png").transparentPixels).toBe(0);
   });
 
   it("keeps both social cards at the required card size", () => {
@@ -286,13 +318,13 @@ describe("monochrome brand asset contract", () => {
     const brandSource = readRepositoryText("scripts/generate-brand-assets.mjs");
     const socialSource = readRepositoryText("scripts/generate-social-card.mjs");
 
-    expect(brandSource).toContain("assets/brand/logo-monochrome.svg");
+    expect(brandSource).toContain("assets/brand/logo-transparent.png");
     expect(brandSource).toContain("icon-maskable-512.png");
     expect(brandSource).toContain("favicon.ico");
     expect(brandSource).toContain("reducedMotion");
-    expect(brandSource).not.toMatch(/logo-source\.png/);
+    expect(brandSource).not.toMatch(/logo-monochrome\.svg|logo-source\.png/);
 
-    expect(socialSource).toContain("assets/brand/logo-monochrome.svg");
+    expect(socialSource).toContain("assets/brand/logo-transparent.png");
     expect(socialSource).toContain(
       "node_modules/@fontsource-variable/manrope/files/manrope-latin-wght-normal.woff2",
     );
@@ -306,7 +338,7 @@ describe("monochrome brand asset contract", () => {
     expect(socialSource).toContain('animations: "disabled"');
     expect(socialSource).toContain("src/app/opengraph-image.png");
     expect(socialSource).toContain("src/app/twitter-image.png");
-    expect(socialSource).not.toMatch(/logo-source\.png/);
+    expect(socialSource).not.toMatch(/logo-monochrome\.svg|logo-source\.png/);
     expect(socialSource).not.toMatch(/https?:\/\/fonts\.|fetch\(/);
     expect(socialSource).not.toMatch(/#(?:FEFAF8|A64763|2B2426|6F6266)/);
   });

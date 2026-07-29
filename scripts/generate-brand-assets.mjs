@@ -1,7 +1,7 @@
 /**
  * Deterministic monochrome brand asset generator.
  *
- * Renders `assets/brand/logo-monochrome.svg` through Playwright Chromium with
+ * Renders `assets/brand/logo-transparent.png` through Playwright Chromium with
  * reduced motion and no network access, then writes the fixed-size raster set
  * and a self-contained favicon.ico (ICO directory + 32×32 PNG payload).
  */
@@ -17,7 +17,7 @@ import { chromium } from "@playwright/test";
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptDirectory, "..");
 
-const svgPath = path.join(repositoryRoot, "assets/brand/logo-monochrome.svg");
+const logoPath = path.join(repositoryRoot, "assets/brand/logo-transparent.png");
 
 const outputs = {
   "public/brand/icon-192.png": { size: 192, maskable: false },
@@ -186,11 +186,12 @@ function ensureRgbaPng(pngBytes, width, height) {
   ]);
 }
 
-async function renderPng(page, svgDataUrl, size, { maskable }) {
+async function renderPng(page, logoDataUrl, size, { maskable }) {
   // Maskable icons keep a 20% safe-zone inset around the mark.
   const contentScale = maskable ? 0.6 : 1;
   const contentSize = Math.round(size * contentScale);
   const offset = Math.round((size - contentSize) / 2);
+  const background = maskable ? "#FFFFFF" : "transparent";
 
   const html = `<doctype html>
 <html lang="en">
@@ -198,11 +199,11 @@ async function renderPng(page, svgDataUrl, size, { maskable }) {
     <meta charset="utf-8" />
     <style>
       * { box-sizing: border-box; margin: 0; padding: 0; }
-      html, body { width: ${size}px; height: ${size}px; background: #FFFFFF; }
+      html, body { width: ${size}px; height: ${size}px; background: ${background}; }
       #frame {
         width: ${size}px;
         height: ${size}px;
-        background: #FFFFFF;
+        background: ${background};
         position: relative;
         overflow: hidden;
       }
@@ -217,7 +218,7 @@ async function renderPng(page, svgDataUrl, size, { maskable }) {
     </style>
   </head>
   <body>
-    <div id="frame"><img src="${svgDataUrl}" width="${contentSize}" height="${contentSize}" alt="" /></div>
+    <div id="frame"><img src="${logoDataUrl}" width="${contentSize}" height="${contentSize}" alt="" /></div>
   </body>
 </html>`;
 
@@ -235,20 +236,13 @@ async function renderPng(page, svgDataUrl, size, { maskable }) {
   return page.locator("#frame").screenshot({
     type: "png",
     animations: "disabled",
+    omitBackground: !maskable,
   });
 }
 
 async function main() {
-  const svgBytes = await readFile(svgPath);
-  const svgText = svgBytes.toString("utf8");
-
-  for (const forbidden of ["#FEFAF8", "#A64763", "#8D3852", "#762C43", "gradient", "url("]) {
-    if (svgText.includes(forbidden)) {
-      throw new Error(`logo-monochrome.svg contains forbidden token: ${forbidden}`);
-    }
-  }
-
-  const svgDataUrl = toDataUrl(svgBytes, "image/svg+xml");
+  const logoBytes = await readFile(logoPath);
+  const logoDataUrl = toDataUrl(logoBytes, "image/png");
 
   const browser = await chromium.launch({ headless: true });
   try {
@@ -270,7 +264,7 @@ async function main() {
 
     for (const [relativePath, config] of Object.entries(outputs)) {
       await page.setViewportSize({ width: config.size, height: config.size });
-      const pngBytes = await renderPng(page, svgDataUrl, config.size, config);
+      const pngBytes = await renderPng(page, logoDataUrl, config.size, config);
       const absolutePath = path.join(repositoryRoot, relativePath);
       await mkdir(path.dirname(absolutePath), { recursive: true });
       await writeFile(absolutePath, pngBytes);
@@ -280,7 +274,7 @@ async function main() {
 
     // 32×32 PNG for favicon payload
     await page.setViewportSize({ width: 32, height: 32 });
-    const faviconPng = await renderPng(page, svgDataUrl, 32, { maskable: false });
+    const faviconPng = await renderPng(page, logoDataUrl, 32, { maskable: false });
     const icoBytes = buildIcoFromPng(faviconPng, 32, 32);
     await writeFile(faviconPath, icoBytes);
     hashes["src/app/favicon.ico"] = createHash("sha256").update(icoBytes).digest("hex");
