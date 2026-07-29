@@ -69,4 +69,19 @@ describe("WaitlistForm", () => {
       expect.objectContaining({ method: "POST" }),
     );
   });
+
+  it("explains when the production rate limit asks the user to wait", async () => {
+    vi.mocked(fetch).mockResolvedValueOnce(
+      Response.json({ kind: "temporary_failure" }, { status: 429 }),
+    );
+    const user = userEvent.setup();
+    render(<WaitlistForm turnstileSiteKey="site-key" />);
+
+    await user.type(screen.getByLabelText("Email address"), "person@example.com");
+    await user.click(screen.getByRole("button", { name: "Keep me posted" }));
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Too many attempts. Wait a minute and try again.",
+    );
+  });
 });

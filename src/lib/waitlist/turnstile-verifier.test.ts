@@ -34,8 +34,14 @@ describe("createTurnstileVerifier", () => {
     await expect(verifier.verify(input)).resolves.toBe("verified");
     expect(fetchImpl).toHaveBeenCalledWith(
       "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-      expect.objectContaining({ method: "POST" }),
+      expect.objectContaining({
+        method: "POST",
+        body: expect.any(URLSearchParams),
+      }),
     );
+    const body = (fetchImpl.mock.calls as unknown as Array<[string, RequestInit]>)[0]![1]
+      .body as URLSearchParams;
+    expect(body.get("idempotency_key")).toBe(input.idempotencyKey);
   });
 
   it("rejects bad action or hostname", async () => {

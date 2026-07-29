@@ -84,6 +84,12 @@ export function WaitlistForm({ turnstileSiteKey }: WaitlistFormProps) {
           message: "We couldn’t verify this submission. Please try again.",
           alert: true,
         });
+      } else if (response.status === 429) {
+        setStatus({
+          kind: "error",
+          message: "Too many attempts. Wait a minute and try again.",
+          alert: true,
+        });
       } else {
         setStatus({
           kind: "error",

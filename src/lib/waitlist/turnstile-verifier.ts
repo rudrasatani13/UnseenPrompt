@@ -1,7 +1,7 @@
 import type { TurnstileVerifier } from "@/domain/waitlist/contracts";
 
 const SITEVERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
-const TIMEOUT_MS = 5_000;
+const TIMEOUT_MS = 10_000;
 const MAX_RESPONSE_BYTES = 8_192;
 
 export interface TurnstileVerifierOptions {
@@ -17,7 +17,7 @@ export function createTurnstileVerifier(options: TurnstileVerifierOptions): Turn
       const body = new URLSearchParams({
         secret: options.secretKey,
         response: input.token,
-        // Cloudflare accepts optional idempotency guidance via request metadata.
+        idempotency_key: input.idempotencyKey,
       });
 
       let response: Response;
