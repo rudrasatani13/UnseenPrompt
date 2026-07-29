@@ -1,10 +1,7 @@
 import "server-only";
 
 import { getServerEnvironment } from "@/config/env/server";
-import {
-  parseWaitlistEnvironment,
-  type WaitlistEnvironment,
-} from "@/config/waitlist/schema";
+import { parseWaitlistEnvironment, type WaitlistEnvironment } from "@/config/waitlist/schema";
 
 /**
  * Loads production-only waitlist credentials after verifying APP_ENV is production.

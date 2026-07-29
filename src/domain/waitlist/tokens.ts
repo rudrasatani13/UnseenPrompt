@@ -103,9 +103,10 @@ export class WebCryptoTokenCodec implements TokenCodec {
       return null;
     }
 
-    const match = /^(?<entryId>[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}):(?<version>[1-9][0-9]*)$/iu.exec(
-      payload,
-    );
+    const match =
+      /^(?<entryId>[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}):(?<version>[1-9][0-9]*)$/iu.exec(
+        payload,
+      );
     if (!match?.groups) {
       return null;
     }

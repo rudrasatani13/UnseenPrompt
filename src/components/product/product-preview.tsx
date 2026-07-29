@@ -40,9 +40,7 @@ export function ProductPreview() {
     <div data-slot="product-preview" className="mx-auto grid w-full max-w-[800px] gap-8">
       <header className="grid gap-4">
         <div className="flex flex-wrap items-center gap-3">
-          <p className="text-sm font-medium tracking-wide text-brand uppercase">
-            Product preview
-          </p>
+          <p className="text-sm font-medium tracking-wide text-brand uppercase">Product preview</p>
           <Badge variant="secondary">Preview</Badge>
         </div>
         <h1 className="text-3xl font-semibold tracking-tight text-balance text-ink md:text-5xl">

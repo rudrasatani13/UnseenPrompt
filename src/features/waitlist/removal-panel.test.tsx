@@ -24,4 +24,21 @@ describe("RemovalPanel", () => {
       expect(screen.getByText("Your email has been removed.")).toBeInTheDocument();
     });
   });
+
+  it("describes a temporary removal failure accurately", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({ kind: "temporary_error" }, { status: 503 }),
+      ) as typeof fetch,
+    );
+    const user = userEvent.setup();
+    render(<RemovalPanel />);
+
+    await user.click(screen.getByRole("button", { name: "Remove my email" }));
+
+    expect(
+      await screen.findByText("We couldn’t remove your email. Try again in a minute."),
+    ).toBeInTheDocument();
+  });
 });

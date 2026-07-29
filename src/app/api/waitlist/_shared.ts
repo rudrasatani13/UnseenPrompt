@@ -10,6 +10,71 @@ export const NO_STORE_HEADERS = {
 
 const MAX_BODY_BYTES = 4 * 1024;
 
+function invalidRequest() {
+  return {
+    ok: false as const,
+    response: NextResponse.json(
+      { kind: "invalid_request" },
+      { status: 400, headers: NO_STORE_HEADERS },
+    ),
+  };
+}
+
+async function readBoundedBody(request: Request): Promise<string | null> {
+  const contentLength = request.headers.get("content-length");
+  if (contentLength !== null) {
+    const declaredBytes = Number(contentLength);
+    if (
+      !/^\d+$/.test(contentLength) ||
+      !Number.isSafeInteger(declaredBytes) ||
+      declaredBytes > MAX_BODY_BYTES
+    ) {
+      return null;
+    }
+  }
+
+  if (!request.body) {
+    return "";
+  }
+
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let totalBytes = 0;
+
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) {
+        break;
+      }
+
+      totalBytes += value.byteLength;
+      if (totalBytes > MAX_BODY_BYTES) {
+        await reader.cancel().catch(() => undefined);
+        return null;
+      }
+      chunks.push(value);
+    }
+  } catch {
+    return null;
+  } finally {
+    reader.releaseLock();
+  }
+
+  const body = new Uint8Array(totalBytes);
+  let offset = 0;
+  for (const chunk of chunks) {
+    body.set(chunk, offset);
+    offset += chunk.byteLength;
+  }
+
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(body);
+  } catch {
+    return null;
+  }
+}
+
 export function methodNotAllowed(): NextResponse {
   return NextResponse.json(
     { kind: "method_not_allowed" },
@@ -31,42 +96,26 @@ export function productionOnlyOr404(): NextResponse | null {
   return null;
 }
 
-export async function readJsonBody(request: Request): Promise<
+export async function readJsonBody(
+  request: Request,
+): Promise<
   | { readonly ok: true; readonly value: unknown }
   | { readonly ok: false; readonly response: NextResponse }
 > {
   const contentType = request.headers.get("content-type") ?? "";
   if (!contentType.toLowerCase().includes("application/json")) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        { kind: "invalid_request" },
-        { status: 400, headers: NO_STORE_HEADERS },
-      ),
-    };
+    return invalidRequest();
   }
 
-  const raw = await request.text();
-  if (raw.length > MAX_BODY_BYTES) {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        { kind: "invalid_request" },
-        { status: 400, headers: NO_STORE_HEADERS },
-      ),
-    };
+  const raw = await readBoundedBody(request);
+  if (raw === null) {
+    return invalidRequest();
   }
 
   try {
     return { ok: true, value: JSON.parse(raw) as unknown };
   } catch {
-    return {
-      ok: false,
-      response: NextResponse.json(
-        { kind: "invalid_request" },
-        { status: 400, headers: NO_STORE_HEADERS },
-      ),
-    };
+    return invalidRequest();
   }
 }
 

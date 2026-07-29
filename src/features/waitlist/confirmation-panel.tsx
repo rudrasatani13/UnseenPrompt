@@ -96,14 +96,12 @@ export function ConfirmationPanel() {
             <p className="mt-2 text-ink-muted">We’ll write when there’s something ready to try.</p>
           </>
         ) : null}
-        {state.kind === "expired"
-          ? "This confirmation has expired. Enter your email again."
-          : null}
+        {state.kind === "expired" ? "This confirmation has expired. Enter your email again." : null}
         {state.kind === "invalid" || state.kind === "missing"
           ? "This confirmation link is no longer available."
           : null}
         {state.kind === "temporary"
-          ? "We couldn’t send the confirmation email. Try again in a minute."
+          ? "We couldn’t confirm your email. Try again in a minute."
           : null}
       </div>
     </div>

@@ -30,12 +30,7 @@ const requestDecisionSchema = z.discriminatedUnion("kind", [
   z.object({ kind: z.literal("confirmed") }),
 ]);
 
-const confirmationResultSchema = z.enum([
-  "confirmed",
-  "already_confirmed",
-  "expired",
-  "invalid",
-]);
+const confirmationResultSchema = z.enum(["confirmed", "already_confirmed", "expired", "invalid"]);
 const removalResultSchema = z.enum(["removed", "already_removed", "invalid"]);
 
 function toIso(date: Date): string {

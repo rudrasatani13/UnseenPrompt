@@ -16,7 +16,9 @@ const input = {
 
 describe("createResendMailer", () => {
   it("sends the approved payload with Idempotency-Key", async () => {
-    const fetchImpl = vi.fn(async () => new Response(JSON.stringify({ id: "msg" }), { status: 200 }));
+    const fetchImpl = vi.fn(
+      async () => new Response(JSON.stringify({ id: "msg" }), { status: 200 }),
+    );
     const mailer = createResendMailer({ ...options, fetchImpl: fetchImpl as typeof fetch });
 
     await expect(mailer.send(input)).resolves.toBe("sent");
@@ -31,8 +33,7 @@ describe("createResendMailer", () => {
         body: expect.stringContaining("Confirm your UnseenPrompt email"),
       }),
     );
-    const bodyArg = (fetchImpl.mock.calls as unknown as Array<[string, RequestInit]>)[0]?.[1]
-      ?.body;
+    const bodyArg = (fetchImpl.mock.calls as unknown as Array<[string, RequestInit]>)[0]?.[1]?.body;
     const body = JSON.parse(String(bodyArg)) as Record<string, unknown>;
     expect(body.from).toBe(options.fromEmail);
     expect(body.subject).toBe("Confirm your UnseenPrompt email");

@@ -694,8 +694,8 @@ export function DesignSystemGallery() {
           Design System
         </h1>
         <p className="max-w-prose text-base text-ink-muted">
-          Pure monochrome inventory for UnseenPrompt. This gallery contains no production data and is
-          hidden in production.
+          Pure monochrome inventory for UnseenPrompt. This gallery contains no production data and
+          is hidden in production.
         </p>
         <ul className="grid gap-3 text-sm">
           {GALLERY_SECTIONS.map((section) => (
@@ -781,8 +781,12 @@ export function DesignSystemGallery() {
         </Specimen>
         <Specimen title="Elevation">
           <div className="flex flex-wrap gap-4">
-            <div className="rounded-md border border-subtle bg-surface p-6">Panel border (no shadow)</div>
-            <div className="rounded-md border border-subtle bg-surface p-6 shadow-overlay">Overlay shadow</div>
+            <div className="rounded-md border border-subtle bg-surface p-6">
+              Panel border (no shadow)
+            </div>
+            <div className="rounded-md border border-subtle bg-surface p-6 shadow-overlay">
+              Overlay shadow
+            </div>
           </div>
         </Specimen>
         <Specimen title="Focus">

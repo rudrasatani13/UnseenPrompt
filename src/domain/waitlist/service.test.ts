@@ -15,12 +15,10 @@ const FIXED_NOW = new Date("2026-07-29T12:00:00.000Z");
 function createMocks() {
   const tokens = new WebCryptoTokenCodec(SECRET);
   const repository: WaitlistRepository = {
-    requestConfirmation: vi.fn(
-      async (): Promise<RequestConfirmationDecision> => ({
-        kind: "send",
-        idempotencyKey: "550e8400-e29b-41d4-a716-446655440000",
-      }),
-    ),
+    requestConfirmation: vi.fn(async (): Promise<RequestConfirmationDecision> => ({
+      kind: "send",
+      idempotencyKey: "550e8400-e29b-41d4-a716-446655440000",
+    })),
     markConfirmationSent: vi.fn(async () => undefined),
     confirm: vi.fn(async () => "confirmed" as const),
     remove: vi.fn(async () => "removed" as const),
@@ -106,9 +104,7 @@ describe("createWaitlistService", () => {
 
   it("retries one Resend timeout then accepts on success", async () => {
     const { service, mailer } = createMocks();
-    vi.mocked(mailer.send)
-      .mockResolvedValueOnce("unavailable")
-      .mockResolvedValueOnce("sent");
+    vi.mocked(mailer.send).mockResolvedValueOnce("unavailable").mockResolvedValueOnce("sent");
 
     await expect(service.request(validInput)).resolves.toEqual({ kind: "accepted" });
     expect(mailer.send).toHaveBeenCalledTimes(2);

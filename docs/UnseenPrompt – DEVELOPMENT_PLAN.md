@@ -6,7 +6,7 @@
 **Last Updated:** July 2026  
 **Status:** Approved Plan — Pre-Development  
 **Brand:** UnseenPrompt  
-**Product:** Project-planning application  
+**Product:** Project-planning application
 **Primary Domain:** `unseenprompt.com` (purchased)  
 **Companion Doc:** `UnseenPrompt – PRODUCT_PLAN.md`
 

@@ -9,17 +9,13 @@ const ENTRY = "11111111-2222-4333-8444-555555555555";
 
 describe("create-waitlist-removal-link", () => {
   it("prints a fragment URL for valid arguments", () => {
-    const result = spawnSync(
-      "pnpm",
-      ["exec", "tsx", scriptPath, ENTRY, "2"],
-      {
-        encoding: "utf8",
-        env: {
-          ...process.env,
-          WAITLIST_TOKEN_SECRET: SECRET,
-        },
+    const result = spawnSync("pnpm", ["exec", "tsx", scriptPath, ENTRY, "2"], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        WAITLIST_TOKEN_SECRET: SECRET,
       },
-    );
+    });
 
     expect(result.status).toBe(0);
     expect(result.stdout).toMatch(

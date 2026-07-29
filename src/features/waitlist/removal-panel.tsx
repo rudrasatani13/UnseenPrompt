@@ -91,7 +91,7 @@ export function RemovalPanel() {
           ? "This confirmation link is no longer available."
           : null}
         {state.kind === "temporary"
-          ? "We couldn’t send the confirmation email. Try again in a minute."
+          ? "We couldn’t remove your email. Try again in a minute."
           : null}
       </div>
     </div>

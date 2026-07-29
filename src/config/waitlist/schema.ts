@@ -9,11 +9,9 @@ const waitlistEnvironmentSchema = z
   .object({
     turnstileSiteKey: z.string().min(1).max(256),
     turnstileSecretKey: secretSchema,
-    supabaseUrl: z
-      .url()
-      .refine((value) => new URL(value).protocol === "https:", {
-        message: "SUPABASE_URL must use HTTPS",
-      }),
+    supabaseUrl: z.url().refine((value) => new URL(value).protocol === "https:", {
+      message: "SUPABASE_URL must use HTTPS",
+    }),
     supabaseSecretKey: secretSchema,
     resendApiKey: secretSchema,
     tokenSecret: secretSchema,

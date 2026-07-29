@@ -55,7 +55,7 @@ test.describe("design-system gallery", () => {
     await expect(page.getByRole("heading", { name: "Reduced motion", exact: true })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Forced colors", exact: true })).toBeVisible();
     await expect(page.getByText("success-background", { exact: true })).toBeVisible();
-    await expect(page.getByText(/on canvas ≈ 14\.64:1/)).toBeVisible();
+    await expect(page.getByText("on canvas ≈ 21:1", { exact: true })).toBeVisible();
 
     await expect(page.getByText(/intentionally long gallery copy/i)).toBeVisible();
     for (const status of ["ready", "uploading", "processing", "error", "complete"] as const) {

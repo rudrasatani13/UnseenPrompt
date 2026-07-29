@@ -92,9 +92,9 @@ test.describe("production coming soon @production", () => {
     await page.getByLabel("Email address").fill("person@example.com");
     await page.getByRole("button", { name: "Keep me posted" }).click();
 
-    await expect(
-      page.getByText("Check your inbox. We sent a confirmation email."),
-    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Check your inbox. We sent a confirmation email.")).toBeVisible({
+      timeout: 15_000,
+    });
   });
 
   test("requires explicit confirmation action", async ({ page }) => {

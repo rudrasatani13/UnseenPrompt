@@ -21,25 +21,25 @@ Import rules:
 
 ## Semantic tokens
 
-| Token                    | Value                                               |
-| ------------------------ | --------------------------------------------------- |
-| `--canvas`               | `#FFFFFF`                                           |
-| `--surface`              | `#FFFFFF`                                           |
-| `--surface-muted`        | `#F5F5F5`                                           |
-| `--text-primary`         | `#000000`                                           |
-| `--text-secondary`       | `#525252`                                           |
-| `--brand-primary`        | `#000000`                                           |
-| `--brand-primary-hover`  | `#262626`                                           |
-| `--brand-primary-active` | `#404040`                                           |
-| `--border-control`       | `#737373`                                           |
-| `--border-subtle`        | `#D4D4D4`                                           |
-| `--focus-ring-color`     | `#000000`                                           |
+| Token                    | Value                                                          |
+| ------------------------ | -------------------------------------------------------------- |
+| `--canvas`               | `#FFFFFF`                                                      |
+| `--surface`              | `#FFFFFF`                                                      |
+| `--surface-muted`        | `#F5F5F5`                                                      |
+| `--text-primary`         | `#000000`                                                      |
+| `--text-secondary`       | `#525252`                                                      |
+| `--brand-primary`        | `#000000`                                                      |
+| `--brand-primary-hover`  | `#262626`                                                      |
+| `--brand-primary-active` | `#404040`                                                      |
+| `--border-control`       | `#737373`                                                      |
+| `--border-subtle`        | `#D4D4D4`                                                      |
+| `--focus-ring-color`     | `#000000`                                                      |
 | status pairs             | monochrome success / warning / danger / info (see `theme.css`) |
 
 Status surfaces:
 
-| Status      | Surface   | Border         | Text     |
-| ----------- | --------- | -------------- | -------- |
+| Status      | Surface   | Border         | Text      |
+| ----------- | --------- | -------------- | --------- |
 | Success     | `#F7F7F7` | `#737373`, 1px | `#000000` |
 | Information | `#F5F5F5` | `#737373`, 1px | `#000000` |
 | Warning     | `#EFEFEF` | `#525252`, 1px | `#000000` |

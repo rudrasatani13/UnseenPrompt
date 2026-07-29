@@ -23,9 +23,7 @@ describe("WaitlistForm", () => {
   beforeEach(() => {
     vi.stubGlobal(
       "fetch",
-      vi.fn(async () =>
-        Response.json({ kind: "accepted" }, { status: 200 }),
-      ) as typeof fetch,
+      vi.fn(async () => Response.json({ kind: "accepted" }, { status: 200 })) as typeof fetch,
     );
   });
 

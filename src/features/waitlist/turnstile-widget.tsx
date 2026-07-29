@@ -49,6 +49,13 @@ export function TurnstileWidget({ siteKey, onReady }: TurnstileWidgetProps) {
 
   useEffect(() => {
     let cancelled = false;
+    let pendingScript: HTMLScriptElement | null = null;
+
+    function settleToken(token: string | null) {
+      const resolve = resolveTokenRef.current;
+      resolveTokenRef.current = null;
+      resolve?.(token);
+    }
 
     function attach() {
       if (cancelled || !containerRef.current || !window.turnstile) {
@@ -66,16 +73,13 @@ export function TurnstileWidget({ siteKey, onReady }: TurnstileWidgetProps) {
         execution: "execute",
         action: "waitlist_request",
         callback: (token) => {
-          resolveTokenRef.current?.(token);
-          resolveTokenRef.current = null;
+          settleToken(token);
         },
         "error-callback": () => {
-          resolveTokenRef.current?.(null);
-          resolveTokenRef.current = null;
+          settleToken(null);
         },
         "expired-callback": () => {
-          resolveTokenRef.current?.(null);
-          resolveTokenRef.current = null;
+          settleToken(null);
         },
       });
 
@@ -86,6 +90,7 @@ export function TurnstileWidget({ siteKey, onReady }: TurnstileWidgetProps) {
               resolve(null);
               return;
             }
+            settleToken(null);
             resolveTokenRef.current = resolve;
             window.turnstile.execute(widgetIdRef.current);
           }),
@@ -101,6 +106,7 @@ export function TurnstileWidget({ siteKey, onReady }: TurnstileWidgetProps) {
     if (window.turnstile) {
       attach();
     } else if (existing) {
+      pendingScript = existing;
       existing.addEventListener("load", attach, { once: true });
     } else {
       const script = document.createElement("script");
@@ -109,10 +115,13 @@ export function TurnstileWidget({ siteKey, onReady }: TurnstileWidgetProps) {
       script.defer = true;
       script.addEventListener("load", attach, { once: true });
       document.head.appendChild(script);
+      pendingScript = script;
     }
 
     return () => {
       cancelled = true;
+      pendingScript?.removeEventListener("load", attach);
+      settleToken(null);
       if (window.turnstile && widgetIdRef.current) {
         window.turnstile.remove(widgetIdRef.current);
         widgetIdRef.current = null;

@@ -78,7 +78,10 @@ describe("architectural import boundaries", () => {
           continue;
         }
         const source = readFileSync(fullPath, "utf8");
-        if (source.includes("@/config/waitlist/server") || source.includes("config/waitlist/server")) {
+        if (
+          source.includes("@/config/waitlist/server") ||
+          source.includes("config/waitlist/server")
+        ) {
           // Server Components under app may import server modules; only flag "use client".
           if (source.includes('"use client"') || source.includes("'use client'")) {
             offenders.push(fullPath);

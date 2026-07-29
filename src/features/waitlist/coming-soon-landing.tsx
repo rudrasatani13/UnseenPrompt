@@ -12,10 +12,7 @@ export interface ComingSoonLandingProps {
  */
 export function ComingSoonLanding({ turnstileSiteKey }: ComingSoonLandingProps) {
   return (
-    <div
-      data-slot="coming-soon-landing"
-      className="flex min-h-dvh flex-col bg-canvas text-ink"
-    >
+    <div data-slot="coming-soon-landing" className="flex min-h-dvh flex-col bg-canvas text-ink">
       <header className="flex items-center justify-between gap-4 px-4 py-4 sm:px-6">
         <BrandLockup variant="full" priority />
         <p className="text-sm text-ink-muted">Work in progress</p>

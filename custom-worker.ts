@@ -60,7 +60,9 @@ export default {
 
       const limiter = (
         env as CloudflareEnv & {
-          WAITLIST_RATE_LIMITER?: { limit: (input: { key: string }) => Promise<{ success: boolean }> };
+          WAITLIST_RATE_LIMITER?: {
+            limit: (input: { key: string }) => Promise<{ success: boolean }>;
+          };
         }
       ).WAITLIST_RATE_LIMITER;
 

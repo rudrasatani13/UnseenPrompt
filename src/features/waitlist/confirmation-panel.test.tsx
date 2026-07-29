@@ -28,4 +28,21 @@ describe("ConfirmationPanel", () => {
     expect(fetch).toHaveBeenCalledTimes(1);
     expect(window.location.hash).toBe("");
   });
+
+  it("describes a temporary confirmation failure accurately", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async () =>
+        Response.json({ kind: "temporary_error" }, { status: 503 }),
+      ) as typeof fetch,
+    );
+    const user = userEvent.setup();
+    render(<ConfirmationPanel />);
+
+    await user.click(screen.getByRole("button", { name: "Confirm my email" }));
+
+    expect(
+      await screen.findByText("We couldn’t confirm your email. Try again in a minute."),
+    ).toBeInTheDocument();
+  });
 });

@@ -44,13 +44,12 @@ Local developer machines do not run Supabase via Docker. Database configuration 
 
 These values must never be configured on preview or staging:
 
-| Name | Visibility |
-| --- | --- |
-| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Public |
-| `TURNSTILE_SECRET_KEY` | Secret |
-| `SUPABASE_URL` | Server |
-| `SUPABASE_SECRET_KEY` | Secret |
-| `RESEND_API_KEY` | Secret |
-| `WAITLIST_TOKEN_SECRET` | Secret |
-| `WAITLIST_FROM_EMAIL` | Server (`UnseenPrompt <hello@unseenprompt.com>`) |
-
+| Name                             | Visibility                                       |
+| -------------------------------- | ------------------------------------------------ |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Public                                           |
+| `TURNSTILE_SECRET_KEY`           | Secret                                           |
+| `SUPABASE_URL`                   | Server                                           |
+| `SUPABASE_SECRET_KEY`            | Secret                                           |
+| `RESEND_API_KEY`                 | Secret                                           |
+| `WAITLIST_TOKEN_SECRET`          | Secret                                           |
+| `WAITLIST_FROM_EMAIL`            | Server (`UnseenPrompt <hello@unseenprompt.com>`) |

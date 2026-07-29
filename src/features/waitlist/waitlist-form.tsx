@@ -5,10 +5,7 @@ import { useCallback, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import {
-  TurnstileWidget,
-  type TurnstileWidgetHandle,
-} from "@/features/waitlist/turnstile-widget";
+import { TurnstileWidget, type TurnstileWidgetHandle } from "@/features/waitlist/turnstile-widget";
 
 export interface WaitlistFormProps {
   readonly turnstileSiteKey: string;
