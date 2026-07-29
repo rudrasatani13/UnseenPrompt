@@ -18,6 +18,8 @@ function jsonResponse(body: unknown, init?: ResponseInit): Response {
 }
 
 describe("createTurnstileVerifier", () => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
   it("accepts a successful Siteverify response", async () => {
     const fetchImpl = vi.fn(async () =>
       jsonResponse({
@@ -34,8 +36,15 @@ describe("createTurnstileVerifier", () => {
     await expect(verifier.verify(input)).resolves.toBe("verified");
     expect(fetchImpl).toHaveBeenCalledWith(
       "https://challenges.cloudflare.com/turnstile/v0/siteverify",
-      expect.objectContaining({ method: "POST" }),
+      expect.objectContaining({
+        method: "POST",
+        body: expect.any(String),
+      }),
     );
+    const body = JSON.parse(
+      String((fetchImpl.mock.calls as unknown as Array<[string, RequestInit]>)[0]![1].body),
+    ) as Record<string, unknown>;
+    expect(body.idempotency_key).toBe(input.idempotencyKey);
   });
 
   it("rejects bad action or hostname", async () => {
@@ -76,12 +85,20 @@ describe("createTurnstileVerifier", () => {
       ) as typeof fetch,
     });
     await expect(failed.verify(input)).resolves.toBe("rejected");
+    expect(warn).toHaveBeenCalledWith("waitlist.turnstile.rejected", {
+      category: "provider",
+      codes: ["timeout-or-duplicate"],
+    });
 
     const clientError = createTurnstileVerifier({
       secretKey: "secret-secret-secret-secret-secret-12",
       fetchImpl: vi.fn(async () => new Response("bad", { status: 400 })) as typeof fetch,
     });
     await expect(clientError.verify(input)).resolves.toBe("rejected");
+    expect(warn).toHaveBeenCalledWith("waitlist.turnstile.rejected", {
+      category: "http-400",
+      codes: [],
+    });
   });
 
   it("maps malformed and oversized JSON to unavailable", async () => {
