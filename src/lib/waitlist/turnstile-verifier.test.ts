@@ -18,6 +18,8 @@ function jsonResponse(body: unknown, init?: ResponseInit): Response {
 }
 
 describe("createTurnstileVerifier", () => {
+  const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+
   it("accepts a successful Siteverify response", async () => {
     const fetchImpl = vi.fn(async () =>
       jsonResponse({
@@ -82,6 +84,10 @@ describe("createTurnstileVerifier", () => {
       ) as typeof fetch,
     });
     await expect(failed.verify(input)).resolves.toBe("rejected");
+    expect(warn).toHaveBeenCalledWith("waitlist.turnstile.rejected", {
+      category: "provider",
+      codes: ["timeout-or-duplicate"],
+    });
 
     const clientError = createTurnstileVerifier({
       secretKey: "secret-secret-secret-secret-secret-12",

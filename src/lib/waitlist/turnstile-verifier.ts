@@ -3,6 +3,24 @@ import type { TurnstileVerifier } from "@/domain/waitlist/contracts";
 const SITEVERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverify";
 const TIMEOUT_MS = 10_000;
 const MAX_RESPONSE_BYTES = 8_192;
+const KNOWN_ERROR_CODES = new Set([
+  "bad-request",
+  "internal-error",
+  "invalid-input-response",
+  "invalid-input-secret",
+  "missing-input-response",
+  "missing-input-secret",
+  "timeout-or-duplicate",
+]);
+
+function reportRejection(category: string, errorCodes: unknown = []): void {
+  const codes = Array.isArray(errorCodes)
+    ? errorCodes.filter(
+        (code): code is string => typeof code === "string" && KNOWN_ERROR_CODES.has(code),
+      )
+    : [];
+  console.warn("waitlist.turnstile.rejected", { category, codes });
+}
 
 export interface TurnstileVerifierOptions {
   readonly secretKey: string;
@@ -39,6 +57,7 @@ export function createTurnstileVerifier(options: TurnstileVerifierOptions): Turn
       }
 
       if (!response.ok) {
+        reportRejection("http");
         return "rejected";
       }
 
@@ -60,14 +79,17 @@ export function createTurnstileVerifier(options: TurnstileVerifierOptions): Turn
 
       const record = payload as Record<string, unknown>;
       if (record.success !== true) {
+        reportRejection("provider", record["error-codes"]);
         return "rejected";
       }
 
       if (record.action !== "waitlist_request") {
+        reportRejection("action");
         return "rejected";
       }
 
       if (record.hostname !== input.hostname) {
+        reportRejection("hostname");
         return "rejected";
       }
 
