@@ -57,7 +57,7 @@ export function createTurnstileVerifier(options: TurnstileVerifierOptions): Turn
       }
 
       if (!response.ok) {
-        reportRejection("http");
+        reportRejection(`http-${response.status}`);
         return "rejected";
       }
 

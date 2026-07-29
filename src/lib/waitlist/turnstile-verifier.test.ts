@@ -94,6 +94,10 @@ describe("createTurnstileVerifier", () => {
       fetchImpl: vi.fn(async () => new Response("bad", { status: 400 })) as typeof fetch,
     });
     await expect(clientError.verify(input)).resolves.toBe("rejected");
+    expect(warn).toHaveBeenCalledWith("waitlist.turnstile.rejected", {
+      category: "http-400",
+      codes: [],
+    });
   });
 
   it("maps malformed and oversized JSON to unavailable", async () => {
