@@ -5,12 +5,18 @@ import { ProductApplicationShell } from "@/components/shell/product-application-
 import { getServerEnvironment } from "@/config/env/server";
 
 /**
- * Product route-group layout. Owns the application shell and the maintenance
- * presentation boundary. Health and design-system routes stay outside this
- * group.
+ * Product route-group layout.
+ *
+ * Production returns children directly so the application shell never streams.
+ * Non-production keeps the Phase 2 shell and maintenance boundary.
  */
 export default function ProductLayout({ children }: Readonly<{ children: ReactNode }>) {
   const environment = getServerEnvironment();
+
+  if (environment.APP_ENV === "production") {
+    return children;
+  }
+
   const isMaintenance = environment.MAINTENANCE_MODE === "on";
 
   return (

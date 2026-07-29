@@ -1,5 +1,5 @@
 /*
- * Warm Editorial visual system — single source of truth for UnseenPrompt tokens.
+ * Pure Monochrome / White Canvas — single source of truth for UnseenPrompt tokens.
  *
  * This file owns one light token set. There is no dark variant and no second
  * token set: every Tailwind utility and every shadcn-compatible alias below
@@ -8,37 +8,45 @@
 
 :root {
   /* Surfaces */
-  --canvas: #fefaf8;
+  --canvas: #ffffff;
   --surface: #ffffff;
-  --surface-muted: #faf4f5;
+  --surface-muted: #f5f5f5;
 
   /* Text */
-  --text-primary: #2b2426;
-  --text-secondary: #6f6266;
+  --text-primary: #000000;
+  --text-secondary: #525252;
 
   /* Brand action */
-  --brand-primary: #a64763;
-  --brand-primary-hover: #8d3852;
-  --brand-primary-active: #762c43;
+  --brand-primary: #000000;
+  --brand-primary-hover: #262626;
+  --brand-primary-active: #404040;
 
   /* Borders */
-  --border-control: #8f8185;
-  --border-subtle: #e9dfe1;
+  --border-control: #737373;
+  --border-subtle: #d4d4d4;
 
-  /* Status — each pair is independently legible without relying on hue alone */
-  --success-foreground: #17623a;
-  --success-background: #e7f6ed;
-  --warning-foreground: #7a4a00;
-  --warning-background: #fff4d6;
-  --danger-foreground: #8f2037;
-  --danger-background: #fdecef;
-  --info-foreground: #1f4e79;
-  --info-background: #eaf3fa;
+  /*
+   * Status — monochrome only. Each state pairs a neutral surface, a visible
+   * border, black text, an icon, and an explicit label. Hue is never the sole
+   * signal.
+   */
+  --success-foreground: #000000;
+  --success-background: #f7f7f7;
+  --success-border: #737373;
+  --warning-foreground: #000000;
+  --warning-background: #efefef;
+  --warning-border: #525252;
+  --danger-foreground: #000000;
+  --danger-background: #e8e8e8;
+  --danger-border: #000000;
+  --info-foreground: #000000;
+  --info-background: #f5f5f5;
+  --info-border: #737373;
 
-  /* Focus indicator: 2px indicator, 2px offset, >= 3:1 against adjacent colors */
+  /* Focus indicator: 2px indicator, 2px white offset, >= 3:1 against adjacent colors */
   --focus-ring-width: 2px;
   --focus-ring-offset: 2px;
-  --focus-ring-color: var(--brand-primary);
+  --focus-ring-color: #000000;
 
   /* Motion bounds */
   --duration-micro-min: 120ms;
@@ -46,12 +54,11 @@
   --duration-overlay-min: 180ms;
   --duration-overlay-max: 220ms;
 
-  /* Restrained warm elevation */
-  --panel-shadow: 0 1px 2px rgb(43 36 38 / 4%), 0 8px 24px rgb(43 36 38 / 6%);
-  --overlay-shadow: 0 4px 12px rgb(43 36 38 / 8%), 0 24px 48px rgb(43 36 38 / 12%);
+  /* Overlay elevation only — cards and panels use borders, not shadows */
+  --overlay-shadow: 0 16px 48px rgb(0 0 0 / 18%);
 
   /* Primary component radius consumed by generated primitives */
-  --radius: 12px;
+  --radius: 4px;
 }
 
 @theme {
@@ -67,11 +74,11 @@
   --spacing-16: 64px;
   --spacing-24: 96px;
 
-  /* Radius scale */
-  --radius-xs: 4px;
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
+  /* Radius scale — 0, 2, 4, 8px; pill retained for true circular controls */
+  --radius-xs: 0px;
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
   --radius-pill: 9999px;
 
   /* Type scale */
@@ -108,12 +115,16 @@
   --color-subtle: var(--border-subtle);
   --color-success: var(--success-foreground);
   --color-success-surface: var(--success-background);
+  --color-success-border: var(--success-border);
   --color-warning: var(--warning-foreground);
   --color-warning-surface: var(--warning-background);
+  --color-warning-border: var(--warning-border);
   --color-danger: var(--danger-foreground);
   --color-danger-surface: var(--danger-background);
+  --color-danger-border: var(--danger-border);
   --color-info: var(--info-foreground);
   --color-info-surface: var(--info-background);
+  --color-info-border: var(--info-border);
 
   /*
    * shadcn-compatible aliases. These add no new values: each one points at a
@@ -138,10 +149,9 @@
   --color-destructive-foreground: var(--surface);
   --color-border: var(--border-subtle);
   --color-input: var(--border-control);
-  --color-ring: var(--brand-primary);
+  --color-ring: var(--focus-ring-color);
 
-  /* Elevation utilities */
-  --shadow-panel: var(--panel-shadow);
+  /* Elevation utilities — overlays only */
   --shadow-overlay: var(--overlay-shadow);
 }
 

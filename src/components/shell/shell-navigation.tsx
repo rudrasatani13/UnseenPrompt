@@ -58,7 +58,7 @@ export function ShellNavigation({
                   className="size-4 shrink-0 text-ink-muted"
                 />
                 <span className="min-w-0 flex-1 break-words text-ink-muted">{item.label}</span>
-                <span className="shrink-0 rounded-pill border border-subtle px-2 py-0.5 text-xs font-medium text-ink-muted">
+                <span className="shrink-0 rounded-sm border border-subtle px-2 py-0.5 text-xs font-medium text-ink-muted">
                   Soon
                 </span>
               </div>

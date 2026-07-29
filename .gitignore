@@ -19,6 +19,7 @@ supabase/.branches/
 supabase/.temp/
 
 .superpowers/
+.worktrees/
 
 .DS_Store
 *.log

@@ -112,4 +112,25 @@ describe("ProductLayout", () => {
       statSync(path.join(process.cwd(), "src/app/api/internal/health/workflow/route.ts")).isFile(),
     ).toBe(true);
   });
+
+  it("returns production children without the application shell", async () => {
+    getServerEnvironment.mockReturnValue({
+      APP_ENV: "production",
+      NEXT_PUBLIC_APP_URL: "https://unseenprompt.com",
+      RELEASE_SHA: "test",
+      MAINTENANCE_MODE: "off",
+    });
+
+    vi.resetModules();
+    const { default: ProductLayout } = await import("./layout");
+    render(
+      <ProductLayout>
+        <p>Production child</p>
+      </ProductLayout>,
+    );
+
+    expect(screen.getByText("Production child")).toBeVisible();
+    expect(screen.queryByRole("main")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "New Project" })).not.toBeInTheDocument();
+  });
 });

@@ -1,4 +1,4 @@
-# UnseenPrompt — Stateful Project Copilot
+# UnseenPrompt
 
 **Status:** Phase 2 — Design system and application shell
 
@@ -40,6 +40,8 @@ pnpm dev
 See [docs/development/design-system.md](docs/development/design-system.md) for
 Warm Editorial tokens, component ownership, shell dimensions, gallery exposure,
 and social-card regeneration (`pnpm brand:social`).
+
+Public product copy follows [docs/development/product-copy.md](docs/development/product-copy.md).
 
 ## Canonical quality commands
 
@@ -99,15 +101,15 @@ Operator procedures: [docs/deployment/cloudflare-runbook.md](docs/deployment/clo
 
 ## Documentation
 
-| Document                                                                                                           | Purpose                         |
-| ------------------------------------------------------------------------------------------------------------------ | ------------------------------- |
-| [docs/UnseenPrompt – Stateful Project Copilot.md](docs/UnseenPrompt%20%E2%80%93%20Stateful%20Project%20Copilot.md) | Product master plan             |
-| [docs/UnseenPrompt – DEVELOPMENT_PLAN.md](docs/UnseenPrompt%20%E2%80%93%20DEVELOPMENT_PLAN.md)                     | Development roadmap             |
-| [docs/architecture/phase-0-foundations.md](docs/architecture/phase-0-foundations.md)                               | Phase 0 architecture decisions  |
-| [docs/architecture/phase-1-cloudflare-topology.md](docs/architecture/phase-1-cloudflare-topology.md)               | Phase 1 Workers topology        |
-| [docs/deployment/cloudflare-runbook.md](docs/deployment/cloudflare-runbook.md)                                     | Deploy, smoke, rollback         |
-| [docs/conventions/naming.md](docs/conventions/naming.md)                                                           | Naming conventions              |
-| [docs/development/environment-contract.md](docs/development/environment-contract.md)                               | Environment variable contract   |
-| [docs/development/workers-dependencies.md](docs/development/workers-dependencies.md)                               | Workers dependency policy       |
-| [CONTRIBUTING.md](CONTRIBUTING.md)                                                                                 | Contribution workflow           |
-| [SECURITY.md](SECURITY.md)                                                                                         | Vulnerability and secret policy |
+| Document                                                                                             | Purpose                         |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------- |
+| [docs/UnseenPrompt – PRODUCT_PLAN.md](docs/UnseenPrompt%20%E2%80%93%20PRODUCT_PLAN.md)               | Product master plan             |
+| [docs/UnseenPrompt – DEVELOPMENT_PLAN.md](docs/UnseenPrompt%20%E2%80%93%20DEVELOPMENT_PLAN.md)       | Development roadmap             |
+| [docs/architecture/phase-0-foundations.md](docs/architecture/phase-0-foundations.md)                 | Phase 0 architecture decisions  |
+| [docs/architecture/phase-1-cloudflare-topology.md](docs/architecture/phase-1-cloudflare-topology.md) | Phase 1 Workers topology        |
+| [docs/deployment/cloudflare-runbook.md](docs/deployment/cloudflare-runbook.md)                       | Deploy, smoke, rollback         |
+| [docs/conventions/naming.md](docs/conventions/naming.md)                                             | Naming conventions              |
+| [docs/development/environment-contract.md](docs/development/environment-contract.md)                 | Environment variable contract   |
+| [docs/development/workers-dependencies.md](docs/development/workers-dependencies.md)                 | Workers dependency policy       |
+| [CONTRIBUTING.md](CONTRIBUTING.md)                                                                   | Contribution workflow           |
+| [SECURITY.md](SECURITY.md)                                                                           | Vulnerability and secret policy |

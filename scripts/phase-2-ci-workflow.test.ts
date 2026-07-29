@@ -50,6 +50,7 @@ describe("phase 2 CI workflow contract", () => {
       run.includes("pnpm exec playwright install --with-deps chromium"),
     );
     const unitIndex = runs.findIndex((run) => run.includes("pnpm test:unit"));
+    const copyIndex = runs.findIndex((run) => run.trim() === "pnpm test:copy");
     const e2eIndex = runs.findIndex((run) => run.trim() === "pnpm test:e2e");
     const maintenanceIndex = runs.findIndex((run) => run.trim() === "pnpm test:e2e:maintenance");
     const productionIndex = runs.findIndex((run) => run.trim() === "pnpm test:e2e:production");
@@ -58,7 +59,8 @@ describe("phase 2 CI workflow contract", () => {
     expect(installIndex).toBeGreaterThanOrEqual(0);
     expect(chromiumIndex).toBeGreaterThan(installIndex);
     expect(unitIndex).toBeGreaterThan(chromiumIndex);
-    expect(e2eIndex).toBeGreaterThan(unitIndex);
+    expect(copyIndex).toBeGreaterThan(unitIndex);
+    expect(e2eIndex).toBeGreaterThan(copyIndex);
     expect(maintenanceIndex).toBeGreaterThan(e2eIndex);
     expect(productionIndex).toBeGreaterThan(maintenanceIndex);
     expect(buildIndex).toBeGreaterThan(productionIndex);

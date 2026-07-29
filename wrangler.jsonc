@@ -106,14 +106,33 @@
         "binding": "CF_VERSION_METADATA",
       },
       "secrets": {
-        "required": ["HEALTHCHECK_TOKEN"],
+        "required": [
+          "HEALTHCHECK_TOKEN",
+          "TURNSTILE_SECRET_KEY",
+          "SUPABASE_SECRET_KEY",
+          "RESEND_API_KEY",
+          "WAITLIST_TOKEN_SECRET",
+        ],
       },
       "vars": {
         "APP_ENV": "production",
         "NEXT_PUBLIC_APP_URL": "https://unseenprompt.com",
         "RELEASE_SHA": "production",
         "MAINTENANCE_MODE": "off",
+        "NEXT_PUBLIC_TURNSTILE_SITE_KEY": "",
+        "SUPABASE_URL": "",
+        "WAITLIST_FROM_EMAIL": "UnseenPrompt <hello@unseenprompt.com>",
       },
+      "ratelimits": [
+        {
+          "name": "WAITLIST_RATE_LIMITER",
+          "namespace_id": "20260729",
+          "simple": {
+            "limit": 5,
+            "period": 60,
+          },
+        },
+      ],
       "workflows": [
         {
           "name": "unseenprompt-health-production",

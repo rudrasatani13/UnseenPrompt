@@ -1,6 +1,6 @@
 # UnseenPrompt Design System
 
-Warm Editorial is the approved Phase 2 visual system. Prompt Cowboy is an
+Pure Monochrome / White Canvas is the approved active visual system. Prompt Cowboy is an
 interaction and layout reference only — never copy its code, copywriting, logo,
 imagery, Aeonik font, or exact visual implementation.
 
@@ -21,27 +21,41 @@ Import rules:
 
 ## Semantic tokens
 
-| Token                    | Value                                               |
-| ------------------------ | --------------------------------------------------- |
-| `--canvas`               | `#FEFAF8`                                           |
-| `--surface`              | `#FFFFFF`                                           |
-| `--surface-muted`        | `#FAF4F5`                                           |
-| `--text-primary`         | `#2B2426`                                           |
-| `--text-secondary`       | `#6F6266`                                           |
-| `--brand-primary`        | `#A64763`                                           |
-| `--brand-primary-hover`  | `#8D3852`                                           |
-| `--brand-primary-active` | `#762C43`                                           |
-| `--border-control`       | `#8F8185`                                           |
-| `--border-subtle`        | `#E9DFE1`                                           |
-| status pairs             | success / warning / danger / info (see `theme.css`) |
+| Token                    | Value                                                          |
+| ------------------------ | -------------------------------------------------------------- |
+| `--canvas`               | `#FFFFFF`                                                      |
+| `--surface`              | `#FFFFFF`                                                      |
+| `--surface-muted`        | `#F5F5F5`                                                      |
+| `--text-primary`         | `#000000`                                                      |
+| `--text-secondary`       | `#525252`                                                      |
+| `--brand-primary`        | `#000000`                                                      |
+| `--brand-primary-hover`  | `#262626`                                                      |
+| `--brand-primary-active` | `#404040`                                                      |
+| `--border-control`       | `#737373`                                                      |
+| `--border-subtle`        | `#D4D4D4`                                                      |
+| `--focus-ring-color`     | `#000000`                                                      |
+| status pairs             | monochrome success / warning / danger / info (see `theme.css`) |
+
+Status surfaces:
+
+| Status      | Surface   | Border         | Text      |
+| ----------- | --------- | -------------- | --------- |
+| Success     | `#F7F7F7` | `#737373`, 1px | `#000000` |
+| Information | `#F5F5F5` | `#737373`, 1px | `#000000` |
+| Warning     | `#EFEFEF` | `#525252`, 1px | `#000000` |
+| Danger      | `#E8E8E8` | `#000000`, 2px | `#000000` |
 
 Spacing: `4, 8, 12, 16, 24, 32, 40, 48, 64, 96px`
-Radii: `4, 8, 12, 16px` and pill
+Radii: `0, 2, 4, 8px` and pill only where geometry requires it
 Type: `12, 14, 16, 18, 24, 32, 44px`
 Motion: micro `120–160ms`, overlays `180–220ms`
-Focus: 2px ring, 2px offset, ≥3:1 adjacent change
+Focus: 2px ring, 2px white offset, ≥3:1 adjacent change
+Elevation: cards use borders only; dialogs/sheets use
+`0 16px 48px rgb(0 0 0 / 18%)`
 
 Contrast pairs are locked in `src/components/ui/theme.test.ts`.
+
+There is no dark mode, no decorative background artwork, and no hue-only status.
 
 ## Typography and social cards
 
@@ -52,7 +66,7 @@ Contrast pairs are locked in `src/components/ui/theme.test.ts`.
 pnpm brand:social
 ```
 
-Reads `assets/brand/logo-source.png` and
+Reads the canonical monochrome brand source and
 `@fontsource-variable/manrope` (dev dependency). Writes identical bytes to
 `src/app/opengraph-image.png` and `src/app/twitter-image.png`.
 
@@ -82,7 +96,7 @@ persistence, server actions, or AI calls.
 
 - WCAG 2.2 AA
 - Keyboard: Sheet, dialogs, tabs, radio groups, copy feedback, retry, focus restore
-- Text or iconography with color for every state
+- Text or iconography with color for every state (status is monochrome)
 - Reduced motion must keep equivalent non-motion feedback
 - Forced colors keep focus, selection, and control borders visible
 - Destructive actions remain explicit user confirmations

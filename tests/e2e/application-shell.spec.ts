@@ -100,7 +100,7 @@ test.describe("application shell", () => {
     await expect(
       page.getByRole("heading", {
         level: 1,
-        name: "Turn project context into an agent-ready prompt",
+        name: "Start with the messy version.",
       }),
     ).toBeVisible();
 
