@@ -41,10 +41,10 @@ describe("createTurnstileVerifier", () => {
         body: expect.any(String),
       }),
     );
-    const body = new URLSearchParams(
+    const body = JSON.parse(
       String((fetchImpl.mock.calls as unknown as Array<[string, RequestInit]>)[0]![1].body),
-    );
-    expect(body.get("idempotency_key")).toBe(input.idempotencyKey);
+    ) as Record<string, unknown>;
+    expect(body.idempotency_key).toBe(input.idempotencyKey);
   });
 
   it("rejects bad action or hostname", async () => {

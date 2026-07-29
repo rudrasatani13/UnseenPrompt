@@ -32,7 +32,7 @@ export function createTurnstileVerifier(options: TurnstileVerifierOptions): Turn
 
   return {
     async verify(input) {
-      const body = new URLSearchParams({
+      const body = JSON.stringify({
         secret: options.secretKey,
         response: input.token,
         idempotency_key: input.idempotencyKey,
@@ -43,9 +43,9 @@ export function createTurnstileVerifier(options: TurnstileVerifierOptions): Turn
         response = await fetchImpl(SITEVERIFY_URL, {
           method: "POST",
           headers: {
-            "content-type": "application/x-www-form-urlencoded",
+            "content-type": "application/json",
           },
-          body: body.toString(),
+          body,
           signal: AbortSignal.timeout(TIMEOUT_MS),
         });
       } catch {
