@@ -8,7 +8,7 @@ import { chromium } from "@playwright/test";
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptDirectory, "..");
 
-const logoPath = path.join(repositoryRoot, "assets/brand/logo-source.png");
+const logoPath = path.join(repositoryRoot, "assets/brand/logo-monochrome.svg");
 const fontPath = path.join(
   repositoryRoot,
   "node_modules/@fontsource-variable/manrope/files/manrope-latin-wght-normal.woff2",
@@ -20,9 +20,9 @@ const temporaryScreenshotPath = path.join(temporaryDirectory, "card.png");
 
 const TITLE = "UnseenPrompt";
 const SUBTITLE = "Start with the messy version.";
-const BACKGROUND = "#FEFAF8";
-const TEXT = "#2B2426";
-const MUTED = "#6F6266";
+const BACKGROUND = "#FFFFFF";
+const TEXT = "#000000";
+const MUTED = "#525252";
 
 function toDataUrl(bytes, mimeType) {
   return `data:${mimeType};base64,${bytes.toString("base64")}`;
@@ -39,7 +39,7 @@ function escapeHtml(value) {
 
 async function main() {
   const [logoBytes, fontBytes] = await Promise.all([readFile(logoPath), readFile(fontPath)]);
-  const logoDataUrl = toDataUrl(logoBytes, "image/png");
+  const logoDataUrl = toDataUrl(logoBytes, "image/svg+xml");
   const fontDataUrl = toDataUrl(fontBytes, "font/woff2");
 
   const html = `<!doctype html>
@@ -82,7 +82,7 @@ async function main() {
       .brand img {
         width: 96px;
         height: 96px;
-        border-radius: 16px;
+        border-radius: 8px;
       }
       h1 {
         font-size: 64px;

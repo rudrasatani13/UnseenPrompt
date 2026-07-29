@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
+import { inflateSync } from "node:zlib";
 
 import { describe, expect, it } from "vitest";
 
@@ -47,8 +48,127 @@ function readPngDimensions(relativePath: string): PngDimensions {
   };
 }
 
+/**
+ * Decodes PNG pixels and rejects non-neutral colors where max(r,g,b)-min(r,g,b) > 2.
+ * Supports 8-bit grayscale and RGB/RGBA, with or without tRNS, filter method 0.
+ */
+function assertNeutralPixels(relativePath: string): void {
+  const bytes = readRepositoryFile(relativePath);
+
+  if (!bytes.subarray(0, 8).equals(PNG_SIGNATURE)) {
+    throw new Error(`${relativePath} is not a PNG file`);
+  }
+
+  let width = 0;
+  let height = 0;
+  let bitDepth = 0;
+  let colorType = 0;
+  const idatChunks: Buffer[] = [];
+  let offset = 8;
+
+  while (offset + 8 <= bytes.byteLength) {
+    const length = bytes.readUInt32BE(offset);
+    const type = bytes.subarray(offset + 4, offset + 8).toString("ascii");
+    const data = bytes.subarray(offset + 8, offset + 8 + length);
+
+    if (type === "IHDR") {
+      width = data.readUInt32BE(0);
+      height = data.readUInt32BE(4);
+      bitDepth = data[8]!;
+      colorType = data[9]!;
+    } else if (type === "IDAT") {
+      idatChunks.push(Buffer.from(data));
+    } else if (type === "IEND") {
+      break;
+    }
+
+    offset += 12 + length;
+  }
+
+  if (bitDepth !== 8) {
+    throw new Error(`${relativePath}: unsupported bit depth ${bitDepth}`);
+  }
+
+  const channels =
+    colorType === 0 ? 1 : colorType === 2 ? 3 : colorType === 4 ? 2 : colorType === 6 ? 4 : -1;
+  if (channels < 0) {
+    throw new Error(`${relativePath}: unsupported color type ${colorType}`);
+  }
+
+  const inflated = inflateSync(Buffer.concat(idatChunks));
+  const stride = 1 + width * channels;
+  expect(inflated.byteLength).toBeGreaterThanOrEqual(stride * height);
+
+  // Unfilter scanlines (filter method 0).
+  const raw = Buffer.alloc(width * height * channels);
+  let prev = Buffer.alloc(width * channels);
+  for (let y = 0; y < height; y += 1) {
+    const filter = inflated[y * stride]!;
+    const row = inflated.subarray(y * stride + 1, y * stride + stride);
+    const out = Buffer.alloc(width * channels);
+
+    for (let i = 0; i < row.byteLength; i += 1) {
+      const x = row[i]!;
+      const a = i >= channels ? out[i - channels]! : 0;
+      const b = prev[i]!;
+      const c = i >= channels ? prev[i - channels]! : 0;
+      let value = x;
+
+      if (filter === 1) {
+        value = (x + a) & 0xff;
+      } else if (filter === 2) {
+        value = (x + b) & 0xff;
+      } else if (filter === 3) {
+        value = (x + Math.floor((a + b) / 2)) & 0xff;
+      } else if (filter === 4) {
+        const p = a + b - c;
+        const pa = Math.abs(p - a);
+        const pb = Math.abs(p - b);
+        const pc = Math.abs(p - c);
+        const pr = pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+        value = (x + pr) & 0xff;
+      } else if (filter !== 0) {
+        throw new Error(`${relativePath}: unsupported filter type ${filter}`);
+      }
+
+      out[i] = value;
+    }
+
+    out.copy(raw, y * width * channels);
+    prev = out;
+  }
+
+  for (let i = 0; i < width * height; i += 1) {
+    const base = i * channels;
+    let r = 0;
+    let g = 0;
+    let b = 0;
+
+    if (colorType === 0) {
+      r = g = b = raw[base]!;
+    } else if (colorType === 2) {
+      r = raw[base]!;
+      g = raw[base + 1]!;
+      b = raw[base + 2]!;
+    } else if (colorType === 4) {
+      r = g = b = raw[base]!;
+    } else {
+      r = raw[base]!;
+      g = raw[base + 1]!;
+      b = raw[base + 2]!;
+    }
+
+    const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+    if (chroma > 2) {
+      throw new Error(
+        `${relativePath}: non-neutral pixel at index ${i} rgb(${r},${g},${b}) chroma=${chroma}`,
+      );
+    }
+  }
+}
+
 const brandAssetPaths = [
-  "assets/brand/logo-source.png",
+  "assets/brand/logo-monochrome.svg",
   "public/brand/icon-192.png",
   "public/brand/icon-512.png",
   "public/brand/icon-maskable-512.png",
@@ -61,7 +181,6 @@ const brandAssetPaths = [
 ] as const;
 
 const expectedDimensions = {
-  "assets/brand/logo-source.png": { width: 1254, height: 1254 },
   "public/brand/icon-192.png": { width: 192, height: 192 },
   "public/brand/icon-512.png": { width: 512, height: 512 },
   "public/brand/icon-maskable-512.png": { width: 512, height: 512 },
@@ -69,26 +188,19 @@ const expectedDimensions = {
   "src/app/apple-icon.png": { width: 180, height: 180 },
 } as const satisfies Record<string, PngDimensions>;
 
-/**
- * Supplied brand baseline. The social-card hash is owned by
- * `scripts/generate-social-card.mjs` and is asserted separately so a
- * regenerated card is an explicit, reviewable change.
- */
-const expectedSuppliedHashes = {
-  "assets/brand/logo-source.png":
-    "f95d467e690bc2f923d4714c534b785127f09018defa1df79359941f71fafd11",
-  "public/brand/icon-192.png": "312ee7205022594f230144146e030dbd9a85b12445edbe8823ac1374ecdf8d71",
-  "public/brand/icon-512.png": "608b6a8defea72e3d8766f99f7015b5fc9be24366d74047b4d13443f9b2e1c9e",
-  "public/brand/icon-maskable-512.png":
-    "5f1af2c91c507d5fa98bda82573ec4d043fb4f762fb87fc2dc33b9df4559b5c6",
-  "src/app/favicon.ico": "691cc54459a6998514f0c5f20debc91dc35c8b07905be6c198139591877fb207",
-  "src/app/icon.png": "37f721b65125d5ace1fc0921e3cb62a91ec510592aab9b79e4affece7a952601",
-  "src/app/apple-icon.png": "ae0b7d3db84c3c78d94fb3d05c24e142beb7aef68e7c395acfa90b6ec37a1ccd",
-} as const satisfies Record<string, string>;
+const rasterNeutralPaths = [
+  "public/brand/icon-192.png",
+  "public/brand/icon-512.png",
+  "public/brand/icon-maskable-512.png",
+  "src/app/icon.png",
+  "src/app/apple-icon.png",
+  "src/app/opengraph-image.png",
+  "src/app/twitter-image.png",
+] as const;
 
 const socialCardPaths = ["src/app/opengraph-image.png", "src/app/twitter-image.png"] as const;
 
-describe("phase 2 brand asset contract", () => {
+describe("monochrome brand asset contract", () => {
   it("keeps every declared brand asset present and non-empty", () => {
     for (const relativePath of brandAssetPaths) {
       const bytes = readRepositoryFile(relativePath);
@@ -97,15 +209,34 @@ describe("phase 2 brand asset contract", () => {
     }
   });
 
-  it("preserves the supplied raster dimensions", () => {
+  it("rejects the retired pink logo source", () => {
+    expect(existsSync(path.join(repositoryRoot, "assets/brand/logo-source.png"))).toBe(false);
+  });
+
+  it("requires the canonical SVG to use only black, white, and none", () => {
+    const svg = readRepositoryText("assets/brand/logo-monochrome.svg");
+    const colors = [...svg.matchAll(/#([0-9a-fA-F]{3,8})\b/g)].map((match) =>
+      match[0]!.toUpperCase(),
+    );
+
+    for (const color of colors) {
+      expect(["#000000", "#FFFFFF", "#000", "#FFF"]).toContain(color);
+    }
+
+    expect(svg).toMatch(/ellipse/i);
+    expect(svg).toMatch(/viewBox="0 0 1024 1024"/);
+    expect(svg).not.toMatch(/#(?:FEFAF8|A64763|8D3852|762C43|FAF4F5|E9DFE1)/i);
+  });
+
+  it("preserves the required raster dimensions", () => {
     for (const [relativePath, expected] of Object.entries(expectedDimensions)) {
       expect(readPngDimensions(relativePath), relativePath).toEqual(expected);
     }
   });
 
-  it("preserves the supplied asset bytes", () => {
-    for (const [relativePath, expectedHash] of Object.entries(expectedSuppliedHashes)) {
-      expect(sha256(relativePath), relativePath).toBe(expectedHash);
+  it("rejects non-neutral pixels in brand rasters and social cards", () => {
+    for (const relativePath of rasterNeutralPaths) {
+      expect(() => assertNeutralPixels(relativePath)).not.toThrow();
     }
   });
 
@@ -151,26 +282,37 @@ describe("phase 2 brand asset contract", () => {
     }
   });
 
-  it("documents a local-only social-card generator contract", () => {
-    const source = readRepositoryText("scripts/generate-social-card.mjs");
+  it("documents a local-only monochrome brand and social-card generator contract", () => {
+    const brandSource = readRepositoryText("scripts/generate-brand-assets.mjs");
+    const socialSource = readRepositoryText("scripts/generate-social-card.mjs");
 
-    expect(source).toContain("assets/brand/logo-source.png");
-    expect(source).toContain(
+    expect(brandSource).toContain("assets/brand/logo-monochrome.svg");
+    expect(brandSource).toContain("icon-maskable-512.png");
+    expect(brandSource).toContain("favicon.ico");
+    expect(brandSource).toContain("reducedMotion");
+    expect(brandSource).not.toMatch(/logo-source\.png/);
+
+    expect(socialSource).toContain("assets/brand/logo-monochrome.svg");
+    expect(socialSource).toContain(
       "node_modules/@fontsource-variable/manrope/files/manrope-latin-wght-normal.woff2",
     );
-    expect(source).toContain("width: 1200");
-    expect(source).toContain("height: 630");
-    expect(source).toContain("deviceScaleFactor: 1");
-    expect(source).toContain("UnseenPrompt");
-    expect(source).toContain("Start with the messy version.");
-    expect(source).toContain('animations: "disabled"');
-    expect(source).toContain("src/app/opengraph-image.png");
-    expect(source).toContain("src/app/twitter-image.png");
-    expect(source).not.toMatch(/https?:\/\/fonts\.|fetch\(/);
+    expect(socialSource).toContain("width: 1200");
+    expect(socialSource).toContain("height: 630");
+    expect(socialSource).toContain("deviceScaleFactor: 1");
+    expect(socialSource).toContain("UnseenPrompt");
+    expect(socialSource).toContain("Start with the messy version.");
+    expect(socialSource).toContain("#FFFFFF");
+    expect(socialSource).toContain("#000000");
+    expect(socialSource).toContain('animations: "disabled"');
+    expect(socialSource).toContain("src/app/opengraph-image.png");
+    expect(socialSource).toContain("src/app/twitter-image.png");
+    expect(socialSource).not.toMatch(/logo-source\.png/);
+    expect(socialSource).not.toMatch(/https?:\/\/fonts\.|fetch\(/);
+    expect(socialSource).not.toMatch(/#(?:FEFAF8|A64763|2B2426|6F6266)/);
   });
 });
 
-describe("phase 2 repository metadata", () => {
+describe("monochrome repository metadata", () => {
   it("caches brand assets through the committed Cloudflare headers file", () => {
     const headers = readRepositoryText("public/_headers");
 

@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="UnseenPrompt">
+  <!-- Pure monochrome mark: white canvas, black strokes only -->
+  <rect width="1024" height="1024" fill="#FFFFFF"/>
+  <g
+    fill="none"
+    stroke="#000000"
+    stroke-width="28"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    transform="translate(512 512)"
+  >
+    <!-- Three ellipses rotated 0°, 60°, and 120° around the center -->
+    <ellipse cx="0" cy="0" rx="280" ry="140" transform="rotate(0)"/>
+    <ellipse cx="0" cy="0" rx="280" ry="140" transform="rotate(60)"/>
+    <ellipse cx="0" cy="0" rx="280" ry="140" transform="rotate(120)"/>
+    <!-- Centered rounded-square ring -->
+    <rect x="-96" y="-96" width="192" height="192" rx="36" ry="36"/>
+  </g>
+</svg>
