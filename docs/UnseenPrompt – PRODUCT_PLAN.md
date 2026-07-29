@@ -6,7 +6,7 @@
 **Last Updated:** July 2026  
 **Status:** Approved Concept — Pre-Development  
 **Brand:** UnseenPrompt  
-**Product:** UnseenPrompt — Stateful Project Copilot  
+**Product:** UnseenPrompt project-planning application  
 **Domain:** `unseenprompt.com` (purchased)  
 **Companion Doc:** `UnseenPrompt – DEVELOPMENT_PLAN.md`
 
@@ -43,7 +43,7 @@ It does **not** contain phase-by-phase implementation instructions. The build se
 
 ## Product Overview
 
-UnseenPrompt is a **Stateful Project Copilot** for people building websites and web applications with Claude Code, OpenAI Codex, and Cursor.
+UnseenPrompt is a planned web application for people building websites and web applications with Claude Code, OpenAI Codex, and Cursor.
 
 Most AI coding sessions fail before the code fails. Users begin with an underspecified idea, receive a large generic prompt, lose earlier decisions across sessions, accept contradictory recommendations, and struggle to decide what to ask next. Existing prompt improvers can rewrite a request, but they usually do not maintain a durable understanding of the complete software project.
 
@@ -104,7 +104,7 @@ UnseenPrompt sits between product discovery, lightweight project management, and
 | Attribute | Value |
 |---|---|
 | Brand | UnseenPrompt |
-| Product | Stateful Project Copilot |
+| Product | Project-planning application |
 | Primary domain | `unseenprompt.com` |
 | Platform | Responsive web application |
 | Supported projects | Websites and web applications |

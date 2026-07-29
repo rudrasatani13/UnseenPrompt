@@ -6,9 +6,9 @@
 **Last Updated:** July 2026  
 **Status:** Approved Plan — Pre-Development  
 **Brand:** UnseenPrompt  
-**Product:** Stateful Project Copilot  
+**Product:** Project-planning application  
 **Primary Domain:** `unseenprompt.com` (purchased)  
-**Companion Doc:** `UnseenPrompt – Stateful Project Copilot.md`
+**Companion Doc:** `UnseenPrompt – PRODUCT_PLAN.md`
 
 ---
 
@@ -572,7 +572,7 @@ These belong in the Master Plan or a future business execution document. Deploym
 
 ## Companion Document
 
-- **`UnseenPrompt – Stateful Project Copilot.md`** — product and business Master Plan.
+- **`UnseenPrompt – PRODUCT_PLAN.md`** — product and business Master Plan.
 
 ---
 

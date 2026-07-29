@@ -14,11 +14,11 @@ describe("product preview homepage", () => {
   it("renders the exact preview contract copy", () => {
     render(<HomePage />);
 
-    expect(screen.getByText("Stateful Project Copilot")).toBeVisible();
+    expect(screen.getByText("Project planning preview")).toBeVisible();
     expect(
       screen.getByRole("heading", {
         level: 1,
-        name: "Turn project context into an agent-ready prompt",
+        name: "Keep project decisions together",
       }),
     ).toBeInTheDocument();
     expect(screen.getByText("Preview")).toBeVisible();

@@ -4,7 +4,8 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "UnseenPrompt",
     short_name: "UnseenPrompt",
-    description: "Stateful Project Copilot for AI-assisted web development.",
+    description:
+      "Start with the messy version. Keep the decisions together and know what to ask for next.",
     start_url: "/",
     display: "standalone",
     background_color: "#FEFAF8",

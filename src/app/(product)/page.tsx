@@ -20,7 +20,7 @@ const PREVIEW_STEPS = [
   },
   {
     id: "prompt",
-    label: "Generate agent-ready prompt",
+    label: "Prepare the next prompt",
     description: "Arrives in a later phase.",
     state: "pending" as const,
   },
@@ -42,12 +42,12 @@ export default function HomePage() {
       <header className="grid gap-4">
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-sm font-medium tracking-wide text-brand uppercase">
-            Stateful Project Copilot
+            Project planning preview
           </p>
           <Badge variant="secondary">Preview</Badge>
         </div>
         <h1 className="text-3xl font-semibold tracking-tight text-balance text-ink md:text-5xl">
-          Turn project context into an agent-ready prompt
+          Keep project decisions together
         </h1>
         <p className="max-w-prose text-base text-ink-muted">
           Prompt generation becomes interactive in a later phase.

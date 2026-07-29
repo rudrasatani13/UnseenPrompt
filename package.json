@@ -16,6 +16,7 @@
     "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "test:unit": "vitest run",
+    "test:copy": "vitest run scripts/copy-policy.test.ts",
     "test:unit:watch": "vitest",
     "test:e2e": "playwright test --grep-invert '@maintenance|@production'",
     "test:e2e:maintenance": "E2E_MAINTENANCE_MODE=on playwright test --grep '@maintenance'",

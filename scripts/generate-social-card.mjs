@@ -19,7 +19,7 @@ const temporaryDirectory = path.join(repositoryRoot, "test-results", "social-car
 const temporaryScreenshotPath = path.join(temporaryDirectory, "card.png");
 
 const TITLE = "UnseenPrompt";
-const SUBTITLE = "Stateful Project Copilot for AI-assisted web development.";
+const SUBTITLE = "Start with the messy version.";
 const BACKGROUND = "#FEFAF8";
 const TEXT = "#2B2426";
 const MUTED = "#6F6266";

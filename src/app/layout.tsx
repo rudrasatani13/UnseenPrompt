@@ -25,7 +25,8 @@ export const metadata: Metadata = {
     default: "UnseenPrompt",
     template: "%s · UnseenPrompt",
   },
-  description: "Stateful Project Copilot for AI-assisted web development.",
+  description:
+    "Start with the messy version. Keep the decisions together and know what to ask for next.",
   applicationName: "UnseenPrompt",
 };
 

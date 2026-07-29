@@ -65,7 +65,9 @@ describe("RootLayout", () => {
     const { metadata } = await importLayout();
 
     expect(metadata.applicationName).toBe("UnseenPrompt");
-    expect(metadata.description).toBe("Stateful Project Copilot for AI-assisted web development.");
+    expect(metadata.description).toBe(
+      "Start with the messy version. Keep the decisions together and know what to ask for next.",
+    );
     expect(metadata.title).toEqual({
       default: "UnseenPrompt",
       template: "%s · UnseenPrompt",

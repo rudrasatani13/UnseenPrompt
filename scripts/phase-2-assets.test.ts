@@ -162,7 +162,7 @@ describe("phase 2 brand asset contract", () => {
     expect(source).toContain("height: 630");
     expect(source).toContain("deviceScaleFactor: 1");
     expect(source).toContain("UnseenPrompt");
-    expect(source).toContain("Stateful Project Copilot for AI-assisted web development.");
+    expect(source).toContain("Start with the messy version.");
     expect(source).toContain('animations: "disabled"');
     expect(source).toContain("src/app/opengraph-image.png");
     expect(source).toContain("src/app/twitter-image.png");
