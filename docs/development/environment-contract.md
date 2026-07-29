@@ -39,3 +39,18 @@ Secrets must never receive dummy-looking production-shaped values in a public (`
 ## Database environment note
 
 Local developer machines do not run Supabase via Docker. Database configuration under `supabase/` is exercised against an isolated database on a GitHub-hosted Actions runner. Shared staging and production are not unit-test targets. Remote Supabase projects and isolated Preview Branches are provisioned in later phases, not Phase 0.
+
+## Production waitlist (production only)
+
+These values must never be configured on preview or staging:
+
+| Name | Visibility |
+| --- | --- |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Public |
+| `TURNSTILE_SECRET_KEY` | Secret |
+| `SUPABASE_URL` | Server |
+| `SUPABASE_SECRET_KEY` | Secret |
+| `RESEND_API_KEY` | Secret |
+| `WAITLIST_TOKEN_SECRET` | Secret |
+| `WAITLIST_FROM_EMAIL` | Server (`UnseenPrompt <hello@unseenprompt.com>`) |
+

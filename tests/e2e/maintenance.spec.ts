@@ -13,7 +13,7 @@ test.describe("maintenance mode @maintenance", () => {
       page.getByRole("heading", { name: "UnseenPrompt is temporarily unavailable" }),
     ).toBeVisible();
     await expect(
-      page.getByRole("heading", { name: "Turn project context into an agent-ready prompt" }),
+      page.getByRole("heading", { name: "Start with the messy version." }),
     ).toHaveCount(0);
     await expect(page.locator('[data-slot="app-loading"]')).toHaveCount(0);
 

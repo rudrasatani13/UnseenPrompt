@@ -2,8 +2,9 @@ import { expect, test, type Page, type Request } from "@playwright/test";
 
 import { waitForProductReady } from "./helpers";
 
-const PREVIEW_HEADING = "Turn project context into an agent-ready prompt";
-const DISCLOSURE = "Prompt generation becomes interactive in a later phase.";
+const PREVIEW_HEADING = "Start with the messy version.";
+const DISCLOSURE =
+  "Bring the idea, bug, or half-built website. This preview shows the shell only — prompt generation becomes interactive in a later phase.";
 
 async function assertNoHorizontalOverflow(page: Page): Promise<void> {
   const overflow = await page.evaluate(() => {

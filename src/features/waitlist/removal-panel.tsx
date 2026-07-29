@@ -19,18 +19,21 @@ export function RemovalPanel() {
   const [state, setState] = useState<PanelState>({ kind: "missing" });
 
   useEffect(() => {
+    // Fragment tokens must never be read during SSR or in the initial server HTML.
     const hash = window.location.hash.startsWith("#")
       ? window.location.hash.slice(1)
       : window.location.hash;
     const params = new URLSearchParams(hash);
     const token = params.get("token");
 
+    /* eslint-disable react-hooks/set-state-in-effect -- client-only fragment token hydration */
     if (token) {
       setState({ kind: "ready", token });
       window.history.replaceState(null, "", `${window.location.pathname}${window.location.search}`);
     } else {
       setState({ kind: "missing" });
     }
+    /* eslint-enable react-hooks/set-state-in-effect */
   }, []);
 
   async function onRemove() {

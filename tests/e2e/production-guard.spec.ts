@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-import { waitForProductReady } from "./helpers";
+import { waitForComingSoonReady } from "./helpers";
 
 test.describe("production guard @production", () => {
-  test("hides the design-system gallery and keeps the homepage", async ({ page }) => {
+  test("hides the design-system gallery and keeps the coming-soon homepage", async ({ page }) => {
     const gallery = await page.goto("/design-system");
 
     expect(gallery?.status()).toBe(404);
@@ -14,11 +14,13 @@ test.describe("production guard @production", () => {
 
     const home = await page.goto("/");
     expect(home?.status()).toBe(200);
-    await waitForProductReady(page);
+    await waitForComingSoonReady(page);
 
     const html = await page.content();
     expect(html).not.toContain("MAINTENANCE_MODE");
     expect(html).not.toContain("RELEASE_SHA");
     expect(html).not.toContain('"APP_ENV"');
+    expect(html).not.toContain("TURNSTILE_SECRET_KEY");
+    expect(html).not.toContain("SUPABASE_SECRET_KEY");
   });
 });

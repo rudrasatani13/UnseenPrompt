@@ -131,3 +131,12 @@ Log only instance IDs and terminal statuses for health probes. Never log `Author
 2. Rotate local, staging, and production health tokens and update the matching GitHub secrets.
 3. Audit recent Worker versions and deployments.
 4. Re-issue least-privilege tokens only after access is restored.
+
+## Production waitlist release notes
+
+- Production Worker secrets: `TURNSTILE_SECRET_KEY`, `SUPABASE_SECRET_KEY`, `RESEND_API_KEY`, `WAITLIST_TOKEN_SECRET`.
+- Production vars: `NEXT_PUBLIC_TURNSTILE_SITE_KEY`, `SUPABASE_URL`, `WAITLIST_FROM_EMAIL`.
+- Rate limit binding `WAITLIST_RATE_LIMITER` is best-effort (5 / 60s per `CF-Connecting-IP`).
+- Turnstile remains the primary abuse control.
+- Owner-only removal link helper: `pnpm exec tsx scripts/create-waitlist-removal-link.ts ENTRY_UUID MANAGEMENT_VERSION` (never CI; never log the token).
+- Keep `PRODUCTION_DEPLOY_ENABLED=false` except during an explicit promote window.
