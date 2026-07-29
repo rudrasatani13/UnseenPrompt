@@ -45,7 +45,7 @@ export function createTurnstileVerifier(options: TurnstileVerifierOptions): Turn
           headers: {
             "content-type": "application/x-www-form-urlencoded",
           },
-          body,
+          body: body.toString(),
           signal: AbortSignal.timeout(TIMEOUT_MS),
         });
       } catch {

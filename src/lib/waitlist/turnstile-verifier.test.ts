@@ -38,11 +38,12 @@ describe("createTurnstileVerifier", () => {
       "https://challenges.cloudflare.com/turnstile/v0/siteverify",
       expect.objectContaining({
         method: "POST",
-        body: expect.any(URLSearchParams),
+        body: expect.any(String),
       }),
     );
-    const body = (fetchImpl.mock.calls as unknown as Array<[string, RequestInit]>)[0]![1]
-      .body as URLSearchParams;
+    const body = new URLSearchParams(
+      String((fetchImpl.mock.calls as unknown as Array<[string, RequestInit]>)[0]![1].body),
+    );
     expect(body.get("idempotency_key")).toBe(input.idempotencyKey);
   });
 
