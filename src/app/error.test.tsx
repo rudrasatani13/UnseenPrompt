@@ -56,7 +56,7 @@ describe("ErrorBoundary", () => {
 
 describe("route boundary source contracts", () => {
   it("gives loading an accessible Loading workspace label", () => {
-    const source = readFileSync(path.join(process.cwd(), "src/app/loading.tsx"), "utf8");
+    const source = readFileSync(path.join(process.cwd(), "src/app/(product)/loading.tsx"), "utf8");
 
     expect(source).toContain("Loading workspace");
     expect(source).toContain("232px");

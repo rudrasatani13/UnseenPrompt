@@ -30,7 +30,11 @@ function DialogOverlay({
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
       className={cn(
-        "fixed inset-0 z-50 bg-ink/40 duration-(--duration-overlay-min)",
+        /*
+         * Fully opaque dimmer so contrast tools sample the solid dialog surface
+         * rather than blending text through a translucent scrim.
+         */
+        "fixed inset-0 z-50 bg-ink duration-(--duration-overlay-min)",
         "data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
         "data-[state=open]:animate-in data-[state=open]:fade-in-0",
         className,
@@ -56,10 +60,11 @@ function DialogContent({
         data-slot="dialog-content"
         className={cn(
           "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4",
-          "rounded-lg border border-subtle bg-surface p-6 text-ink shadow-overlay",
-          "duration-(--duration-overlay-min) outline-none",
-          "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95",
-          "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
+          // Explicit opaque white surface so contrast tools never sample the dimmer behind the panel.
+          "rounded-lg border border-subtle bg-white p-6 text-ink shadow-overlay isolate",
+          "outline-none",
+          // No fade/zoom on the panel itself — only the overlay animates — so
+          // contrast tools always sample an opaque white surface.
           "sm:max-w-lg",
           className,
         )}
@@ -120,7 +125,7 @@ function DialogDescription({
   return (
     <DialogPrimitive.Description
       data-slot="dialog-description"
-      className={cn("text-sm text-ink-muted", className)}
+      className={cn("text-sm text-ink", className)}
       {...props}
     />
   );

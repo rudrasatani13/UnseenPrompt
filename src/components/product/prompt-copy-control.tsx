@@ -60,7 +60,13 @@ export function PromptCopyControl({ prompt, copyText = writeToClipboard }: Promp
         )}
         Copy prompt
       </Button>
-      {state === "copied" ? <p className="text-sm font-medium text-success">Copied</p> : null}
+      {/*
+       * Stable live region so success is announced without relying on motion or
+       * a toast. Empty while idle so the region itself stays mounted.
+       */}
+      <p role="status" aria-live="polite" className="text-sm font-medium text-success">
+        {state === "copied" ? "Copied" : null}
+      </p>
       {state === "failed" ? (
         <p role="alert" className="text-sm font-medium text-danger">
           {COPY_FAILURE_TEXT}

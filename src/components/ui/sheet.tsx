@@ -30,7 +30,7 @@ function SheetOverlay({
     <SheetPrimitive.Overlay
       data-slot="sheet-overlay"
       className={cn(
-        "fixed inset-0 z-50 bg-ink/40 duration-(--duration-overlay-min)",
+        "fixed inset-0 z-50 bg-ink duration-(--duration-overlay-min)",
         "data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
         "data-[state=open]:animate-in data-[state=open]:fade-in-0",
         className,
@@ -58,18 +58,11 @@ function SheetContent({
         data-slot="sheet-content"
         data-side={side}
         className={cn(
-          "fixed z-50 flex flex-col gap-4 bg-surface text-ink shadow-overlay outline-none",
-          "transition ease-in-out",
-          "data-[state=closed]:animate-out data-[state=closed]:duration-(--duration-overlay-min)",
-          "data-[state=open]:animate-in data-[state=open]:duration-(--duration-overlay-max)",
-          side === "right" &&
-            "inset-y-0 right-0 h-full w-3/4 border-l border-subtle data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm",
-          side === "left" &&
-            "inset-y-0 left-0 h-full w-3/4 border-r border-subtle data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm",
-          side === "top" &&
-            "inset-x-0 top-0 h-auto border-b border-subtle data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
-          side === "bottom" &&
-            "inset-x-0 bottom-0 h-auto border-t border-subtle data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
+          "fixed z-50 flex flex-col gap-4 bg-white text-ink shadow-overlay outline-none isolate",
+          side === "right" && "inset-y-0 right-0 h-full w-3/4 border-l border-subtle sm:max-w-sm",
+          side === "left" && "inset-y-0 left-0 h-full w-3/4 border-r border-subtle sm:max-w-sm",
+          side === "top" && "inset-x-0 top-0 h-auto border-b border-subtle",
+          side === "bottom" && "inset-x-0 bottom-0 h-auto border-t border-subtle",
           className,
         )}
         {...props}
@@ -128,7 +121,7 @@ function SheetDescription({
   return (
     <SheetPrimitive.Description
       data-slot="sheet-description"
-      className={cn("text-sm text-ink-muted", className)}
+      className={cn("text-sm text-ink", className)}
       {...props}
     />
   );

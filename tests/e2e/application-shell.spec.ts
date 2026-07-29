@@ -1,8 +1,11 @@
 import { expect, test } from "@playwright/test";
 
+import { waitForProductReady } from "./helpers";
+
 test.describe("application shell", () => {
   test("matches the locked responsive chrome", async ({ page }, testInfo) => {
     await page.goto("/");
+    await waitForProductReady(page);
 
     const project = testInfo.project.name;
     const isDesktop = project === "desktop" || project === "wide";
@@ -48,6 +51,7 @@ test.describe("application shell", () => {
     test.skip(testInfo.project.name === "desktop" || testInfo.project.name === "wide");
 
     await page.goto("/");
+    await waitForProductReady(page);
     const trigger = page.getByRole("button", { name: "Open navigation" });
     await trigger.click();
 
@@ -55,12 +59,25 @@ test.describe("application shell", () => {
     await expect(dialog).toBeVisible();
     await expect(dialog).toContainText("New Project");
 
-    await page.keyboard.press("Tab");
-    const activeInside = await page.evaluate(() => {
-      const dialogEl = document.querySelector('[role="dialog"]');
-      return Boolean(dialogEl && dialogEl.contains(document.activeElement));
-    });
-    expect(activeInside).toBe(true);
+    const focusInside = async (): Promise<boolean> =>
+      page.evaluate(() => {
+        const dialogEl = document.querySelector('[role="dialog"]');
+        return Boolean(dialogEl && dialogEl.contains(document.activeElement));
+      });
+
+    expect(await focusInside()).toBe(true);
+
+    // Walk forward through the trap without escaping.
+    for (let index = 0; index < 8; index += 1) {
+      await page.keyboard.press("Tab");
+      expect(await focusInside()).toBe(true);
+    }
+
+    // Walk backward through the trap without escaping.
+    for (let index = 0; index < 8; index += 1) {
+      await page.keyboard.press("Shift+Tab");
+      expect(await focusInside()).toBe(true);
+    }
 
     await page.keyboard.press("Escape");
     await expect(dialog).toHaveCount(0);
@@ -75,6 +92,7 @@ test.describe("application shell", () => {
 
   test("200% text scaling keeps critical controls reachable", async ({ page }) => {
     await page.goto("/");
+    await waitForProductReady(page);
     await page.evaluate(() => {
       document.documentElement.style.fontSize = "200%";
     });

@@ -35,10 +35,10 @@ Import rules:
 | `--border-subtle`        | `#E9DFE1`                                           |
 | status pairs             | success / warning / danger / info (see `theme.css`) |
 
-Spacing: `4, 8, 12, 16, 24, 32, 40, 48, 64, 96px`  
-Radii: `4, 8, 12, 16px` and pill  
-Type: `12, 14, 16, 18, 24, 32, 44px`  
-Motion: micro `120–160ms`, overlays `180–220ms`  
+Spacing: `4, 8, 12, 16, 24, 32, 40, 48, 64, 96px`
+Radii: `4, 8, 12, 16px` and pill
+Type: `12, 14, 16, 18, 24, 32, 44px`
+Motion: micro `120–160ms`, overlays `180–220ms`
 Focus: 2px ring, 2px offset, ≥3:1 adjacent change
 
 Contrast pairs are locked in `src/components/ui/theme.test.ts`.

@@ -10,17 +10,20 @@ export interface UsageMeterProps {
 /**
  * Rejects impossible usage instead of clamping it. A meter that quietly renders
  * `11 / 10` as "full" hides a data defect the caller needs to fix.
+ *
+ * Finite fractional values are allowed — the contract rejects non-finite values,
+ * limit <= 0, used < 0, and used > limit, not integer-only domain data.
  */
 function assertValidUsage(used: number, limit: number): void {
-  if (!Number.isInteger(limit) || limit <= 0) {
+  if (!Number.isFinite(limit) || limit <= 0) {
     throw new RangeError(
-      `UsageMeter limit must be a finite integer greater than zero, received used=${String(used)} limit=${String(limit)}`,
+      `UsageMeter limit must be a finite number greater than zero, received used=${String(used)} limit=${String(limit)}`,
     );
   }
 
-  if (!Number.isInteger(used) || used < 0) {
+  if (!Number.isFinite(used) || used < 0) {
     throw new RangeError(
-      `UsageMeter used must be a finite non-negative integer, received used=${String(used)} limit=${String(limit)}`,
+      `UsageMeter used must be a finite non-negative number, received used=${String(used)} limit=${String(limit)}`,
     );
   }
 

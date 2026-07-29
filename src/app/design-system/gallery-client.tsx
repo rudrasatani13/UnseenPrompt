@@ -67,18 +67,82 @@ import { Textarea } from "@/components/ui/textarea";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 const TOKEN_SWATCHES = [
-  { name: "canvas", hex: "#FEFAF8", role: "Page background" },
-  { name: "surface", hex: "#FFFFFF", role: "Raised surface" },
-  { name: "surface-muted", hex: "#FAF4F5", role: "Muted surface / active nav" },
-  { name: "text-primary", hex: "#2B2426", role: "Primary text" },
-  { name: "text-secondary", hex: "#6F6266", role: "Secondary text" },
-  { name: "brand-primary", hex: "#A64763", role: "Primary action" },
-  { name: "border-control", hex: "#8F8185", role: "Control border" },
-  { name: "border-subtle", hex: "#E9DFE1", role: "Subtle border" },
-  { name: "success-foreground", hex: "#17623A", role: "Success text" },
-  { name: "warning-foreground", hex: "#7A4A00", role: "Warning text" },
-  { name: "danger-foreground", hex: "#8F2037", role: "Danger text" },
-  { name: "info-foreground", hex: "#1F4E79", role: "Info text" },
+  { name: "canvas", hex: "#FEFAF8", role: "Page background", contrastPair: null },
+  { name: "surface", hex: "#FFFFFF", role: "Raised surface", contrastPair: null },
+  { name: "surface-muted", hex: "#FAF4F5", role: "Muted surface / active nav", contrastPair: null },
+  {
+    name: "text-primary",
+    hex: "#2B2426",
+    role: "Primary text",
+    contrastPair: "on canvas ≈ 14.64:1",
+  },
+  {
+    name: "text-secondary",
+    hex: "#6F6266",
+    role: "Secondary text",
+    contrastPair: "on canvas ≈ 5.60:1",
+  },
+  {
+    name: "brand-primary",
+    hex: "#A64763",
+    role: "Primary action",
+    contrastPair: "white on brand ≈ 5.67:1; brand on canvas ≈ 5.47:1",
+  },
+  {
+    name: "border-control",
+    hex: "#8F8185",
+    role: "Control border",
+    contrastPair: "on canvas ≈ 3.59:1",
+  },
+  { name: "border-subtle", hex: "#E9DFE1", role: "Subtle border", contrastPair: null },
+  {
+    name: "success-foreground",
+    hex: "#17623A",
+    role: "Success text",
+    contrastPair: "on success-background ≈ 6.61:1",
+  },
+  {
+    name: "success-background",
+    hex: "#E7F6ED",
+    role: "Success surface",
+    contrastPair: null,
+  },
+  {
+    name: "warning-foreground",
+    hex: "#7A4A00",
+    role: "Warning text",
+    contrastPair: "on warning-background ≈ 6.83:1",
+  },
+  {
+    name: "warning-background",
+    hex: "#FFF4D6",
+    role: "Warning surface",
+    contrastPair: null,
+  },
+  {
+    name: "danger-foreground",
+    hex: "#8F2037",
+    role: "Danger text",
+    contrastPair: "on danger-background ≈ 7.58:1",
+  },
+  {
+    name: "danger-background",
+    hex: "#FDECEF",
+    role: "Danger surface",
+    contrastPair: null,
+  },
+  {
+    name: "info-foreground",
+    hex: "#1F4E79",
+    role: "Info text",
+    contrastPair: "on info-background ≈ 7.71:1",
+  },
+  {
+    name: "info-background",
+    hex: "#EAF3FA",
+    role: "Info surface",
+    contrastPair: null,
+  },
 ] as const;
 
 function Section({
@@ -244,7 +308,7 @@ function CoreGallery() {
               <DialogTitle>Gallery dialog</DialogTitle>
               <DialogDescription>Escape closes and restores trigger focus.</DialogDescription>
             </DialogHeader>
-            <p className="text-sm text-ink-muted">Synthetic dialog body.</p>
+            <p className="text-sm text-ink">Synthetic dialog body.</p>
           </DialogContent>
         </Dialog>
       </Specimen>
@@ -307,13 +371,33 @@ function CoreGallery() {
         <Progress value={42} aria-label="Gallery progress" className="max-w-md" />
       </Specimen>
 
-      <Specimen title="FileItem" description="Error state with retry; no real upload.">
+      <Specimen title="FileItem" description="All five statuses; no real upload or file input.">
         <div className="grid max-w-xl gap-3">
           <FileItem
             name="gallery-brief.pdf"
             fileType="PDF"
             sizeBytes={2048}
             status="ready"
+            errorMessage={null}
+            onRetry={null}
+            onRemove={null}
+          />
+          <FileItem
+            name="gallery-brief.pdf"
+            fileType="PDF"
+            sizeBytes={4096}
+            status="uploading"
+            errorMessage={null}
+            onRetry={null}
+            onRemove={() => {
+              toast.message("Synthetic remove invoked");
+            }}
+          />
+          <FileItem
+            name="gallery-brief.pdf"
+            fileType="PDF"
+            sizeBytes={4096}
+            status="processing"
             errorMessage={null}
             onRetry={null}
             onRemove={null}
@@ -330,6 +414,15 @@ function CoreGallery() {
             onRemove={() => {
               toast.message("Synthetic remove invoked");
             }}
+          />
+          <FileItem
+            name="gallery-brief.pdf"
+            fileType="PDF"
+            sizeBytes={2048}
+            status="complete"
+            errorMessage={null}
+            onRetry={null}
+            onRemove={null}
           />
         </div>
       </Specimen>
@@ -541,6 +634,50 @@ function ProductGallery() {
   );
 }
 
+function ForcedColorsSpecimen() {
+  const [value, setValue] = useState<"a" | "b">("a");
+
+  return (
+    <Specimen
+      title="Forced colors"
+      description="Live specimen for forced-colors: active — borders and selection stay visible."
+    >
+      <div
+        data-gallery-forced-colors-specimen
+        className="grid max-w-md gap-3 rounded-md border border-control bg-surface p-4"
+      >
+        <p className="text-sm text-ink-muted">
+          Emulate forced colors, then Tab to the button and inspect outline/border. Selected radio
+          and active control borders must remain distinguishable.
+        </p>
+        <Button type="button" variant="outline">
+          Forced-colors focus target
+        </Button>
+        <QuestionChoice
+          name="forced-colors-choice"
+          legend="Forced-colors selection"
+          value={value}
+          onValueChange={setValue}
+          options={[
+            {
+              value: "a",
+              label: "Selected option",
+              description: "Should remain visible under forced colors",
+              disabled: false,
+            },
+            {
+              value: "b",
+              label: "Other option",
+              description: null,
+              disabled: false,
+            },
+          ]}
+        />
+      </div>
+    </Specimen>
+  );
+}
+
 /**
  * Interactive design-system gallery. State is local demo only.
  * No network, persistence, or production data.
@@ -594,6 +731,9 @@ export function DesignSystemGallery() {
                   <p className="font-mono text-sm text-ink">{token.name}</p>
                   <p className="font-mono text-xs text-ink-muted">{token.hex}</p>
                   <p className="text-xs text-ink-muted">{token.role}</p>
+                  {token.contrastPair ? (
+                    <p className="text-xs text-ink-muted">{token.contrastPair}</p>
+                  ) : null}
                 </div>
               </li>
             ))}
@@ -649,11 +789,29 @@ export function DesignSystemGallery() {
           <Button type="button" variant="outline">
             Tab to see 2px focus ring
           </Button>
-          <p className="text-sm text-ink-muted">
-            Forced-colors and reduced-motion rules live in theme.css. Prefer prefers-reduced-motion
-            OS settings when validating motion specimens.
-          </p>
         </Specimen>
+        <Specimen
+          title="Reduced motion"
+          description="Live specimen: status text is the primary feedback even when motion is reduced."
+        >
+          <div className="grid max-w-md gap-3">
+            <p className="text-sm text-ink-muted">
+              Emulate <code className="font-mono">prefers-reduced-motion: reduce</code> in the
+              browser, then copy. The status region still announces success without relying on
+              animation.
+            </p>
+            <PromptPanel
+              prompt={GALLERY_FIXTURES.prompt}
+              metadata="Reduced-motion fixture"
+              expectedResult={GALLERY_FIXTURES.expectedResult}
+              acceptanceCriteria={GALLERY_FIXTURES.acceptance}
+              copyText={async (text) => {
+                await navigator.clipboard.writeText(text);
+              }}
+            />
+          </div>
+        </Specimen>
+        <ForcedColorsSpecimen />
       </Section>
 
       <Section id="core" title="Core components">

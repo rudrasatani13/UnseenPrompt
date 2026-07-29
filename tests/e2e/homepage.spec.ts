@@ -1,5 +1,7 @@
 import { expect, test, type Page, type Request } from "@playwright/test";
 
+import { waitForProductReady } from "./helpers";
+
 const PREVIEW_HEADING = "Turn project context into an agent-ready prompt";
 const DISCLOSURE = "Prompt generation becomes interactive in a later phase.";
 
@@ -53,6 +55,7 @@ test.describe("homepage preview", () => {
     });
 
     await page.goto("/");
+    await waitForProductReady(page);
 
     await expect(page.getByRole("heading", { level: 1, name: PREVIEW_HEADING })).toBeVisible();
     await expect(page.getByText(DISCLOSURE)).toBeVisible();

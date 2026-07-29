@@ -39,6 +39,14 @@ describe("UsageMeter", () => {
     expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "10");
   });
 
+  it("accepts finite fractional domain values", () => {
+    render(<UsageMeter label="Prompt allowance" used={1.5} limit={10} unit="prompts" />);
+
+    expect(screen.getByText("1.5 of 10 prompts used")).toBeVisible();
+    expect(screen.getByText("8.5 prompts remaining")).toBeVisible();
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "1.5");
+  });
+
   it.each([
     { used: 11, limit: 10 },
     { used: -1, limit: 10 },
@@ -47,7 +55,6 @@ describe("UsageMeter", () => {
     { used: Number.NaN, limit: 10 },
     { used: Number.POSITIVE_INFINITY, limit: 10 },
     { used: 1, limit: Number.POSITIVE_INFINITY },
-    { used: 1.5, limit: 10 },
   ])("rejects the invalid domain %o with a RangeError", ({ used, limit }) => {
     expect(() =>
       render(<UsageMeter label="Prompt allowance" used={used} limit={limit} unit="prompts" />),

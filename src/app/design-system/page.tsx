@@ -11,8 +11,18 @@ export const metadata: Metadata = {
 };
 
 /**
- * Non-production design-system gallery. Production resolves to not-found.
- * This is an exposure guard, not authorization.
+ * Always evaluate availability at request time. A static prerender would bake a
+ * non-production gallery (or a soft not-found) into the HTML and break the
+ * production exposure guard.
+ */
+export const dynamic = "force-dynamic";
+
+/**
+ * Non-production design-system gallery. Production resolves to not-found with
+ * HTTP 404. This is a UI exposure guard, not authorization.
+ *
+ * The product-group loading UI lives under `(product)/loading.tsx` so this
+ * route never streams the shell skeleton before `notFound()` runs.
  */
 export default function DesignSystemPage() {
   const environment = getServerEnvironment();

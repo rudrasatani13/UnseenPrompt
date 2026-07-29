@@ -106,7 +106,9 @@ describe("PromptPanel", () => {
     await user.click(screen.getByRole("button", { name: "Copy prompt" }));
 
     expect(copied).toEqual([prompt]);
-    expect(await screen.findByText("Copied")).toBeVisible();
+    const status = await screen.findByRole("status");
+    expect(status).toHaveTextContent("Copied");
+    expect(status).toHaveAttribute("aria-live", "polite");
   });
 
   it("confirms a copy without depending on a toast", async () => {
@@ -124,8 +126,9 @@ describe("PromptPanel", () => {
 
     await user.click(screen.getByRole("button", { name: "Copy prompt" }));
 
-    const confirmation = await screen.findByText("Copied");
+    const confirmation = await screen.findByRole("status");
 
+    expect(confirmation).toHaveTextContent("Copied");
     expect(baseElement.contains(confirmation)).toBe(true);
     expect(confirmation.closest("[data-sonner-toast]")).toBeNull();
   });
@@ -181,7 +184,7 @@ describe("PromptPanel", () => {
     shouldFail = false;
     await user.click(copyButton);
 
-    expect(await screen.findByText("Copied")).toBeVisible();
+    expect(await screen.findByRole("status")).toHaveTextContent("Copied");
     expect(screen.queryByText(COPY_FAILURE_TEXT)).not.toBeInTheDocument();
   });
 
