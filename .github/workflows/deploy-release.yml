@@ -1,20 +1,43 @@
 name: Deploy Release
 
+# Sequence after Continuous Integration so migrations never apply without a green
+# isolated database gate (and quality/preview jobs) for the same commit SHA.
 on:
-  push:
+  workflow_run:
+    workflows: ["Continuous Integration"]
+    types: [completed]
     branches: [main]
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: deploy-release
   cancel-in-progress: false
 
 jobs:
-  staging:
+  gate:
+    name: Release gate
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 5
+    if: >
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_branch == 'main'
+    outputs:
+      release_sha: ${{ steps.sha.outputs.release_sha }}
+    steps:
+      - name: Resolve release SHA
+        id: sha
+        run: |
+          echo "release_sha=${{ github.event.workflow_run.head_sha }}" >> "$GITHUB_OUTPUT"
+          echo "Deploying commit ${{ github.event.workflow_run.head_sha }} after successful CI."
+
+  staging:
+    needs: gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
     environment:
       name: staging
       url: ${{ steps.staging.outputs.url }}
@@ -22,7 +45,7 @@ jobs:
       CI: "true"
       APP_ENV: staging
       NEXT_PUBLIC_APP_URL: https://staging.unseenprompt.com
-      RELEASE_SHA: ${{ github.sha }}
+      RELEASE_SHA: ${{ needs.gate.outputs.release_sha }}
       MAINTENANCE_MODE: "off"
       NODE_VERSION: 24
       PNPM_VERSION: 11.17.0
@@ -30,7 +53,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ needs.gate.outputs.release_sha }}
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
@@ -51,6 +74,47 @@ jobs:
         run: pnpm cf:types:check
       - name: Check Workers dependency policy
         run: pnpm check:workers-deps
+      - name: Require staging database credentials
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.STAGING_SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.STAGING_SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_REF: ${{ secrets.STAGING_SUPABASE_PROJECT_REF }}
+        run: |
+          missing=0
+          if [[ -z "${SUPABASE_ACCESS_TOKEN}" ]]; then
+            echo "Missing STAGING_SUPABASE_ACCESS_TOKEN"
+            missing=1
+          fi
+          if [[ -z "${SUPABASE_PROJECT_REF}" ]]; then
+            echo "Missing STAGING_SUPABASE_PROJECT_REF"
+            missing=1
+          fi
+          if [[ -z "${SUPABASE_DB_PASSWORD}" ]]; then
+            echo "Missing STAGING_SUPABASE_DB_PASSWORD"
+            missing=1
+          fi
+          if [[ "$missing" -ne 0 ]]; then
+            echo "Staging database secrets are required before Worker deploy."
+            exit 1
+          fi
+      - name: Staging database dry-run
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.STAGING_SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.STAGING_SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_REF: ${{ secrets.STAGING_SUPABASE_PROJECT_REF }}
+        run: |
+          pnpm exec supabase link --project-ref "${SUPABASE_PROJECT_REF}"
+          pnpm exec supabase db push --dry-run
+      - name: Apply staging database migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.STAGING_SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.STAGING_SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_REF: ${{ secrets.STAGING_SUPABASE_PROJECT_REF }}
+        run: |
+          # Never seed remote environments.
+          pnpm exec supabase link --project-ref "${SUPABASE_PROJECT_REF}"
+          pnpm exec supabase db push
+          pnpm exec supabase db lint --level error --linked
       - name: Build Worker
         run: pnpm cf:build
       - name: Deploy staging
@@ -62,7 +126,7 @@ jobs:
         run: |
           pnpm exec wrangler deploy \
             --env staging \
-            --var "RELEASE_SHA:${{ github.sha }}"
+            --var "RELEASE_SHA:${{ needs.gate.outputs.release_sha }}"
       - name: Resolve staging URL
         id: staging
         env:
@@ -72,14 +136,14 @@ jobs:
         env:
           DEPLOYMENT_URL: ${{ steps.staging.outputs.url }}
           HEALTHCHECK_TOKEN: ${{ secrets.STAGING_HEALTHCHECK_TOKEN }}
-          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_SHA: ${{ needs.gate.outputs.release_sha }}
         run: pnpm test:cf-deployment
 
   production:
-    needs: staging
+    needs: [gate, staging]
     if: "${{ vars.PRODUCTION_DEPLOY_ENABLED == 'true' }}"
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
     environment:
       name: production
       url: https://unseenprompt.com
@@ -88,7 +152,7 @@ jobs:
       APP_ENV: production
       NEXT_PUBLIC_APP_URL: https://unseenprompt.com
       NEXT_PUBLIC_TURNSTILE_SITE_KEY: 0x4AAAAAAEA6pueCMCfbUmae
-      RELEASE_SHA: ${{ github.sha }}
+      RELEASE_SHA: ${{ needs.gate.outputs.release_sha }}
       MAINTENANCE_MODE: "off"
       NODE_VERSION: 24
       PNPM_VERSION: 11.17.0
@@ -104,7 +168,7 @@ jobs:
       - name: Check out release SHA
         uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ needs.gate.outputs.release_sha }}
       - name: Set up Node.js
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
@@ -125,6 +189,56 @@ jobs:
         run: pnpm cf:types:check
       - name: Check Workers dependency policy
         run: pnpm check:workers-deps
+      - name: Require production database credentials
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.PRODUCTION_SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.PRODUCTION_SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_REF: ${{ secrets.PRODUCTION_SUPABASE_PROJECT_REF }}
+        run: |
+          missing=0
+          if [[ -z "${SUPABASE_ACCESS_TOKEN}" ]]; then
+            echo "Missing PRODUCTION_SUPABASE_ACCESS_TOKEN"
+            missing=1
+          fi
+          if [[ -z "${SUPABASE_PROJECT_REF}" ]]; then
+            echo "Missing PRODUCTION_SUPABASE_PROJECT_REF"
+            missing=1
+          fi
+          if [[ -z "${SUPABASE_DB_PASSWORD}" ]]; then
+            echo "Missing PRODUCTION_SUPABASE_DB_PASSWORD"
+            missing=1
+          fi
+          if [[ "$missing" -ne 0 ]]; then
+            exit 1
+          fi
+      - name: Production database dry-run
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.PRODUCTION_SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.PRODUCTION_SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_REF: ${{ secrets.PRODUCTION_SUPABASE_PROJECT_REF }}
+        run: |
+          pnpm exec supabase link --project-ref "${SUPABASE_PROJECT_REF}"
+          pnpm exec supabase db push --dry-run
+      - name: Require backup/PITR confirmation
+        env:
+          PRODUCTION_DB_RECOVERY_CONFIRMED: ${{ vars.PRODUCTION_DB_RECOVERY_CONFIRMED }}
+        run: |
+          if [[ "$PRODUCTION_DB_RECOVERY_CONFIRMED" != "true" ]]; then
+            echo "PRODUCTION_DB_RECOVERY_CONFIRMED must be exactly true on the production"
+            echo "GitHub Environment after an operator verifies backup/PITR coverage for"
+            echo "this project. Refusing production database migration."
+            exit 1
+          fi
+      - name: Apply production database migrations
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.PRODUCTION_SUPABASE_ACCESS_TOKEN }}
+          SUPABASE_DB_PASSWORD: ${{ secrets.PRODUCTION_SUPABASE_DB_PASSWORD }}
+          SUPABASE_PROJECT_REF: ${{ secrets.PRODUCTION_SUPABASE_PROJECT_REF }}
+        run: |
+          # Never seed production. Forward-only migrations only.
+          pnpm exec supabase link --project-ref "${SUPABASE_PROJECT_REF}"
+          pnpm exec supabase db push
+          pnpm exec supabase db lint --level error --linked
       - name: Build Worker
         run: pnpm cf:build
       - name: Production dry-run
@@ -138,7 +252,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.ndjson
-          RELEASE_SHA_INPUT: ${{ github.sha }}
+          RELEASE_SHA_INPUT: ${{ needs.gate.outputs.release_sha }}
         run: |
           pnpm exec wrangler versions upload \
             --env production \
@@ -156,7 +270,7 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           VERSION_ID: ${{ steps.version.outputs.version_id }}
-          RELEASE_SHA_INPUT: ${{ github.sha }}
+          RELEASE_SHA_INPUT: ${{ needs.gate.outputs.release_sha }}
         run: |
           pnpm exec wrangler versions deploy \
             --env production \
@@ -167,5 +281,5 @@ jobs:
         env:
           DEPLOYMENT_URL: https://unseenprompt.com
           HEALTHCHECK_TOKEN: ${{ secrets.PRODUCTION_HEALTHCHECK_TOKEN }}
-          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_SHA: ${{ needs.gate.outputs.release_sha }}
         run: pnpm test:cf-deployment
