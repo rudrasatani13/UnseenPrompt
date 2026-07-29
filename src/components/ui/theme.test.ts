@@ -80,57 +80,62 @@ function contrastRatio(foreground: string, background: string): number {
 }
 
 const lockedTokens = {
-  "--canvas": "#FEFAF8",
+  "--canvas": "#FFFFFF",
   "--surface": "#FFFFFF",
-  "--surface-muted": "#FAF4F5",
-  "--text-primary": "#2B2426",
-  "--text-secondary": "#6F6266",
-  "--brand-primary": "#A64763",
-  "--brand-primary-hover": "#8D3852",
-  "--brand-primary-active": "#762C43",
-  "--border-control": "#8F8185",
-  "--border-subtle": "#E9DFE1",
-  "--success-foreground": "#17623A",
-  "--success-background": "#E7F6ED",
-  "--warning-foreground": "#7A4A00",
-  "--warning-background": "#FFF4D6",
-  "--danger-foreground": "#8F2037",
-  "--danger-background": "#FDECEF",
-  "--info-foreground": "#1F4E79",
-  "--info-background": "#EAF3FA",
+  "--surface-muted": "#F5F5F5",
+  "--text-primary": "#000000",
+  "--text-secondary": "#525252",
+  "--brand-primary": "#000000",
+  "--brand-primary-hover": "#262626",
+  "--brand-primary-active": "#404040",
+  "--border-control": "#737373",
+  "--border-subtle": "#D4D4D4",
+  "--focus-ring-color": "#000000",
+  "--success-foreground": "#000000",
+  "--success-background": "#F7F7F7",
+  "--success-border": "#737373",
+  "--warning-foreground": "#000000",
+  "--warning-background": "#EFEFEF",
+  "--warning-border": "#525252",
+  "--danger-foreground": "#000000",
+  "--danger-background": "#E8E8E8",
+  "--danger-border": "#000000",
+  "--info-foreground": "#000000",
+  "--info-background": "#F5F5F5",
+  "--info-border": "#737373",
 } as const satisfies Record<string, string>;
 
 const WHITE = "#FFFFFF";
 
 const contrastContract = [
-  { foreground: "--text-primary", background: "--canvas", minimum: 4.5, measured: 14.64 },
-  { foreground: "--text-secondary", background: "--canvas", minimum: 4.5, measured: 5.6 },
-  { foreground: WHITE, background: "--brand-primary", minimum: 4.5, measured: 5.67 },
-  { foreground: "--brand-primary", background: "--canvas", minimum: 4.5, measured: 5.47 },
-  { foreground: "--border-control", background: "--canvas", minimum: 3, measured: 3.59 },
+  { foreground: "--text-primary", background: "--canvas", minimum: 4.5, measured: 21 },
+  { foreground: "--text-secondary", background: "--canvas", minimum: 4.5, measured: 7.81 },
+  { foreground: WHITE, background: "--brand-primary", minimum: 4.5, measured: 21 },
+  { foreground: "--brand-primary", background: "--canvas", minimum: 4.5, measured: 21 },
+  { foreground: "--border-control", background: "--canvas", minimum: 3, measured: 4.74 },
   {
     foreground: "--success-foreground",
     background: "--success-background",
     minimum: 4.5,
-    measured: 6.61,
+    measured: 19.6,
   },
   {
     foreground: "--warning-foreground",
     background: "--warning-background",
     minimum: 4.5,
-    measured: 6.83,
+    measured: 18.26,
   },
   {
     foreground: "--danger-foreground",
     background: "--danger-background",
     minimum: 4.5,
-    measured: 7.58,
+    measured: 17.14,
   },
   {
     foreground: "--info-foreground",
     background: "--info-background",
     minimum: 4.5,
-    measured: 7.71,
+    measured: 19.26,
   },
 ] as const;
 
@@ -150,11 +155,11 @@ const lockedSpacing = [
   "64px",
   "96px",
 ];
-const lockedRadii = ["4px", "8px", "12px", "16px"];
+const lockedRadii = ["0px", "2px", "4px", "8px"];
 const lockedTypeSizes = ["12px", "14px", "16px", "18px", "24px", "32px", "44px"];
 const lockedDurations = ["120ms", "160ms", "180ms", "220ms"];
 
-describe("warm editorial semantic tokens", () => {
+describe("pure monochrome semantic tokens", () => {
   it("declares every locked token exactly once with its approved value", () => {
     for (const [property, expectedValue] of Object.entries(lockedTokens)) {
       expect(declarationsFor(property), `${property} declaration count`).toHaveLength(1);
@@ -165,6 +170,11 @@ describe("warm editorial semantic tokens", () => {
   it("defines a single light token set with no dark variant", () => {
     expect(themeSource).not.toMatch(/\.dark\b/);
     expect(themeSource).not.toMatch(/prefers-color-scheme/);
+  });
+
+  it("does not declare a panel shadow", () => {
+    expect(themeSource).not.toMatch(/--panel-shadow\s*:/);
+    expect(themeSource).not.toMatch(/--shadow-panel\s*:/);
   });
 
   it.each(contrastContract)(
@@ -178,7 +188,7 @@ describe("warm editorial semantic tokens", () => {
   );
 });
 
-describe("warm editorial scales", () => {
+describe("pure monochrome scales", () => {
   it("exposes the locked spacing scale with no duplicate step", () => {
     const values = scaleValues("--spacing-", [
       "1",
@@ -203,6 +213,7 @@ describe("warm editorial scales", () => {
     expect(values).toEqual(lockedRadii);
     expect(new Set(values).size).toBe(lockedRadii.length);
     expect(valueOf("--radius-pill")).toBe("9999px");
+    expect(valueOf("--radius")).toBe("4px");
   });
 
   it("exposes the locked type scale with no duplicate size", () => {
@@ -227,16 +238,15 @@ describe("warm editorial scales", () => {
   it("declares the approved two-pixel focus indicator", () => {
     expect(valueOf("--focus-ring-width")).toBe("2px");
     expect(valueOf("--focus-ring-offset")).toBe("2px");
-    expect(valueOf("--focus-ring-color")).toBe("var(--brand-primary)");
+    expect(valueOf("--focus-ring-color").toUpperCase()).toBe("#000000");
   });
 
-  it("declares restrained panel and overlay elevation", () => {
-    expect(valueOf("--panel-shadow")).toMatch(/rgb|rgba|color-mix/);
-    expect(valueOf("--overlay-shadow")).toMatch(/rgb|rgba|color-mix/);
+  it("declares overlay elevation without a panel shadow", () => {
+    expect(valueOf("--overlay-shadow")).toBe("0 16px 48px rgb(0 0 0 / 18%)");
   });
 });
 
-describe("warm editorial accessibility media contracts", () => {
+describe("pure monochrome accessibility media contracts", () => {
   it("reduces motion without removing state feedback", () => {
     expect(themeSource).toContain("@media (prefers-reduced-motion: reduce)");
     expect(themeSource).toMatch(/--tw-enter-translate-y:\s*0/);

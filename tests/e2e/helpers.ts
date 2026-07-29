@@ -1,5 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 
+const PRODUCT_HEADING = "Start with the messy version.";
+
 /**
  * Wait until the product page has settled into real content — not a loading
  * skeleton, error boundary, or Next development overlay.
@@ -9,9 +11,28 @@ export async function waitForProductReady(page: Page): Promise<void> {
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: "Turn project context into an agent-ready prompt",
+      name: PRODUCT_HEADING,
     }),
   ).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('[data-slot="app-loading"]')).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Something went wrong" })).toHaveCount(0);
+  await expect(page.locator("nextjs-portal")).toHaveCount(0);
+  await page.evaluate(() => document.fonts.ready);
+}
+
+/**
+ * Wait until the production coming-soon surface is ready (no application shell).
+ */
+export async function waitForComingSoonReady(page: Page): Promise<void> {
+  await page.waitForLoadState("domcontentloaded");
+  await expect(page.locator('[data-slot="coming-soon-landing"]')).toBeVisible({ timeout: 30_000 });
+  await expect(
+    page.getByRole("heading", {
+      level: 1,
+      name: PRODUCT_HEADING,
+    }),
+  ).toBeVisible();
+  await expect(page.getByRole("link", { name: "New Project" })).toHaveCount(0);
   await expect(page.locator('[data-slot="app-loading"]')).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Something went wrong" })).toHaveCount(0);
   await expect(page.locator("nextjs-portal")).toHaveCount(0);

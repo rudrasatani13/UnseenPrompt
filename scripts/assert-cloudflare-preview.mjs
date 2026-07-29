@@ -7,7 +7,7 @@ if (!homeResponse.ok) {
   throw new Error(`Cloudflare preview returned HTTP ${homeResponse.status}`);
 }
 
-if (!homeBody.includes("UnseenPrompt") || !homeBody.includes("Stateful Project Copilot")) {
+if (!homeBody.includes("UnseenPrompt")) {
   throw new Error("Cloudflare preview did not render the UnseenPrompt identity");
 }
 

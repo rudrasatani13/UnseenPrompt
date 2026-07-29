@@ -69,7 +69,7 @@ function TabsTrigger({ className, ...props }: React.ComponentProps<typeof TabsPr
         "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand",
         "disabled:pointer-events-none disabled:opacity-60",
         "data-[state=active]:bg-surface data-[state=active]:text-ink",
-        "group-data-[variant=default]/tabs-list:data-[state=active]:shadow-panel",
+        "group-data-[variant=default]/tabs-list:data-[state=active]:border-subtle",
         "group-data-[variant=line]/tabs-list:data-[state=active]:bg-transparent",
         "group-data-[variant=line]/tabs-list:data-[state=active]:border-b-2",
         "group-data-[variant=line]/tabs-list:data-[state=active]:border-b-brand",

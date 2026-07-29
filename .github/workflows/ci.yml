@@ -48,6 +48,8 @@ jobs:
         run: pnpm typecheck
       - name: Run unit tests
         run: pnpm test:unit
+      - name: Run copy policy tests
+        run: pnpm test:copy
       - name: Run browser tests
         run: pnpm test:e2e
       - name: Run maintenance browser tests

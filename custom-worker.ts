@@ -26,6 +26,60 @@ export class RuntimeHealthWorkflow extends WorkflowEntrypoint<CloudflareEnv, Run
   }
 }
 
+const NO_STORE = {
+  "Cache-Control": "no-store",
+  "X-Content-Type-Options": "nosniff",
+};
+
+function isWaitlistRequest(request: Request): boolean {
+  if (request.method !== "POST") {
+    return false;
+  }
+
+  try {
+    const url = new URL(request.url);
+    return url.pathname === "/api/waitlist/request";
+  } catch {
+    return false;
+  }
+}
+
 export default {
-  fetch: openNextWorker.fetch,
+  async fetch(request, env, ctx) {
+    if (env.APP_ENV === "production" && isWaitlistRequest(request)) {
+      const ip = request.headers.get("CF-Connecting-IP");
+      if (!ip) {
+        return new Response(JSON.stringify({ kind: "temporary_failure" }), {
+          status: 503,
+          headers: {
+            ...NO_STORE,
+            "Content-Type": "application/json",
+          },
+        });
+      }
+
+      const limiter = (
+        env as CloudflareEnv & {
+          WAITLIST_RATE_LIMITER?: {
+            limit: (input: { key: string }) => Promise<{ success: boolean }>;
+          };
+        }
+      ).WAITLIST_RATE_LIMITER;
+
+      if (limiter) {
+        const { success } = await limiter.limit({ key: ip });
+        if (!success) {
+          return new Response(JSON.stringify({ kind: "temporary_failure" }), {
+            status: 429,
+            headers: {
+              ...NO_STORE,
+              "Content-Type": "application/json",
+            },
+          });
+        }
+      }
+    }
+
+    return openNextWorker.fetch(request, env, ctx);
+  },
 } satisfies ExportedHandler<CloudflareEnv>;

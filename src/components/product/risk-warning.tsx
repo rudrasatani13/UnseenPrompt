@@ -67,7 +67,7 @@ export function RiskWarning({ level, title, description, confirmation }: RiskWar
     <Alert data-slot="risk-warning" data-level={level} variant={presentation.variant}>
       <LevelIcon aria-hidden="true" focusable="false" />
       <AlertTitle>
-        <span className="mr-2 rounded-pill border border-current px-2 py-0.5 text-xs uppercase">
+        <span className="mr-2 rounded-sm border border-current px-2 py-0.5 text-xs uppercase">
           {presentation.text}
         </span>
         {title}

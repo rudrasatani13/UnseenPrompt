@@ -48,7 +48,7 @@ export const GALLERY_SECTIONS = [
   {
     id: "tokens",
     title: "Tokens",
-    description: "Warm Editorial semantic colors, type, spacing, and motion.",
+    description: "Pure monochrome semantic colors, type, spacing, and motion.",
     components: ["TokenSwatches", "Typography", "Spacing", "Radius", "Elevation", "Focus"],
     keyboardNote: null,
   },

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Manrope } from "next/font/google";
 import type { ReactNode } from "react";
 
+import { buildRootMetadata } from "@/app/metadata";
 import { AppProviders } from "@/components/providers/app-providers";
 import { getServerEnvironment } from "@/config/env/server";
 
@@ -19,15 +20,7 @@ const manrope = Manrope({
   variable: "--font-manrope",
 });
 
-export const metadata: Metadata = {
-  metadataBase: new URL(environment.NEXT_PUBLIC_APP_URL),
-  title: {
-    default: "UnseenPrompt",
-    template: "%s · UnseenPrompt",
-  },
-  description: "Stateful Project Copilot for AI-assisted web development.",
-  applicationName: "UnseenPrompt",
-};
+export const metadata: Metadata = buildRootMetadata(environment);
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (

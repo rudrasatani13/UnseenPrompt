@@ -6,7 +6,7 @@ import { cn } from "@/components/ui/utils";
 
 /**
  * Locally owned shadcn/Radix button. Generated styling was replaced with the
- * approved Warm Editorial tokens, the two-pixel focus indicator, and the
+ * approved Pure Monochrome tokens, the two-pixel focus indicator, and the
  * minimum target sizes (44px on touch viewports, 40px from 1024px up).
  */
 const buttonVariants = cva(
@@ -15,7 +15,7 @@ const buttonVariants = cva(
     "transition-colors duration-(--duration-micro-min)",
     "outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand",
     "disabled:pointer-events-none disabled:opacity-50",
-    "aria-invalid:border-danger",
+    "aria-invalid:border-danger-border",
     "[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   ].join(" "),
   {
@@ -25,7 +25,8 @@ const buttonVariants = cva(
         secondary: "bg-surface-muted text-ink hover:bg-subtle active:bg-subtle",
         outline: "border border-control bg-surface text-ink hover:bg-surface-muted",
         ghost: "text-ink hover:bg-surface-muted",
-        destructive: "bg-danger text-surface hover:bg-danger/90 active:bg-danger/80",
+        destructive:
+          "border-2 border-danger-border bg-danger-surface text-danger hover:bg-subtle active:bg-subtle",
       },
       size: {
         default: "min-h-11 px-4 py-2 lg:min-h-10 has-[>svg]:px-3",

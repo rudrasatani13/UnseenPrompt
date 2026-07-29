@@ -32,7 +32,7 @@ const statePresentation = {
   complete: {
     text: "Complete",
     icon: CircleCheckIcon,
-    badgeClassName: "bg-success-surface text-success",
+    badgeClassName: "border border-success-border bg-success-surface text-success",
     markerClassName: "text-success",
   },
   current: {
@@ -50,7 +50,7 @@ const statePresentation = {
   blocked: {
     text: "Blocked",
     icon: CircleSlashIcon,
-    badgeClassName: "bg-warning-surface text-warning",
+    badgeClassName: "border border-warning-border bg-warning-surface text-warning",
     markerClassName: "text-warning",
   },
 } as const satisfies Record<LifecycleStepState, StatePresentation>;
@@ -89,7 +89,7 @@ export function LifecycleSteps({ steps, label }: LifecycleStepsProps) {
               )}
               <span
                 className={cn(
-                  "mt-1 w-fit rounded-pill px-2 py-0.5 text-xs font-medium",
+                  "mt-1 w-fit rounded-sm px-2 py-0.5 text-xs font-medium",
                   presentation.badgeClassName,
                 )}
               >
