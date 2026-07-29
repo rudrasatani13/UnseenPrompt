@@ -4,11 +4,11 @@ Operational procedures for UnseenPrompt Workers. Do **not** put real account IDs
 
 ## Environment mapping
 
-| Logical environment | Worker name               | Workflow name                    | Trigger                                              |
-| ------------------- | ------------------------- | -------------------------------- | ---------------------------------------------------- |
-| Local               | `unseenprompt-local`      | `unseenprompt-health-local`      | Developer command                                    |
-| Staging             | `unseenprompt-staging`    | `unseenprompt-health-staging`    | Push to `main` (`deploy-release.yml`)                |
-| Production          | `unseenprompt-production` | `unseenprompt-health-production` | Automatically after the staging job succeeds on main |
+| Logical environment | Worker name               | Workflow name                    | Trigger                                                     |
+| ------------------- | ------------------------- | -------------------------------- | ----------------------------------------------------------- |
+| Local               | `unseenprompt-local`      | `unseenprompt-health-local`      | Developer command                                           |
+| Staging             | `unseenprompt-staging`    | `unseenprompt-health-staging`    | Push to `main` (`deploy-release.yml`)                       |
+| Production          | `unseenprompt-production` | `unseenprompt-health-production` | After staging succeeds and `PRODUCTION_DEPLOY_ENABLED=true` |
 
 ## Secret ownership and rotation
 
@@ -78,12 +78,17 @@ pnpm cf:dry-run:production
 pnpm exec wrangler deploy --env production --dry-run
 ```
 
-### Automatic promotion (GitHub Actions)
+### Gated promotion (GitHub Actions)
 
 1. A push or merge to `main` deploys and smokes staging.
-2. The production job starts only after staging succeeds.
+2. The production job starts only after staging succeeds and the repository variable
+   `PRODUCTION_DEPLOY_ENABLED` is exactly `true`.
 3. The pipeline dry-runs, uploads a tagged production version for the same `github.sha`, promotes
    `VERSION_ID@100`, then smokes `https://unseenprompt.com`.
+
+Keep `PRODUCTION_DEPLOY_ENABLED=false` while production promotion is paused. Enabling it affects
+future `Deploy Release` runs; it does not deploy by itself. Change the variable only after the
+production artifact and release timing are approved.
 
 Production Custom Domains:
 
@@ -117,6 +122,7 @@ Log only instance IDs and terminal statuses for health probes. Never log `Author
 - [ ] DNS records point at the production Worker routes as intended
 - [ ] `www` and apex both resolve correctly
 - [ ] Repository/environment variable `PRODUCTION_DOMAIN_VERIFIED` set to `true` only after verification
+- [ ] Repository variable `PRODUCTION_DEPLOY_ENABLED` set to `true` only during approved promotion windows
 - [ ] Staging custom hostname (optional later): `staging.unseenprompt.com`
 
 ## Incident: suspected secret exposure

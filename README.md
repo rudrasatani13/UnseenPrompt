@@ -85,15 +85,15 @@ pnpm test:unit -- src/config/env/schema.test.ts
 
 ## Phase 1 status
 
-| Gate                                      | State                                        |
-| ----------------------------------------- | -------------------------------------------- |
-| Local Worker topology + Workflows binding | Implemented                                  |
-| Public `/api/health`                      | Implemented                                  |
-| Token-protected Workflow probe            | Implemented                                  |
-| PR validation                             | Local Worker build + smoke in GitHub Actions |
-| Staging deployment                        | Automatic on every push to `main`            |
-| Production deployment                     | Automatic after staging passes               |
-| Production traffic                        | Live on `unseenprompt.com` and `www`         |
+| Gate                                      | State                                          |
+| ----------------------------------------- | ---------------------------------------------- |
+| Local Worker topology + Workflows binding | Implemented                                    |
+| Public `/api/health`                      | Implemented                                    |
+| Token-protected Workflow probe            | Implemented                                    |
+| PR validation                             | Local Worker build + smoke in GitHub Actions   |
+| Staging deployment                        | Automatic on every push to `main`              |
+| Production deployment                     | Paused unless `PRODUCTION_DEPLOY_ENABLED=true` |
+| Production traffic                        | Live on `unseenprompt.com` and `www`           |
 
 Operator procedures: [docs/deployment/cloudflare-runbook.md](docs/deployment/cloudflare-runbook.md).
 

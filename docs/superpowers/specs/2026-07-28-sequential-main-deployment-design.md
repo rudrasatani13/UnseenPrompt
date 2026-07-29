@@ -3,15 +3,17 @@
 ## Goal
 
 Every commit that reaches `main`, whether by pull-request merge or direct push, automatically deploys
-to staging and then production. Production must receive exactly the commit that passed the staging
-deployment and smoke test.
+to staging. Production promotion remains paused unless the repository variable
+`PRODUCTION_DEPLOY_ENABLED` is exactly `true`. When enabled, production must receive exactly the
+commit that passed the staging deployment and smoke test.
 
 ## Deployment Flow
 
 1. A push to `main` starts `Deploy Release`.
 2. The staging job checks out `github.sha`, validates and builds it, deploys
    `unseenprompt-staging`, and runs the release-identity and authenticated Workflow smoke tests.
-3. The production job depends on the successful staging job.
+3. The production job depends on the successful staging job and is gated by
+   `PRODUCTION_DEPLOY_ENABLED == 'true'`.
 4. Production checks out the same `github.sha`, validates and builds it, deploys
    `unseenprompt-production`, and runs the same smoke tests against `https://unseenprompt.com`.
 5. Any staging failure prevents the production job from starting. Any production failure leaves the
@@ -20,7 +22,8 @@ deployment and smoke test.
 
 ## Trigger and Ordering
 
-- Automatic release deployments trigger only on `push` to `main`.
+- Automatic staging deployments trigger only on `push` to `main`.
+- Production promotion is skipped while `PRODUCTION_DEPLOY_ENABLED` is not exactly `true`.
 - The release workflow concurrency group is global and does not cancel in-progress releases. This
   prevents a later merge from overtaking an earlier staging-to-production sequence.
 - Pull-request events never receive staging or production deployment credentials.
@@ -54,6 +57,7 @@ Cloudflare deployment credentials, preserving runtime-compatibility validation o
 Automated policy tests will assert:
 
 - The production job depends on staging.
+- The production job is gated by `PRODUCTION_DEPLOY_ENABLED == 'true'`.
 - Automatic production resolves its release SHA from `github.sha`.
 - Only `push` to `main` can start the automatic release path.
 - The removed remote-preview workflows and credential references do not return.
@@ -70,8 +74,9 @@ The normal release path becomes:
 merge or push to main
   -> staging deploy
   -> staging release/workflow smoke
-  -> production deploy of the same main SHA
-  -> production release/workflow smoke
+  -> if PRODUCTION_DEPLOY_ENABLED=true:
+       production deploy of the same main SHA
+       -> production release/workflow smoke
 ```
 
 No preview Cloudflare account ID or preview API token is required.

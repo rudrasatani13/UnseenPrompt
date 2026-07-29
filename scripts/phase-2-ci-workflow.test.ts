@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
 import { parse } from "yaml";
@@ -6,6 +6,18 @@ import { describe, expect, it } from "vitest";
 
 const workflowPath = path.join(process.cwd(), ".github/workflows/ci.yml");
 const workflowSource = readFileSync(workflowPath, "utf8");
+const playwrightConfigSource = readFileSync(
+  path.join(process.cwd(), "playwright.config.ts"),
+  "utf8",
+);
+const visualSnapshotNames = [
+  "danger-alert-dialog.png",
+  "gallery-tokens-mobile.png",
+  "gallery-wide.png",
+  "homepage-mobile.png",
+  "homepage-wide.png",
+  "mobile-nav-sheet.png",
+] as const;
 const workflow = parse(workflowSource) as {
   permissions?: Record<string, string>;
   jobs?: {
@@ -79,5 +91,24 @@ describe("phase 2 CI workflow contract", () => {
       /CLOUDFLARE_API_TOKEN|wrangler deploy|permissions:[\s\S]*write/,
     );
     expect(workflow.permissions).toEqual({ contents: "read" });
+  });
+
+  it("partitions complete visual baselines by host platform", () => {
+    expect(playwrightConfigSource).toMatch(
+      /snapshotPathTemplate:\s*"{testDir}\/__screenshots__\/{testFilePath}\/{platform}\/{arg}{ext}"/,
+    );
+
+    for (const platform of ["darwin", "linux"]) {
+      for (const snapshotName of visualSnapshotNames) {
+        const snapshotPath = path.join(
+          process.cwd(),
+          "tests/e2e/__screenshots__/visual.spec.ts",
+          platform,
+          snapshotName,
+        );
+
+        expect(statSync(snapshotPath).size, snapshotPath).toBeGreaterThan(0);
+      }
+    }
   });
 });
