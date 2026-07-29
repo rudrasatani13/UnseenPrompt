@@ -7,6 +7,7 @@
  */
 
 import { createHash } from "node:crypto";
+import { deflateSync, inflateSync } from "node:zlib";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -35,8 +36,11 @@ function toDataUrl(bytes, mimeType) {
 /**
  * Builds a single-image ICO containing one PNG payload (Vista-style).
  * Layout: ICONDIR (6) + ICONDIRENTRY (16) + PNG bytes.
+ * Next.js requires the embedded PNG to be RGBA.
  */
 function buildIcoFromPng(pngBytes, width, height) {
+  const rgbaPng = ensureRgbaPng(pngBytes, width, height);
+
   const iconDir = Buffer.alloc(6);
   iconDir.writeUInt16LE(0, 0); // reserved
   iconDir.writeUInt16LE(1, 2); // type: icon
@@ -49,10 +53,137 @@ function buildIcoFromPng(pngBytes, width, height) {
   entry.writeUInt8(0, 3); // reserved
   entry.writeUInt16LE(1, 4); // color planes
   entry.writeUInt16LE(32, 6); // bits per pixel
-  entry.writeUInt32LE(pngBytes.byteLength, 8);
+  entry.writeUInt32LE(rgbaPng.byteLength, 8);
   entry.writeUInt32LE(6 + 16, 12); // offset to image data
 
-  return Buffer.concat([iconDir, entry, pngBytes]);
+  return Buffer.concat([iconDir, entry, rgbaPng]);
+}
+
+function crc32(buffer) {
+  let crc = ~0;
+  for (let index = 0; index < buffer.byteLength; index += 1) {
+    crc ^= buffer[index];
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+    }
+  }
+  return ~crc >>> 0;
+}
+
+function pngChunk(type, data) {
+  const length = Buffer.alloc(4);
+  length.writeUInt32BE(data.byteLength);
+  const typeBytes = Buffer.from(type);
+  const crc = Buffer.alloc(4);
+  crc.writeUInt32BE(crc32(Buffer.concat([typeBytes, data])));
+  return Buffer.concat([length, typeBytes, data, crc]);
+}
+
+function ensureRgbaPng(pngBytes, width, height) {
+  const signature = pngBytes.subarray(0, 8);
+  if (!signature.equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    throw new Error("expected PNG bytes for favicon payload");
+  }
+
+  let colorType = 0;
+  const idatChunks = [];
+  let offset = 8;
+
+  while (offset + 8 <= pngBytes.byteLength) {
+    const length = pngBytes.readUInt32BE(offset);
+    const type = pngBytes.subarray(offset + 4, offset + 8).toString("ascii");
+    const data = pngBytes.subarray(offset + 8, offset + 8 + length);
+    if (type === "IHDR") {
+      colorType = data[9];
+    } else if (type === "IDAT") {
+      idatChunks.push(Buffer.from(data));
+    } else if (type === "IEND") {
+      break;
+    }
+    offset += 12 + length;
+  }
+
+  if (colorType === 6) {
+    return pngBytes;
+  }
+
+  const channels = colorType === 2 ? 3 : colorType === 0 ? 1 : colorType === 4 ? 2 : -1;
+  if (channels < 0) {
+    throw new Error(`unsupported PNG color type ${colorType}`);
+  }
+
+  const inflated = inflateSync(Buffer.concat(idatChunks));
+  const stride = 1 + width * channels;
+  const rgba = Buffer.alloc(width * height * 4);
+  let previous = Buffer.alloc(width * channels);
+
+  for (let y = 0; y < height; y += 1) {
+    const filter = inflated[y * stride];
+    const row = inflated.subarray(y * stride + 1, y * stride + stride);
+    const current = Buffer.alloc(width * channels);
+
+    for (let i = 0; i < row.byteLength; i += 1) {
+      const x = row[i];
+      const a = i >= channels ? current[i - channels] : 0;
+      const b = previous[i];
+      const c = i >= channels ? previous[i - channels] : 0;
+      let value = x;
+      if (filter === 1) value = (x + a) & 0xff;
+      else if (filter === 2) value = (x + b) & 0xff;
+      else if (filter === 3) value = (x + Math.floor((a + b) / 2)) & 0xff;
+      else if (filter === 4) {
+        const p = a + b - c;
+        const pa = Math.abs(p - a);
+        const pb = Math.abs(p - b);
+        const pc = Math.abs(p - c);
+        const pr = pa <= pb && pa <= pc ? a : pb <= pc ? b : c;
+        value = (x + pr) & 0xff;
+      }
+      current[i] = value;
+    }
+
+    for (let x = 0; x < width; x += 1) {
+      const dest = (y * width + x) * 4;
+      if (channels === 3) {
+        rgba[dest] = current[x * 3];
+        rgba[dest + 1] = current[x * 3 + 1];
+        rgba[dest + 2] = current[x * 3 + 2];
+        rgba[dest + 3] = 255;
+      } else if (channels === 1) {
+        const gray = current[x];
+        rgba[dest] = gray;
+        rgba[dest + 1] = gray;
+        rgba[dest + 2] = gray;
+        rgba[dest + 3] = 255;
+      } else {
+        const gray = current[x * 2];
+        rgba[dest] = gray;
+        rgba[dest + 1] = gray;
+        rgba[dest + 2] = gray;
+        rgba[dest + 3] = current[x * 2 + 1];
+      }
+    }
+    previous = current;
+  }
+
+  const rows = [];
+  for (let y = 0; y < height; y += 1) {
+    rows.push(Buffer.from([0]));
+    rows.push(rgba.subarray(y * width * 4, (y + 1) * width * 4));
+  }
+
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 6; // RGBA
+
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pngChunk("IHDR", ihdr),
+    pngChunk("IDAT", deflateSync(Buffer.concat(rows))),
+    pngChunk("IEND", Buffer.alloc(0)),
+  ]);
 }
 
 async function renderPng(page, svgDataUrl, size, { maskable }) {
@@ -61,7 +192,7 @@ async function renderPng(page, svgDataUrl, size, { maskable }) {
   const contentSize = Math.round(size * contentScale);
   const offset = Math.round((size - contentSize) / 2);
 
-  const html = `<!doctype html>
+  const html = `<doctype html>
 <html lang="en">
   <head>
     <meta charset="utf-8" />

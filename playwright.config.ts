@@ -47,34 +47,31 @@ const metadataBaseUrl =
  * no dev overlay, and no soft not-found documents. Env is applied to both build
  * and start so NEXT_PUBLIC_* and server env stay aligned.
  */
-const productionWaitlistEnv =
+const productionWaitlistEnv: Record<string, string> =
   appEnvironment === "production"
-    ? [
-        "NEXT_PUBLIC_TURNSTILE_SITE_KEY=1x00000000000000000000AA",
-        "TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA",
-        "SUPABASE_URL=https://waitlist.invalid",
-        "SUPABASE_SECRET_KEY=sb_secret_local_test_value_000000000000",
-        "RESEND_API_KEY=re_local_test_value_0000000000000000",
-        "WAITLIST_TOKEN_SECRET=local_test_token_secret_0000000000000000",
-        "WAITLIST_FROM_EMAIL=UnseenPrompt <hello@unseenprompt.com>",
-      ].join(" ")
-    : "";
+    ? {
+        NEXT_PUBLIC_TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
+        TURNSTILE_SECRET_KEY: "1x0000000000000000000000000000000AA",
+        SUPABASE_URL: "https://waitlist.invalid",
+        SUPABASE_SECRET_KEY: "sb_secret_local_test_value_000000000000",
+        RESEND_API_KEY: "re_local_test_value_0000000000000000",
+        WAITLIST_TOKEN_SECRET: "local_test_token_secret_0000000000000000",
+        WAITLIST_FROM_EMAIL: "UnseenPrompt <hello@unseenprompt.com>",
+      }
+    : {};
 
-const envPrefix = [
-  `APP_ENV=${appEnvironment}`,
-  `NEXT_PUBLIC_APP_URL=${metadataBaseUrl}`,
-  "RELEASE_SHA=e2e",
-  `MAINTENANCE_MODE=${maintenanceMode}`,
-  productionWaitlistEnv,
-]
-  .filter(Boolean)
-  .join(" ");
+const webServerEnv = {
+  ...process.env,
+  APP_ENV: appEnvironment,
+  NEXT_PUBLIC_APP_URL: metadataBaseUrl,
+  RELEASE_SHA: "e2e",
+  MAINTENANCE_MODE: maintenanceMode,
+  ...productionWaitlistEnv,
+};
 
 const serverCommand = [
-  envPrefix,
   "pnpm exec next build",
   "&&",
-  envPrefix,
   `pnpm exec next start --hostname 127.0.0.1 --port ${port}`,
 ].join(" ");
 
@@ -115,6 +112,7 @@ export default defineConfig({
     url: runtimeBaseUrl,
     reuseExistingServer: false,
     timeout: 300_000,
+    env: webServerEnv,
   },
   expect: {
     toHaveScreenshot: {
