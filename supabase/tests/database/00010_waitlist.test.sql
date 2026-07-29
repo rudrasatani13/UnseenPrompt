@@ -1,6 +1,6 @@
 begin;
 
-select plan(20);
+select plan(24);
 
 select has_table('public', 'waitlist_entries', 'waitlist_entries table exists');
 

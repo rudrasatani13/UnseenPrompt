@@ -232,12 +232,12 @@ begin
     return 'invalid';
   end if;
 
-  if v_row.status = 'removed' then
-    return 'already_removed';
-  end if;
-
   if v_row.management_version <> p_management_version then
     return 'invalid';
+  end if;
+
+  if v_row.status = 'removed' then
+    return 'already_removed';
   end if;
 
   update public.waitlist_entries
