@@ -60,13 +60,16 @@ There is no dark mode, no decorative background artwork, and no hue-only status.
 ## Typography and social cards
 
 - Runtime font: Manrope via `next/font/google` (self-hosted at build time)
-- Social cards: local generator only
+- Canonical logo: transparent monochrome PNG at `assets/brand/logo-transparent.png`
+- Favicons, app icons, and social cards: local generators only
 
 ```bash
+pnpm brand:assets
 pnpm brand:social
 ```
 
-Reads the canonical monochrome brand source and
+The asset generator writes transparent browser/app icons plus an opaque
+maskable PWA icon. The social generator reads the same canonical source and
 `@fontsource-variable/manrope` (dev dependency). Writes identical bytes to
 `src/app/opengraph-image.png` and `src/app/twitter-image.png`.
 
@@ -131,6 +134,7 @@ pnpm test:unit
 pnpm test:e2e
 pnpm test:e2e:maintenance
 pnpm test:e2e:production
+pnpm brand:assets
 pnpm brand:social
 pnpm check
 ```

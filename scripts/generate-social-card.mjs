@@ -8,7 +8,7 @@ import { chromium } from "@playwright/test";
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptDirectory, "..");
 
-const logoPath = path.join(repositoryRoot, "assets/brand/logo-monochrome.svg");
+const logoPath = path.join(repositoryRoot, "assets/brand/logo-transparent.png");
 const fontPath = path.join(
   repositoryRoot,
   "node_modules/@fontsource-variable/manrope/files/manrope-latin-wght-normal.woff2",
@@ -39,7 +39,7 @@ function escapeHtml(value) {
 
 async function main() {
   const [logoBytes, fontBytes] = await Promise.all([readFile(logoPath), readFile(fontPath)]);
-  const logoDataUrl = toDataUrl(logoBytes, "image/svg+xml");
+  const logoDataUrl = toDataUrl(logoBytes, "image/png");
   const fontDataUrl = toDataUrl(fontBytes, "font/woff2");
 
   const html = `<!doctype html>

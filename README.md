@@ -38,8 +38,8 @@ pnpm dev
 ## Design system
 
 See [docs/development/design-system.md](docs/development/design-system.md) for
-Warm Editorial tokens, component ownership, shell dimensions, gallery exposure,
-and social-card regeneration (`pnpm brand:social`).
+the monochrome tokens, component ownership, shell dimensions, gallery exposure,
+and brand regeneration (`pnpm brand:assets` and `pnpm brand:social`).
 
 Public product copy follows [docs/development/product-copy.md](docs/development/product-copy.md).
 

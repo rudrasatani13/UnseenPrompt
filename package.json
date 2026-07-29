@@ -22,6 +22,7 @@
     "test:e2e:maintenance": "E2E_MAINTENANCE_MODE=on playwright test --grep '@maintenance'",
     "test:e2e:production": "E2E_APP_ENV=production playwright test --grep '@production'",
     "test:e2e:update": "playwright test tests/e2e/visual.spec.ts --update-snapshots",
+    "brand:assets": "node scripts/generate-brand-assets.mjs",
     "brand:social": "node scripts/generate-social-card.mjs",
     "test:db": "supabase test db",
     "cf:build": "opennextjs-cloudflare build",
