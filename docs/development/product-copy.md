@@ -66,7 +66,7 @@ or runtime check verified.
 ### Navigation
 
 - Brand: `UnseenPrompt`
-- Secondary note: `Work in progress`
+- Secondary note: `Building now`
 
 There are no fake navigation destinations, login button, pricing link, or social-proof claims.
 
@@ -74,16 +74,17 @@ There are no fake navigation destinations, login button, pricing link, or social
 
 Eyebrow:
 
-> UnseenPrompt is being built
+> For the work between coding sessions
 
 Headline:
 
-> Start with the messy version.
+> Bring the half-finished thing.
 
 Body:
 
-> Bring the idea, bug, or half-built website. UnseenPrompt asks what matters, keeps track of the
-> decisions, and prepares the next prompt for Claude Code, Codex, or Cursor.
+> A bug. A half-built feature. A project you haven’t touched in two weeks. UnseenPrompt is being
+> built to keep the decisions, evidence, and next step together—and prepare one focused prompt for
+> Claude Code, Codex, or Cursor.
 
 Form label:
 
@@ -91,15 +92,64 @@ Form label:
 
 Submit button:
 
-> Keep me posted
+> Tell me when I can try it
 
 Consent:
 
-> Email me when UnseenPrompt is ready. I can unsubscribe at any time.
+> One confirmation email now. After that, we’ll only write when there’s something worth trying.
+> Unsubscribe anytime.
 
 Submit success:
 
-> Check your inbox. We sent a confirmation email.
+> Check your inbox to confirm your email.
+
+Status near the form:
+
+> No countdown. We’ll share a date when one is real.
+
+Secondary action:
+
+> See the full example
+
+Continuity rail:
+
+> Bring what exists
+>
+> A note, error, screenshot, or half-built repo.
+>
+> Keep what matters
+>
+> Decisions, constraints, attempts, and evidence.
+>
+> Continue where you work
+>
+> Carry the handoff into Claude Code, Codex, Cursor, or wherever you work next.
+
+Dark-section heading:
+
+> The next tool gets the state, not the whole story.
+
+Context-file objection:
+
+> Why not just use CLAUDE.md?
+>
+> Keep using it.
+>
+> CLAUDE.md is useful for stable repository instructions—commands, conventions, architecture, and
+> rules the tool should always follow.
+>
+> UnseenPrompt is for the moving state: what failed today, what you decided, which evidence is
+> confirmed, and what the next session should do.
+
+Closing CTA:
+
+> One email when there’s something usable.
+
+Footer:
+
+> Built independently by Rudra Satani
+>
+> No tracking pixels. Email confirmation required. Unsubscribe anytime.
 
 ### Confirmation email
 

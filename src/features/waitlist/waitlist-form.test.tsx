@@ -33,10 +33,15 @@ describe("WaitlistForm", () => {
     const input = screen.getByLabelText("Email address");
     expect(input).toHaveAttribute("autocomplete", "email");
     expect(input).toHaveAttribute("inputMode", "email");
-    expect(screen.getByRole("button", { name: "Keep me posted" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Tell me when I can try it" })).toBeInTheDocument();
+    expect(input).toHaveAttribute("placeholder", "you@example.com");
+    expect(input).toHaveAttribute("aria-describedby");
     expect(
-      screen.getByText("Email me when UnseenPrompt is ready. I can unsubscribe at any time."),
+      screen.getByText(
+        "One confirmation email now. After that, we’ll only write when there’s something worth trying. Unsubscribe anytime.",
+      ),
     ).toBeInTheDocument();
+    expect(screen.queryByText("Double opt-in")).not.toBeInTheDocument();
 
     expect(await axe(container)).toHaveNoViolations();
   });
@@ -46,7 +51,7 @@ describe("WaitlistForm", () => {
     render(<WaitlistForm turnstileSiteKey="site-key" />);
 
     await user.type(screen.getByLabelText("Email address"), "not-an-email");
-    await user.click(screen.getByRole("button", { name: "Keep me posted" }));
+    await user.click(screen.getByRole("button", { name: "Tell me when I can try it" }));
 
     expect(screen.getByRole("alert")).toHaveTextContent("Enter a complete email address.");
     expect(fetch).not.toHaveBeenCalled();
@@ -57,11 +62,11 @@ describe("WaitlistForm", () => {
     render(<WaitlistForm turnstileSiteKey="site-key" />);
 
     await user.type(screen.getByLabelText("Email address"), "person@example.com");
-    await user.click(screen.getByRole("button", { name: "Keep me posted" }));
+    await user.click(screen.getByRole("button", { name: "Tell me when I can try it" }));
 
     await waitFor(() => {
       expect(screen.getByRole("status")).toHaveTextContent(
-        "Check your inbox. We sent a confirmation email.",
+        "Check your inbox to confirm your email.",
       );
     });
     expect(fetch).toHaveBeenCalledWith(
@@ -78,7 +83,7 @@ describe("WaitlistForm", () => {
     render(<WaitlistForm turnstileSiteKey="site-key" />);
 
     await user.type(screen.getByLabelText("Email address"), "person@example.com");
-    await user.click(screen.getByRole("button", { name: "Keep me posted" }));
+    await user.click(screen.getByRole("button", { name: "Tell me when I can try it" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "Too many attempts. Wait a minute and try again.",

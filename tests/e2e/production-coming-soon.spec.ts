@@ -3,7 +3,9 @@ import { expect, test } from "@playwright/test";
 import { assertNoSeriousAxeViolations, waitForComingSoonReady } from "./helpers";
 
 test.describe("production coming soon @production", () => {
-  test.beforeEach(async ({ page }) => {
+  test.beforeEach(async ({ context, page }) => {
+    await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+
     // Deterministic Managed Turnstile: no network call to Cloudflare.
     await page.addInitScript(() => {
       let callback: ((token: string) => void) | null = null;
@@ -76,13 +78,28 @@ test.describe("production coming soon @production", () => {
     await page.goto("/");
     await waitForComingSoonReady(page);
 
-    await expect(page.getByText("UnseenPrompt is being built")).toBeVisible();
-    await expect(page.getByText("Work in progress")).toBeVisible();
+    await expect(page.getByText("For the work between coding sessions")).toBeVisible();
+    await expect(page.getByText("Building now")).toBeVisible();
     await expect(page.getByLabel("Email address")).toBeVisible();
-    await expect(page.getByRole("button", { name: "Keep me posted" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Tell me when I can try it" })).toBeVisible();
     await expect(page.getByRole("navigation")).toHaveCount(0);
     await expect(page.getByRole("link", { name: "New Project" })).toHaveCount(0);
     await assertNoSeriousAxeViolations(page);
+  });
+
+  test("shows the full handoff example and copies the prepared next prompt", async ({ page }) => {
+    await page.goto("/");
+    await waitForComingSoonReady(page);
+
+    const example = page.getByLabel("Interactive UnseenPrompt handoff example");
+    await expect(example.getByText(/Checkout works locally/)).toBeVisible();
+    await example.getByRole("tab", { name: "Decisions" }).click();
+    await expect(example.getByText("Reproduce before changing code")).toBeVisible();
+    await example.getByRole("tab", { name: "Evidence" }).click();
+    await expect(example.getByText("Return callback not confirmed")).toBeVisible();
+    await example.getByRole("tab", { name: "Next prompt" }).click();
+    await example.getByRole("button", { name: "Copy prompt" }).click();
+    await expect(example.getByRole("status")).toHaveText("Prompt copied.");
   });
 
   test("accepts a waitlist submission through the intercepted API", async ({ page }) => {
@@ -90,9 +107,9 @@ test.describe("production coming soon @production", () => {
     await waitForComingSoonReady(page);
 
     await page.getByLabel("Email address").fill("person@example.com");
-    await page.getByRole("button", { name: "Keep me posted" }).click();
+    await page.getByRole("button", { name: "Tell me when I can try it" }).click();
 
-    await expect(page.getByText("Check your inbox. We sent a confirmation email.")).toBeVisible({
+    await expect(page.getByText("Check your inbox to confirm your email.")).toBeVisible({
       timeout: 15_000,
     });
   });

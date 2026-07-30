@@ -1,6 +1,7 @@
 import { expect, type Page } from "@playwright/test";
 
 const PRODUCT_HEADING = "Start with the messy version.";
+const COMING_SOON_HEADING = "Bring the half-finished thing.";
 
 /**
  * Wait until the product page has settled into real content — not a loading
@@ -29,7 +30,7 @@ export async function waitForComingSoonReady(page: Page): Promise<void> {
   await expect(
     page.getByRole("heading", {
       level: 1,
-      name: PRODUCT_HEADING,
+      name: COMING_SOON_HEADING,
     }),
   ).toBeVisible();
   await expect(page.getByRole("link", { name: "New Project" })).toHaveCount(0);

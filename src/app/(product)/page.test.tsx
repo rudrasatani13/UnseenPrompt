@@ -50,9 +50,9 @@ describe("HomePage environment selection", () => {
     const { container } = render(<HomePage />);
 
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
-      "Start with the messy version.",
+      "Bring the half-finished thing.",
     );
-    expect(screen.getByText("UnseenPrompt is being built")).toBeVisible();
+    expect(screen.getByText("For the work between coding sessions")).toBeVisible();
     expect(screen.getByTestId("waitlist-form-stub")).toBeInTheDocument();
     expect(await axe(container)).toHaveNoViolations();
   });

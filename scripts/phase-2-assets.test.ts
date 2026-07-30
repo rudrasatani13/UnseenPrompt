@@ -326,13 +326,13 @@ describe("monochrome brand asset contract", () => {
 
     expect(socialSource).toContain("assets/brand/logo-transparent.png");
     expect(socialSource).toContain(
-      "node_modules/@fontsource-variable/manrope/files/manrope-latin-wght-normal.woff2",
+      "node_modules/@fontsource-variable/mona-sans/files/mona-sans-latin-wdth-normal.woff2",
     );
     expect(socialSource).toContain("width: 1200");
     expect(socialSource).toContain("height: 630");
     expect(socialSource).toContain("deviceScaleFactor: 1");
     expect(socialSource).toContain("UnseenPrompt");
-    expect(socialSource).toContain("Start with the messy version.");
+    expect(socialSource).toContain("Decisions and evidence, ready for the next coding session.");
     expect(socialSource).toContain("#FFFFFF");
     expect(socialSource).toContain("#000000");
     expect(socialSource).toContain('animations: "disabled"');
