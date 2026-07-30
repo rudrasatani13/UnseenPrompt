@@ -97,8 +97,14 @@
   --text-5xl: 44px;
   --text-5xl--line-height: 1.1;
 
-  /* Typography family — Manrope is emitted as a local build asset */
-  --font-sans: var(--font-manrope), ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Typography families — Fontsource emits same-origin build assets */
+  --font-sans:
+    "Mona Sans Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display:
+    "Mona Sans Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono:
+    "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    monospace;
 }
 
 @theme inline {

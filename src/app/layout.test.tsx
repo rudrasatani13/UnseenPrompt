@@ -1,13 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("next/font/google", () => ({
-  Manrope: () => ({
-    variable: "test-font-manrope-variable",
-    className: "test-font-manrope",
-  }),
-}));
-
 const requiredEnvironment = {
   APP_ENV: "test",
   NEXT_PUBLIC_APP_URL: "http://localhost:3000",
@@ -39,13 +32,12 @@ describe("RootLayout", () => {
     expect(markup).toContain('lang="en"');
   });
 
-  it("applies the locally hosted Manrope font to the document body", async () => {
+  it("applies the local font family utility to the document body", async () => {
     const { default: RootLayout } = await importLayout();
 
     const markup = renderToStaticMarkup(<RootLayout>{null}</RootLayout>);
     const bodyTag = /<body[^>]*>/.exec(markup)?.[0] ?? "";
 
-    expect(bodyTag).toContain("test-font-manrope-variable");
     expect(bodyTag).toContain("font-sans");
   });
 

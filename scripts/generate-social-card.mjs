@@ -11,7 +11,7 @@ const repositoryRoot = path.resolve(scriptDirectory, "..");
 const logoPath = path.join(repositoryRoot, "assets/brand/logo-transparent.png");
 const fontPath = path.join(
   repositoryRoot,
-  "node_modules/@fontsource-variable/manrope/files/manrope-latin-wght-normal.woff2",
+  "node_modules/@fontsource-variable/mona-sans/files/mona-sans-latin-wdth-normal.woff2",
 );
 const openGraphPath = path.join(repositoryRoot, "src/app/opengraph-image.png");
 const twitterPath = path.join(repositoryRoot, "src/app/twitter-image.png");
@@ -19,7 +19,7 @@ const temporaryDirectory = path.join(repositoryRoot, "test-results", "social-car
 const temporaryScreenshotPath = path.join(temporaryDirectory, "card.png");
 
 const TITLE = "UnseenPrompt";
-const SUBTITLE = "Start with the messy version.";
+const SUBTITLE = "Decisions and evidence, ready for the next coding session.";
 const BACKGROUND = "#FFFFFF";
 const TEXT = "#000000";
 const MUTED = "#525252";
@@ -48,7 +48,7 @@ async function main() {
     <meta charset="utf-8" />
     <style>
       @font-face {
-        font-family: "ManropeVariable";
+        font-family: "MonaSansVariable";
         src: url("${fontDataUrl}") format("woff2");
         font-weight: 100 900;
         font-style: normal;
@@ -60,7 +60,7 @@ async function main() {
         height: 630px;
         background: ${BACKGROUND};
         color: ${TEXT};
-        font-family: "ManropeVariable", ui-sans-serif, system-ui, sans-serif;
+        font-family: "MonaSansVariable", ui-sans-serif, system-ui, sans-serif;
         display: flex;
         align-items: center;
         justify-content: center;

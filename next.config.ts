@@ -16,10 +16,11 @@ const productionCsp = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
+  devIndicators: false,
   poweredByHeader: false,
   reactStrictMode: true,
   async headers() {
-    if (process.env.APP_ENV !== "production") {
+    if (process.env.APP_ENV !== "production" || process.env.NODE_ENV !== "production") {
       return [];
     }
 

@@ -2,7 +2,12 @@
 
 **Date:** 2026-07-29
 
-**Status:** Approved
+**Status:** Superseded
+
+> Superseded on 2026-07-30 by
+> [`docs/development/production-landing.md`](../../development/production-landing.md). This file is
+> retained as a historical implementation record; its landing-copy and simulated-output
+> restrictions are no longer active.
 
 **Scope:** Production landing page, waitlist, environment isolation, project-wide copy rules, and
 project-wide colour-system migration

@@ -59,7 +59,11 @@ There is no dark mode, no decorative background artwork, and no hue-only status.
 
 ## Typography and social cards
 
-- Runtime font: Manrope via `next/font/google` (self-hosted at build time)
+- Primary and display font: Mona Sans Variable
+- Technical labels and evidence metadata: IBM Plex Mono
+- Both families are bundled through Fontsource and served from the application origin
+- Serif display type is not part of the active production identity
+- Mono is reserved for eyebrows, step numbers, evidence labels, and prompt metadata
 - Canonical logo: transparent monochrome PNG at `assets/brand/logo-transparent.png`
 - Favicons, app icons, and social cards: local generators only
 
@@ -70,8 +74,21 @@ pnpm brand:social
 
 The asset generator writes transparent browser/app icons plus an opaque
 maskable PWA icon. The social generator reads the same canonical source and
-`@fontsource-variable/manrope` (dev dependency). Writes identical bytes to
+`@fontsource-variable/mona-sans`. It writes identical bytes to
 `src/app/opengraph-image.png` and `src/app/twitter-image.png`.
+
+## Production landing semantics
+
+The canonical production layout and copy live in
+[`production-landing.md`](production-landing.md).
+
+- White sections introduce the situation, answer objections, and present the waitlist.
+- The black section means compact project state prepared for the next coding session.
+- The boundary between white and black is direct. Do not add a blur, glow, gradient, or artificial
+  spacer.
+- The handoff preview is interactive but synthetic. It must remain labeled as an example and never
+  imply a repository connection or working product backend.
+- Product proof uses user-controlled tabs. It does not autoplay or require animation to understand.
 
 ## Component inventory
 

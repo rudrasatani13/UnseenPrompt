@@ -5,7 +5,7 @@ export default function manifest(): MetadataRoute.Manifest {
     name: "UnseenPrompt",
     short_name: "UnseenPrompt",
     description:
-      "Start with the messy version. Keep the decisions together and know what to ask for next.",
+      "UnseenPrompt is being built to keep decisions and evidence between coding sessions, then prepare one focused prompt for Claude Code, Codex, or Cursor.",
     start_url: "/",
     display: "standalone",
     background_color: "#FFFFFF",

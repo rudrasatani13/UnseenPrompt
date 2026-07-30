@@ -43,6 +43,8 @@ the monochrome tokens, component ownership, shell dimensions, gallery exposure,
 and brand regeneration (`pnpm brand:assets` and `pnpm brand:social`).
 
 Public product copy follows [docs/development/product-copy.md](docs/development/product-copy.md).
+The production waitlist layout and positioning are locked in
+[docs/development/production-landing.md](docs/development/production-landing.md).
 
 ## Canonical quality commands
 

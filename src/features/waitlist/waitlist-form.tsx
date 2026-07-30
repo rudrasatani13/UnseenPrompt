@@ -1,5 +1,6 @@
 "use client";
 
+import { CircleAlert, CircleCheck } from "lucide-react";
 import { useCallback, useId, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -19,6 +20,7 @@ type FormStatus =
 
 export function WaitlistForm({ turnstileSiteKey }: WaitlistFormProps) {
   const emailId = useId();
+  const consentId = useId();
   const liveId = useId();
   const turnstileRef = useRef<TurnstileWidgetHandle | null>(null);
   const [email, setEmail] = useState("");
@@ -111,13 +113,19 @@ export function WaitlistForm({ turnstileSiteKey }: WaitlistFormProps) {
   const pending = status.kind === "pending";
   const liveMessage =
     status.kind === "accepted"
-      ? "Check your inbox. We sent a confirmation email."
+      ? "Check your inbox to confirm your email."
       : status.kind === "error"
         ? status.message
         : "";
 
   return (
-    <form data-slot="waitlist-form" className="grid gap-4" onSubmit={onSubmit} noValidate>
+    <form
+      data-slot="waitlist-form"
+      className="grid gap-4"
+      onSubmit={onSubmit}
+      noValidate
+      aria-busy={pending}
+    >
       <div className="grid gap-2">
         <Label htmlFor={emailId}>Email address</Label>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-stretch">
@@ -125,8 +133,11 @@ export function WaitlistForm({ turnstileSiteKey }: WaitlistFormProps) {
             id={emailId}
             name="email"
             type="email"
+            placeholder="you@example.com"
             autoComplete="email"
             inputMode="email"
+            aria-describedby={`${consentId} ${liveId}`}
+            aria-invalid={status.kind === "error"}
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             disabled={pending}
@@ -134,13 +145,14 @@ export function WaitlistForm({ turnstileSiteKey }: WaitlistFormProps) {
             className="min-h-11 sm:flex-1"
           />
           <Button type="submit" disabled={pending} className="min-h-11 sm:min-w-44">
-            {pending ? "Sending…" : "Keep me posted"}
+            {pending ? "Sending…" : "Tell me when I can try it"}
           </Button>
         </div>
       </div>
 
-      <p className="text-sm text-ink-muted">
-        Email me when UnseenPrompt is ready. I can unsubscribe at any time.
+      <p id={consentId} className="text-sm text-neutral-700">
+        One confirmation email now. After that, we’ll only write when there’s something worth
+        trying. Unsubscribe anytime.
       </p>
 
       <TurnstileWidget siteKey={turnstileSiteKey} onReady={handleTurnstileReady} />
@@ -149,9 +161,15 @@ export function WaitlistForm({ turnstileSiteKey }: WaitlistFormProps) {
         id={liveId}
         role={status.kind === "error" && status.alert ? "alert" : "status"}
         aria-live="polite"
-        className="min-h-5 text-sm font-medium text-ink"
+        className="flex min-h-5 items-start gap-2 text-sm font-medium text-ink"
       >
-        {liveMessage}
+        {status.kind === "accepted" ? (
+          <CircleCheck className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        ) : null}
+        {status.kind === "error" ? (
+          <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+        ) : null}
+        {liveMessage ? <span>{liveMessage}</span> : null}
       </div>
     </form>
   );
