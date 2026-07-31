@@ -14,6 +14,12 @@ const createProxySession = vi.hoisted(() =>
 
     if (runtimeState.refreshedCookie) {
       response.cookies.set("sb-auth-token", runtimeState.refreshedCookie);
+      response.headers.set(
+        "cache-control",
+        "private, no-cache, no-store, must-revalidate, max-age=0",
+      );
+      response.headers.set("expires", "0");
+      response.headers.set("pragma", "no-cache");
     }
 
     return { response, user: runtimeState.user };
@@ -97,7 +103,7 @@ describe("middleware", () => {
     expect(createProxySession).not.toHaveBeenCalled();
   });
 
-  it("carries refreshed session cookies onto the redirect", async () => {
+  it("carries refreshed session cookies and cache suppression onto the redirect", async () => {
     runtimeState.user = signedInUser;
     runtimeState.refreshedCookie = "rotated-token";
 
@@ -105,7 +111,11 @@ describe("middleware", () => {
     const response = await middleware(requestFor("/sign-in"));
 
     expect(response.status).toBe(307);
+    expect(response.headers.get("location")).toBe("https://unseenprompt.com/");
     expect(response.cookies.get("sb-auth-token")?.value).toBe("rotated-token");
+    expect(response.headers.get("cache-control")).toContain("no-store");
+    expect(response.headers.get("expires")).toBe("0");
+    expect(response.headers.get("pragma")).toBe("no-cache");
   });
 
   it("matches only the authenticated surface, leaving waitlist and health untouched", async () => {

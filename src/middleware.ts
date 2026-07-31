@@ -7,11 +7,32 @@ import { createProxySession } from "@/lib/supabase/proxy-session";
 const SIGN_IN_PATH = "/sign-in";
 
 /**
+ * Headers that belong to the redirect itself or to Next's internal request-rewrite protocol.
+ * `location` is the redirect target, `set-cookie` is replayed through the cookie jar below, and
+ * the `x-middleware-*` family instructs Next to continue the pipeline — copying any of them from
+ * a `NextResponse.next()` onto a redirect would corrupt it.
+ */
+const NON_TRANSFERABLE_HEADERS = new Set(["location", "set-cookie"]);
+
+function isTransferableHeader(name: string): boolean {
+  return !NON_TRANSFERABLE_HEADERS.has(name) && !name.startsWith("x-middleware-");
+}
+
+/**
  * Supabase rotates refresh tokens, so a redirect that drops the `Set-Cookie` headers written
- * during the refresh would leave the browser holding a spent token.
+ * during the refresh would leave the browser holding a spent token. The same refresh also emits
+ * cache-suppression headers (`Cache-Control: no-store`, `Expires`, `Pragma`); `@supabase/ssr`
+ * treats those as a security requirement, because a CDN that caches a response carrying auth
+ * cookies can serve one visitor's session token to another. Both must survive the redirect.
  */
 function redirectPreservingSession(destination: URL, session: NextResponse): NextResponse {
   const redirect = NextResponse.redirect(destination);
+
+  for (const [name, value] of session.headers) {
+    if (isTransferableHeader(name)) {
+      redirect.headers.set(name, value);
+    }
+  }
 
   for (const cookie of session.cookies.getAll()) {
     redirect.cookies.set(cookie);
