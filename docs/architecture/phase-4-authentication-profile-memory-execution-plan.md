@@ -370,7 +370,9 @@ Route-handler hardening:
 
 `supabase/config.toml` changes (local stack only; hosted config is operator-owned):
 
-- `[auth] site_url = "http://127.0.0.1:3000"` stays; extend `additional_redirect_urls` with
+- `[auth] site_url` is `"http://localhost:3000"` — it must match the local
+  `NEXT_PUBLIC_APP_URL` origin, or the magic-link confirm sets its session cookie on a
+  different loopback host than the post-confirm redirect; extend `additional_redirect_urls` with
   `"http://127.0.0.1:3000/auth/callback"` and `"http://localhost:3000/auth/callback"`.
 - Wire the magic-link email template file (3.6).
 - Do not enable `[auth.external.google]` locally — a partially configured provider would break
