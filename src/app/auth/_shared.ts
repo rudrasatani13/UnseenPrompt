@@ -1,8 +1,13 @@
+import type { SupabaseClient } from "@supabase/supabase-js";
 import { NextResponse } from "next/server";
 
 import { getServerEnvironment } from "@/config/env/server";
 import { resolveNextPath } from "@/domain/account/redirect";
+import { createSupabaseAccountRepository } from "@/lib/account/supabase-account-repository";
 import { isProductSurfaceEnabled } from "@/lib/security/product-surface";
+import type { Database } from "@/lib/supabase/database.types";
+
+export const ONBOARDING_PATH = "/onboarding";
 
 export const NO_STORE_HEADERS = {
   "Cache-Control": "no-store",
@@ -64,10 +69,28 @@ export function hasAllowedOrigin(request: Request): boolean {
 }
 
 /**
- * Single extension point for where a freshly signed-in browser lands. P4-04 replaces the body
- * with the profile-bootstrap and onboarding-aware decision; both callback handlers stay
- * unchanged.
+ * Single decision for where a freshly signed-in browser lands, shared by both callback handlers:
+ * bootstrap the profile row, then route on whether onboarding is finished. Authentication has
+ * already succeeded by this point, so a bootstrap or read failure must not strand the browser on
+ * an error page — it falls through to onboarding, which re-reads the profile server-side and
+ * whose completion endpoint is idempotent.
  */
-export function resolvePostSignInPath(nextParam: string | null): string {
+export async function resolvePostSignInPath(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  nextParam: string | null,
+): Promise<string> {
+  try {
+    const repository = createSupabaseAccountRepository(supabase);
+    await repository.ensureProfile(userId);
+    const profile = await repository.getProfile(userId);
+
+    if (!profile || profile.onboardingCompletedAt === null) {
+      return ONBOARDING_PATH;
+    }
+  } catch {
+    return ONBOARDING_PATH;
+  }
+
   return resolveNextPath(nextParam);
 }

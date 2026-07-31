@@ -22,15 +22,17 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   try {
     const supabase = await createSupabaseServerClient();
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { data, error } = await supabase.auth.exchangeCodeForSession(code);
 
-    if (error) {
+    if (error || !data.user) {
       return redirectToPath(FAILURE_PATH);
     }
+
+    return redirectToPath(
+      await resolvePostSignInPath(supabase, data.user.id, url.searchParams.get("next")),
+    );
   } catch {
     // Provider and transport detail never reaches the browser; only the stable code does.
     return redirectToPath(FAILURE_PATH);
   }
-
-  return redirectToPath(resolvePostSignInPath(url.searchParams.get("next")));
 }

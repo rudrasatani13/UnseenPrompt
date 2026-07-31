@@ -27,15 +27,20 @@ export async function GET(request: Request): Promise<NextResponse> {
 
   try {
     const supabase = await createSupabaseServerClient();
-    const { error } = await supabase.auth.verifyOtp({ type: OTP_TYPE, token_hash: tokenHash });
+    const { data, error } = await supabase.auth.verifyOtp({
+      type: OTP_TYPE,
+      token_hash: tokenHash,
+    });
 
-    if (error) {
+    if (error || !data.user) {
       return redirectToPath(FAILURE_PATH);
     }
+
+    return redirectToPath(
+      await resolvePostSignInPath(supabase, data.user.id, url.searchParams.get("next")),
+    );
   } catch {
     // Expired, replayed, and transport failures are indistinguishable to the browser by design.
     return redirectToPath(FAILURE_PATH);
   }
-
-  return redirectToPath(resolvePostSignInPath(url.searchParams.get("next")));
 }

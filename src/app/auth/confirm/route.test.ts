@@ -1,12 +1,27 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { Profile } from "@/domain/account/contracts";
+
+const USER_ID = "11111111-1111-4111-8111-111111111111";
+
 const runtimeState = vi.hoisted(() => ({
   appEnvironment: "local" as "local" | "production",
   verifyResult: { error: null } as { error: { message: string } | null },
+  user: { id: "11111111-1111-4111-8111-111111111111" } as { id: string } | null,
 }));
 
 const verifyOtp = vi.hoisted(() =>
-  vi.fn(async () => ({ data: {}, error: runtimeState.verifyResult.error })),
+  vi.fn(async () => ({
+    data: { user: runtimeState.user },
+    error: runtimeState.verifyResult.error,
+  })),
+);
+
+const supabaseClient = vi.hoisted(() => ({ auth: { verifyOtp } }));
+const ensureProfile = vi.hoisted(() => vi.fn(async () => undefined));
+const getProfile = vi.hoisted(() => vi.fn(async (): Promise<Profile | null> => null));
+const createSupabaseAccountRepository = vi.hoisted(() =>
+  vi.fn(() => ({ ensureProfile, getProfile })),
 );
 
 vi.mock("@/config/env/server", () => ({
@@ -19,8 +34,21 @@ vi.mock("@/config/env/server", () => ({
 }));
 
 vi.mock("@/lib/supabase/server-client", () => ({
-  createSupabaseServerClient: vi.fn(async () => ({ auth: { verifyOtp } })),
+  createSupabaseServerClient: vi.fn(async () => supabaseClient),
 }));
+
+vi.mock("@/lib/account/supabase-account-repository", () => ({ createSupabaseAccountRepository }));
+
+function profileWith(onboardingCompletedAt: string | null): Profile {
+  return {
+    id: USER_ID,
+    displayName: null,
+    locale: "en",
+    timeZone: "UTC",
+    onboardingCompletedAt,
+    deletionRequestedAt: null,
+  };
+}
 
 function confirmRequest(query: string): Request {
   return new Request(`https://app.unseenprompt.test/auth/confirm${query}`);
@@ -30,8 +58,12 @@ describe("GET /auth/confirm", () => {
   beforeEach(() => {
     vi.resetModules();
     verifyOtp.mockClear();
+    ensureProfile.mockClear().mockResolvedValue(undefined);
+    getProfile.mockClear().mockResolvedValue(profileWith("2026-08-01T00:00:00.000Z"));
+    createSupabaseAccountRepository.mockClear();
     runtimeState.appEnvironment = "local";
     runtimeState.verifyResult = { error: null };
+    runtimeState.user = { id: USER_ID };
   });
 
   it("returns a 404 envelope in production without touching Supabase", async () => {
@@ -79,6 +111,7 @@ describe("GET /auth/confirm", () => {
     expect(response.headers.get("location")).toBe(
       "https://app.unseenprompt.test/sign-in?error=magic_link_invalid",
     );
+    expect(ensureProfile).not.toHaveBeenCalled();
   });
 
   it("redirects to the stable failure code when verification throws", async () => {
@@ -92,14 +125,46 @@ describe("GET /auth/confirm", () => {
     );
   });
 
-  it("verifies the token hash as an email OTP and redirects to the validated next path", async () => {
+  it("redirects to the stable failure code when verification returns no user", async () => {
+    runtimeState.user = null;
+    const { GET } = await import("./route");
+
+    const response = await GET(confirmRequest("?token_hash=abc&type=email"));
+
+    expect(response.headers.get("location")).toBe(
+      "https://app.unseenprompt.test/sign-in?error=magic_link_invalid",
+    );
+    expect(ensureProfile).not.toHaveBeenCalled();
+  });
+
+  it("verifies the token hash as an email OTP and bootstraps the profile", async () => {
     const { GET } = await import("./route");
 
     const response = await GET(confirmRequest("?token_hash=abc&type=email&next=%2Fprofile"));
 
     expect(verifyOtp).toHaveBeenCalledWith({ type: "email", token_hash: "abc" });
+    expect(createSupabaseAccountRepository).toHaveBeenCalledWith(supabaseClient);
+    expect(ensureProfile).toHaveBeenCalledWith(USER_ID);
     expect(response.status).toBe(303);
     expect(response.headers.get("location")).toBe("https://app.unseenprompt.test/profile");
+  });
+
+  it("sends a user who has not finished onboarding to /onboarding", async () => {
+    getProfile.mockResolvedValue(profileWith(null));
+    const { GET } = await import("./route");
+
+    const response = await GET(confirmRequest("?token_hash=abc&type=email&next=%2Fprofile"));
+
+    expect(response.headers.get("location")).toBe("https://app.unseenprompt.test/onboarding");
+  });
+
+  it("falls back to /onboarding when the profile read fails", async () => {
+    getProfile.mockRejectedValue(new Error("connection reset"));
+    const { GET } = await import("./route");
+
+    const response = await GET(confirmRequest("?token_hash=abc&type=email&next=%2Fprofile"));
+
+    expect(response.headers.get("location")).toBe("https://app.unseenprompt.test/onboarding");
   });
 
   it("falls back to the root path when next is hostile or absent", async () => {
