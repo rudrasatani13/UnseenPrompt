@@ -185,6 +185,7 @@ function isStepAnswered(step: OnboardingStep, draft: Draft): boolean {
 export function OnboardingFlow() {
   const router = useRouter();
   const headingId = useId();
+  const timeZoneId = useId();
   const [draft, setDraft] = useState<Draft>(emptyDraft);
   const [position, setPosition] = useState(0);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
@@ -372,9 +373,9 @@ export function OnboardingFlow() {
 
           {step.kind === "timeZone" ? (
             <div className="grid gap-2">
-              <Label htmlFor="onboarding-time-zone">{step.label}</Label>
+              <Label htmlFor={timeZoneId}>{step.label}</Label>
               <select
-                id="onboarding-time-zone"
+                id={timeZoneId}
                 name="timeZone"
                 value={draft.timeZone}
                 onChange={(event) =>
