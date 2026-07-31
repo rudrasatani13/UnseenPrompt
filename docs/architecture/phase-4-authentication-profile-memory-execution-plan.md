@@ -331,6 +331,7 @@ Route-handler hardening:
   - `deployment_preference text null` — trimmed non-empty, ≤255 bytes when present
   - `created_at`, `updated_at` (+ `private.set_updated_at` trigger)
   - No locale/time-zone overrides at project level (those are account-level concerns).
+
 - Grants/RLS follow the Phase 3 derived-ownership pattern exactly: revoke all, grant
   `SELECT`/`INSERT`/`UPDATE` to `authenticated`, policies `TO authenticated` with both `USING`
   and `WITH CHECK` on `(select private.owns_project(project_id))` plus non-null `auth.uid()`.
