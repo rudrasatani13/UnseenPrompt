@@ -7,6 +7,7 @@ import type { Database } from "@/lib/supabase/database.types";
 
 import {
   AccountProviderError,
+  AccountValidationError,
   createSupabaseAccountRepository,
 } from "./supabase-account-repository";
 
@@ -366,6 +367,33 @@ describe("completeOnboarding", () => {
       createSupabaseAccountRepository(fake.client).completeOnboarding(USER_ID, answers),
     ).rejects.toBeInstanceOf(AccountProviderError);
   });
+
+  it("refuses a saved stack the behavior forbids, before any write", async () => {
+    const fake = createClientFake();
+
+    const attempt = createSupabaseAccountRepository(fake.client).completeOnboarding(USER_ID, {
+      ...answers,
+      preferredStackBehavior: "ask",
+      preferredStack: { frontend: "Next.js" },
+    });
+
+    await expect(attempt).rejects.toBeInstanceOf(AccountValidationError);
+    await expect(attempt).rejects.not.toBeInstanceOf(AccountProviderError);
+    expect(fake.calls).toHaveLength(0);
+  });
+
+  it("refuses profile fields the database would reject, before any write", async () => {
+    const fake = createClientFake();
+
+    await expect(
+      createSupabaseAccountRepository(fake.client).completeOnboarding(USER_ID, {
+        ...answers,
+        timeZone: "+05:30",
+      }),
+    ).rejects.toBeInstanceOf(AccountValidationError);
+
+    expect(fake.calls).toHaveLength(0);
+  });
 });
 
 describe("updatePreferences", () => {
@@ -399,6 +427,26 @@ describe("updatePreferences", () => {
       deployment_preference: null,
     });
     expect(stored).toEqual(preferences);
+  });
+
+  /*
+   * The read path re-parses every stored row, so a value the write path accepted but the schema
+   * rejects would leave the row permanently unreadable. The write has to refuse it first.
+   */
+  it("refuses a saved stack the behavior forbids, before any write", async () => {
+    const fake = createClientFake();
+
+    const attempt = createSupabaseAccountRepository(fake.client).updatePreferences(USER_ID, {
+      skillLevel: "advanced",
+      preferredStackBehavior: "ask",
+      preferredStack: { frontend: "Next.js" },
+      codingStyle: {},
+      deploymentPreference: null,
+    });
+
+    await expect(attempt).rejects.toBeInstanceOf(AccountValidationError);
+    await expect(attempt).rejects.not.toBeInstanceOf(AccountProviderError);
+    expect(fake.calls).toHaveLength(0);
   });
 });
 

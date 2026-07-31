@@ -6,7 +6,11 @@ import type {
   Profile,
   ProfilePatch,
 } from "@/domain/account/contracts";
-import { type OnboardingAnswers, preferencesSchema } from "@/domain/account/onboarding";
+import {
+  type OnboardingAnswers,
+  onboardingAnswersSchema,
+  preferencesSchema,
+} from "@/domain/account/onboarding";
 import type { Database, Json } from "@/lib/supabase/database.types";
 
 /** Carries no provider text: a failure reason from PostgREST must never reach a response body. */
@@ -16,6 +20,21 @@ export class AccountProviderError extends Error {
   constructor(category: string) {
     super(`supabase:${category}`);
     this.name = "AccountProviderError";
+    this.category = category;
+  }
+}
+
+/**
+ * A rejected argument, not a failed provider call: nothing was sent to the database and an
+ * identical retry cannot succeed, so a caller answers 422 rather than 502. Deliberately not a
+ * subclass of `AccountProviderError`, so `instanceof` keeps the two apart.
+ */
+export class AccountValidationError extends Error {
+  readonly category: string;
+
+  constructor(category: string) {
+    super(`account:${category}`);
+    this.name = "AccountValidationError";
     this.category = category;
   }
 }
@@ -69,6 +88,33 @@ function toPreferences(row: {
 
   if (!parsed.success) {
     throw new AccountProviderError("unexpected_payload");
+  }
+
+  return parsed.data;
+}
+
+/*
+ * The read path above re-parses every stored row, while the database enforces neither the
+ * cross-field rule nor the closed key sets the schema does. A write that skipped the schema could
+ * therefore persist a row this repository then refuses to return, so both writers parse their own
+ * argument first: the domain types cannot express those rules, and a direct caller is not the
+ * endpoint. Parsing also normalises the value, so what lands in the row is what a read expects.
+ */
+function validatedPreferences(next: Preferences): Preferences {
+  const parsed = preferencesSchema.safeParse(next);
+
+  if (!parsed.success) {
+    throw new AccountValidationError("preferences");
+  }
+
+  return parsed.data;
+}
+
+function validatedAnswers(answers: OnboardingAnswers): OnboardingAnswers {
+  const parsed = onboardingAnswersSchema.safeParse(answers);
+
+  if (!parsed.success) {
+    throw new AccountValidationError("onboarding_answers");
   }
 
   return parsed.data;
@@ -178,7 +224,9 @@ export function createSupabaseAccountRepository(
      * repeat call converges from, and the stamp is guarded so a retry never moves a completion
      * time that already exists.
      */
-    async completeOnboarding(userId, answers: OnboardingAnswers): Promise<void> {
+    async completeOnboarding(userId, rawAnswers: OnboardingAnswers): Promise<void> {
+      const answers = validatedAnswers(rawAnswers);
+
       const { error: preferencesError } = await client
         .from("preferences")
         .upsert(toPreferencesInsert(userId, answers), { onConflict: "owner_id" });
@@ -212,9 +260,11 @@ export function createSupabaseAccountRepository(
     },
 
     async updatePreferences(userId, next): Promise<Preferences> {
+      const insert = toPreferencesInsert(userId, validatedPreferences(next));
+
       const { data, error } = await client
         .from("preferences")
-        .upsert(toPreferencesInsert(userId, next), { onConflict: "owner_id" })
+        .upsert(insert, { onConflict: "owner_id" })
         .select(PREFERENCE_COLUMNS)
         .maybeSingle();
 
