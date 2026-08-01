@@ -20,26 +20,28 @@ describe("ShellNavigation", () => {
     expect(items.map((item) => item.textContent)).toEqual([
       "New Project",
       "ProjectsSoon",
-      "ProfileSoon",
+      "Profile",
       "UsageSoon",
     ]);
   });
 
-  it("makes New Project the only link and marks it as the current page", () => {
+  it("links to the available destinations and marks New Project as the current page", () => {
     render(<ShellNavigation navigation={productNavigation} />);
 
     const links = screen.getAllByRole("link");
 
-    expect(links).toHaveLength(1);
-    expect(links[0]).toHaveAccessibleName("New Project");
-    expect(links[0]).toHaveAttribute("aria-current", "page");
-    expect(links[0]).toHaveAttribute("href", "/");
+    expect(links.map((link) => link.getAttribute("href"))).toEqual(["/", "/profile"]);
+    expect(screen.getByRole("link", { name: "New Project" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getByRole("link", { name: "Profile" })).not.toHaveAttribute("aria-current");
   });
 
   it("renders unavailable entries as non-interactive text with a visible Soon label", () => {
     render(<ShellNavigation navigation={productNavigation} />);
 
-    for (const label of ["Projects", "Profile", "Usage"] as const) {
+    for (const label of ["Projects", "Usage"] as const) {
       const row = screen.getByText(label).closest("[data-availability='soon']");
 
       expect(row).not.toBeNull();

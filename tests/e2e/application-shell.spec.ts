@@ -36,11 +36,16 @@ test.describe("application shell", () => {
       ? page.locator("#desktop-shell-navigation")
       : page.getByRole("dialog").locator("#mobile-shell-navigation");
 
-    for (const label of ["Projects", "Profile", "Usage"]) {
+    for (const label of ["Projects", "Usage"]) {
       const soon = navigation.getByText(label, { exact: true });
       await expect(soon).toBeVisible();
       await expect(soon.locator("xpath=ancestor::a")).toHaveCount(0);
     }
+
+    await expect(navigation.getByRole("link", { name: "Profile" })).toHaveAttribute(
+      "href",
+      "/profile",
+    );
 
     if (!isDesktop) {
       await page.keyboard.press("Escape");

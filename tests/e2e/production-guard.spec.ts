@@ -3,6 +3,13 @@ import { expect, test } from "@playwright/test";
 import { waitForComingSoonReady } from "./helpers";
 
 test.describe("production guard @production", () => {
+  test("returns 404 for every Phase 4 product surface", async ({ page }) => {
+    for (const path of ["/sign-in", "/onboarding", "/profile", "/api/account/profile"]) {
+      const response = await page.goto(path);
+      expect(response?.status(), path).toBe(404);
+    }
+  });
+
   test("hides the design-system gallery and keeps the coming-soon homepage", async ({ page }) => {
     const gallery = await page.goto("/design-system");
 

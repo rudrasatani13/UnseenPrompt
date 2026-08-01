@@ -1,8 +1,8 @@
 import { Skeleton } from "@/components/ui/skeleton";
 
 /**
- * Shell-shaped loading placeholder. Decorative skeletons stay aria-hidden;
- * the region itself announces "Loading workspace".
+ * Shell-shaped loading placeholder. It is scoped to the workspace homepage so a protected
+ * account route can return a hard production 404 before any fallback commits a 200 response.
  */
 export default function Loading() {
   return (

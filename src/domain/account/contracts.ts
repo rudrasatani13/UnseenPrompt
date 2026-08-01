@@ -1,4 +1,6 @@
 import type { OnboardingAnswers } from "@/domain/account/onboarding";
+import type { ProjectPreferenceOverride } from "@/domain/account/effective-preferences";
+import type { AccountExportV1 } from "@/domain/account/export";
 
 export type SkillLevel = "beginner" | "intermediate" | "advanced";
 export type PreferredStackBehavior = "recommend" | "prefer_saved" | "ask";
@@ -48,7 +50,9 @@ export interface AccountRepository {
   getPreferences(userId: string): Promise<Preferences | null>;
   completeOnboarding(userId: string, answers: OnboardingAnswers): Promise<void>;
   updatePreferences(userId: string, next: Preferences): Promise<Preferences>;
+  getProjectPreferenceOverride(projectId: string): Promise<ProjectPreferenceOverride | null>;
   /** Returns the effective request timestamp: an existing one is reported back, never replaced. */
   requestDeletion(userId: string, now: Date): Promise<string>;
   cancelDeletion(userId: string): Promise<void>;
+  buildAccountExport(userId: string): Promise<AccountExportV1>;
 }

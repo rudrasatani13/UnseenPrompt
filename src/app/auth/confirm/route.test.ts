@@ -158,13 +158,26 @@ describe("GET /auth/confirm", () => {
     expect(response.headers.get("location")).toBe("https://app.unseenprompt.test/onboarding");
   });
 
-  it("falls back to /onboarding when the profile read fails", async () => {
+  it("returns a stable retryable sign-in error when the profile read fails", async () => {
     getProfile.mockRejectedValue(new Error("connection reset"));
     const { GET } = await import("./route");
 
     const response = await GET(confirmRequest("?token_hash=abc&type=email&next=%2Fprofile"));
 
-    expect(response.headers.get("location")).toBe("https://app.unseenprompt.test/onboarding");
+    expect(response.headers.get("location")).toBe(
+      "https://app.unseenprompt.test/sign-in?error=magic_link_invalid",
+    );
+  });
+
+  it("returns a stable retryable sign-in error when the bootstrap write fails", async () => {
+    ensureProfile.mockRejectedValue(new Error("permission denied"));
+    const { GET } = await import("./route");
+
+    const response = await GET(confirmRequest("?token_hash=abc&type=email"));
+
+    expect(response.headers.get("location")).toBe(
+      "https://app.unseenprompt.test/sign-in?error=magic_link_invalid",
+    );
   });
 
   it("falls back to the root path when next is hostile or absent", async () => {

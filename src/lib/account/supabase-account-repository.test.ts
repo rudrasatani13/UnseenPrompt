@@ -83,6 +83,16 @@ function createClientFake(outcomes: readonly QueryOutcome[] = []): ClientFake {
         call.filters.push(["is", column, value]);
         return builder;
       },
+      in(column: string, value: readonly unknown[]) {
+        call.filters.push(["in", column, value]);
+        return builder;
+      },
+      order() {
+        return builder;
+      },
+      range() {
+        return Promise.resolve(nextOutcome());
+      },
       maybeSingle() {
         return Promise.resolve(nextOutcome());
       },
@@ -283,6 +293,65 @@ describe("getPreferences", () => {
 
     await expect(
       createSupabaseAccountRepository(fake.client).getPreferences(USER_ID),
+    ).rejects.toBeInstanceOf(AccountProviderError);
+  });
+});
+
+describe("getProjectPreferenceOverride", () => {
+  it("reads only the requested project and maps nullable fields", async () => {
+    const projectId = "33333333-3333-4333-8333-333333333333";
+    const fake = createClientFake([
+      {
+        data: {
+          skill_level: null,
+          preferred_stack_behavior: "ask",
+          preferred_stack: null,
+          coding_style: { comments: "detailed" },
+          deployment_preference: null,
+        },
+        error: null,
+      },
+    ]);
+
+    const result = await createSupabaseAccountRepository(fake.client).getProjectPreferenceOverride(
+      projectId,
+    );
+
+    expect(fake.calls[0]?.table).toBe("project_preference_overrides");
+    expect(fake.calls[0]?.filters).toEqual([["eq", "project_id", projectId]]);
+    expect(result).toEqual({
+      skillLevel: null,
+      preferredStackBehavior: "ask",
+      preferredStack: null,
+      codingStyle: { comments: "detailed" },
+      deploymentPreference: null,
+    });
+  });
+
+  it("returns null when the requested project has no override", async () => {
+    const fake = createClientFake([{ data: null, error: null }]);
+
+    await expect(
+      createSupabaseAccountRepository(fake.client).getProjectPreferenceOverride(USER_ID),
+    ).resolves.toBeNull();
+  });
+
+  it("rejects an override whose stored fields do not match the preference contract", async () => {
+    const fake = createClientFake([
+      {
+        data: {
+          skill_level: "wizard",
+          preferred_stack_behavior: null,
+          preferred_stack: null,
+          coding_style: null,
+          deployment_preference: null,
+        },
+        error: null,
+      },
+    ]);
+
+    await expect(
+      createSupabaseAccountRepository(fake.client).getProjectPreferenceOverride(USER_ID),
     ).rejects.toBeInstanceOf(AccountProviderError);
   });
 });
@@ -515,6 +584,109 @@ describe("cancelDeletion", () => {
 
     await expect(
       createSupabaseAccountRepository(fake.client).cancelDeletion(USER_ID),
+    ).rejects.toBeInstanceOf(AccountProviderError);
+  });
+});
+
+describe("buildAccountExport", () => {
+  it("filters a two-user provider result again before assembling the export", async () => {
+    const ownedProjectId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+    const otherProjectId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+    const timestamp = "2026-08-01T10:00:00.000Z";
+    const projectBase = {
+      active_milestone_id: null,
+      archived_at: null,
+      blocker_summary: null,
+      created_at: timestamp,
+      deleted_at: null,
+      last_activity_at: timestamp,
+      mode: "new_build",
+      selected_tool: null,
+      stage: "discovery",
+      state_version: 1,
+      title: "Owned",
+      updated_at: timestamp,
+    };
+    const requirementBase = {
+      category: "functional",
+      confirmed_at: null,
+      created_at: timestamp,
+      rationale: null,
+      source_event_id: null,
+      statement: "Owned requirement",
+      status: "proposed",
+      supersedes_requirement_id: null,
+      updated_at: timestamp,
+    };
+    const fake = createClientFake([
+      { data: { ...profileRow, onboarding_completed_at: timestamp }, error: null },
+      { data: preferencesRow, error: null },
+      {
+        data: [
+          { ...projectBase, id: ownedProjectId, owner_id: USER_ID },
+          {
+            ...projectBase,
+            id: otherProjectId,
+            owner_id: OTHER_ID,
+            title: "Other user's project",
+          },
+        ],
+        error: null,
+      },
+      {
+        data: [
+          { ...requirementBase, id: "owned-requirement", project_id: ownedProjectId },
+          {
+            ...requirementBase,
+            id: "other-requirement",
+            project_id: otherProjectId,
+            statement: "Other user's requirement",
+          },
+        ],
+        error: null,
+      },
+      { data: [], error: null },
+      { data: [], error: null },
+      { data: [], error: null },
+      { data: [], error: null },
+      { data: [], error: null },
+    ]);
+
+    const result = await createSupabaseAccountRepository(fake.client).buildAccountExport(USER_ID);
+
+    expect(result.profile.id).toBe(USER_ID);
+    expect(result.projects.map((project) => project.id)).toEqual([ownedProjectId]);
+    expect(result.requirements.map((requirement) => requirement.id)).toEqual(["owned-requirement"]);
+    expect(JSON.stringify(result)).not.toContain(OTHER_ID);
+    expect(JSON.stringify(result)).not.toContain("Other user's requirement");
+    expect(fake.calls.find((call) => call.table === "projects")?.filters).toContainEqual([
+      "eq",
+      "owner_id",
+      USER_ID,
+    ]);
+    for (const call of fake.calls.filter((candidate) =>
+      [
+        "requirements",
+        "decisions",
+        "milestones",
+        "project_events",
+        "prompt_versions",
+        "project_preference_overrides",
+      ].includes(candidate.table),
+    )) {
+      expect(call.filters).toContainEqual(["in", "project_id", [ownedProjectId]]);
+    }
+  });
+
+  it("fails closed when the profile row cannot be read", async () => {
+    const fake = createClientFake([
+      { data: null, error: null },
+      { data: null, error: null },
+      { data: [], error: null },
+    ]);
+
+    await expect(
+      createSupabaseAccountRepository(fake.client).buildAccountExport(USER_ID),
     ).rejects.toBeInstanceOf(AccountProviderError);
   });
 });

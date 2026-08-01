@@ -70,25 +70,20 @@ export function hasAllowedOrigin(request: Request): boolean {
 
 /**
  * Single decision for where a freshly signed-in browser lands, shared by both callback handlers:
- * bootstrap the profile row, then route on whether onboarding is finished. Authentication has
- * already succeeded by this point, so a bootstrap or read failure must not strand the browser on
- * an error page — it falls through to onboarding, which re-reads the profile server-side and
- * whose completion endpoint is idempotent.
+ * bootstrap the profile row, then route on whether onboarding is finished. A bootstrap or read
+ * failure is propagated to the callback, which returns its stable retryable sign-in error; sending
+ * a user to onboarding without a confirmed profile would make every completion attempt fail.
  */
 export async function resolvePostSignInPath(
   supabase: SupabaseClient<Database>,
   userId: string,
   nextParam: string | null,
 ): Promise<string> {
-  try {
-    const repository = createSupabaseAccountRepository(supabase);
-    await repository.ensureProfile(userId);
-    const profile = await repository.getProfile(userId);
+  const repository = createSupabaseAccountRepository(supabase);
+  await repository.ensureProfile(userId);
+  const profile = await repository.getProfile(userId);
 
-    if (!profile || profile.onboardingCompletedAt === null) {
-      return ONBOARDING_PATH;
-    }
-  } catch {
+  if (!profile || profile.onboardingCompletedAt === null) {
     return ONBOARDING_PATH;
   }
 

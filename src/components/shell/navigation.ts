@@ -21,8 +21,8 @@ export type ShellNavigationItem =
 /**
  * Phase 2 product navigation fixture.
  *
- * Unavailable destinations cannot be expressed as links. Only "New Project"
- * is interactive in this phase; the rest surface a visible Soon label.
+ * Unavailable destinations cannot be expressed as links. New Project and Profile
+ * are interactive in this phase; Projects and Usage surface a visible Soon label.
  */
 export const productNavigation = [
   {
@@ -45,8 +45,8 @@ export const productNavigation = [
     id: "profile",
     label: "Profile",
     icon: UserRound,
-    availability: "soon",
-    href: null,
+    availability: "available",
+    href: "/profile",
     active: false,
   },
   {

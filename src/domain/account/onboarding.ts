@@ -6,6 +6,7 @@ import type {
   Preferences,
   PreferredStack,
   PreferredStackBehavior,
+  ProfilePatch,
   SkillLevel,
 } from "@/domain/account/contracts";
 
@@ -95,6 +96,15 @@ const timeZoneSchema = z
   .min(1)
   .max(255)
   .refine(isSupportedTimeZone, { message: "must be an IANA time zone" });
+
+/** Account edits may change any subset of the explicitly user-controlled profile fields. */
+export const profilePatchSchema: z.ZodType<ProfilePatch> = z
+  .strictObject({
+    displayName: displayNameSchema.optional(),
+    locale: localeSchema.optional(),
+    timeZone: timeZoneSchema.optional(),
+  })
+  .transform(withoutUndefinedValues);
 
 const preferencesShape = {
   skillLevel: skillLevelSchema,

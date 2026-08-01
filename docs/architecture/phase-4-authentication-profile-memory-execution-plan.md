@@ -1,6 +1,6 @@
 # Phase 4 — Authentication, Profile, and Basic Memory
 
-**Status:** Planned — not yet implemented
+**Status:** Implemented on feature branch — CI database and hosted staging auth gates pending
 **Roadmap source:** `docs/UnseenPrompt – DEVELOPMENT_PLAN.md`
 **Scope:** Phase 4 only
 **Depends on:** Phase 2 design system and Phase 3 data platform (both complete on `main`)

@@ -155,23 +155,27 @@ describe("GET /auth/callback", () => {
     expect(response.headers.get("location")).toBe("https://app.unseenprompt.test/onboarding");
   });
 
-  it("falls back to /onboarding rather than stranding the user when the profile read fails", async () => {
+  it("returns a stable retryable sign-in error when the profile read fails", async () => {
     getProfile.mockRejectedValue(new Error("connection reset"));
     const { GET } = await import("./route");
 
     const response = await GET(callbackRequest("?code=abc&next=%2Fprofile"));
 
     expect(response.status).toBe(303);
-    expect(response.headers.get("location")).toBe("https://app.unseenprompt.test/onboarding");
+    expect(response.headers.get("location")).toBe(
+      "https://app.unseenprompt.test/sign-in?error=auth_callback_failed",
+    );
   });
 
-  it("falls back to /onboarding when the bootstrap write fails", async () => {
+  it("returns a stable retryable sign-in error when the bootstrap write fails", async () => {
     ensureProfile.mockRejectedValue(new Error("permission denied"));
     const { GET } = await import("./route");
 
     const response = await GET(callbackRequest("?code=abc&next=%2Fprofile"));
 
-    expect(response.headers.get("location")).toBe("https://app.unseenprompt.test/onboarding");
+    expect(response.headers.get("location")).toBe(
+      "https://app.unseenprompt.test/sign-in?error=auth_callback_failed",
+    );
   });
 
   it("falls back to the root path when next is hostile or absent", async () => {
