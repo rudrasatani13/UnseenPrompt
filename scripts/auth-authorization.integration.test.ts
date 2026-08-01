@@ -254,8 +254,7 @@ describe("Supabase account authorization", () => {
 
     for (const table of ["profiles", "preferences", "project_preference_overrides"] as const) {
       const result = await anonymous.from(table).select("id");
-      assertProviderSuccess(result.error, `anonymous_read_${table}`);
-      expect(result.data).toEqual([]);
+      assertDenied(result);
     }
 
     const invalidBearer = createClient(supabaseUrl, publishableKey, {
