@@ -44,7 +44,7 @@ jobs:
     env:
       CI: "true"
       APP_ENV: staging
-      NEXT_PUBLIC_APP_URL: https://staging.unseenprompt.com
+      NEXT_PUBLIC_APP_URL: https://unseenprompt-staging.rudrasatani.workers.dev
       RELEASE_SHA: ${{ needs.gate.outputs.release_sha }}
       MAINTENANCE_MODE: "off"
       NODE_VERSION: 24
@@ -74,6 +74,19 @@ jobs:
         run: pnpm cf:types:check
       - name: Check Workers dependency policy
         run: pnpm check:workers-deps
+      - name: Require staging application configuration
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.STAGING_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          if [[ "${NEXT_PUBLIC_SUPABASE_URL}" != https://* ]]; then
+            echo "STAGING_SUPABASE_URL must be a non-empty HTTPS URL"
+            exit 1
+          fi
+          if [[ "${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}" != sb_publishable_* ]]; then
+            echo "STAGING_SUPABASE_PUBLISHABLE_KEY must be a publishable key"
+            exit 1
+          fi
       - name: Require staging database credentials
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.STAGING_SUPABASE_ACCESS_TOKEN }}
@@ -116,17 +129,24 @@ jobs:
           pnpm exec supabase db push
           pnpm exec supabase db lint --level error --linked
       - name: Build Worker
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.STAGING_SUPABASE_PUBLISHABLE_KEY }}
         run: pnpm cf:build
       - name: Deploy staging
         id: deploy
         env:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.STAGING_SUPABASE_PUBLISHABLE_KEY }}
           WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.ndjson
         run: |
           pnpm exec wrangler deploy \
             --env staging \
-            --var "RELEASE_SHA:${{ needs.gate.outputs.release_sha }}"
+            --var "RELEASE_SHA:${{ needs.gate.outputs.release_sha }}" \
+            --var "NEXT_PUBLIC_SUPABASE_URL:${NEXT_PUBLIC_SUPABASE_URL}" \
+            --var "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}"
       - name: Resolve staging URL
         id: staging
         env:
@@ -137,6 +157,7 @@ jobs:
           DEPLOYMENT_URL: ${{ steps.staging.outputs.url }}
           HEALTHCHECK_TOKEN: ${{ secrets.STAGING_HEALTHCHECK_TOKEN }}
           GITHUB_SHA: ${{ needs.gate.outputs.release_sha }}
+          VERIFY_AUTH_SURFACE: "true"
         run: pnpm test:cf-deployment
 
   production:

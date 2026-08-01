@@ -117,6 +117,49 @@ describe("deployment verification", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
+  test("verifies the staging sign-in surface and unauthenticated profile redirect", async () => {
+    const expectedReleaseSha = "f".repeat(40);
+    const responses = [
+      jsonResponse({ service: "unseenprompt", status: "ok", release: expectedReleaseSha }),
+      new Response("sign in", { status: 200 }),
+      new Response(null, {
+        status: 307,
+        headers: { location: "/sign-in?next=%2Fprofile" },
+      }),
+    ];
+    const fetchImpl = vi.fn(async () => responses.shift()!);
+
+    await assertCloudflareDeployment({
+      deploymentUrl: "https://staging.example.test",
+      expectedReleaseSha,
+      verifyAuthSurface: true,
+      fetchImpl,
+      sleep: async () => undefined,
+    });
+
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+    expect(fetchImpl.mock.calls[1]?.[1]).toMatchObject({ redirect: "manual" });
+    expect(fetchImpl.mock.calls[2]?.[1]).toMatchObject({ redirect: "manual" });
+  });
+
+  test("rejects a staging deployment whose sign-in surface crashes", async () => {
+    const expectedReleaseSha = "a".repeat(40);
+    const responses = [
+      jsonResponse({ service: "unseenprompt", status: "ok", release: expectedReleaseSha }),
+      new Response("Internal Server Error", { status: 500 }),
+    ];
+
+    await expect(
+      assertCloudflareDeployment({
+        deploymentUrl: "https://staging.example.test",
+        expectedReleaseSha,
+        verifyAuthSurface: true,
+        fetchImpl: async () => responses.shift()!,
+        sleep: async () => undefined,
+      }),
+    ).rejects.toThrow("Sign-in surface failed with HTTP 500");
+  });
+
   test("retries an empty Workflow response during deployment propagation", async () => {
     const expectedReleaseSha = "d".repeat(40);
     const responses = [

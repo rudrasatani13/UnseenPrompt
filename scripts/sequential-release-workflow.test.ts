@@ -31,6 +31,30 @@ describe("sequential main release workflow", () => {
     );
     expect(stagingRequireSecrets).toBeDefined();
 
+    const stagingRequireApplicationConfig = workflow.jobs.staging.steps.find(
+      (step: { name?: string }) => step.name === "Require staging application configuration",
+    );
+    expect(stagingRequireApplicationConfig.env).toEqual({
+      NEXT_PUBLIC_SUPABASE_URL: "${{ vars.STAGING_SUPABASE_URL }}",
+      NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "${{ vars.STAGING_SUPABASE_PUBLISHABLE_KEY }}",
+    });
+
+    const stagingBuild = workflow.jobs.staging.steps.find(
+      (step: { name?: string }) => step.name === "Build Worker",
+    );
+    expect(stagingBuild.env).toEqual(stagingRequireApplicationConfig.env);
+
+    const stagingDeploy = workflow.jobs.staging.steps.find(
+      (step: { name?: string }) => step.name === "Deploy staging",
+    );
+    expect(stagingDeploy.run).toContain("NEXT_PUBLIC_SUPABASE_URL");
+    expect(stagingDeploy.run).toContain("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY");
+
+    const stagingSmoke = workflow.jobs.staging.steps.find(
+      (step: { name?: string }) => step.name === "Smoke-test staging",
+    );
+    expect(stagingSmoke.env.VERIFY_AUTH_SURFACE).toBe("true");
+
     const recoveryGate = workflow.jobs.production.steps.find(
       (step: { name?: string }) => step.name === "Require backup/PITR confirmation",
     );
