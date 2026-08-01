@@ -1,0 +1,56 @@
+import { describe, expect, it } from "vitest";
+
+import { resolveNextPath } from "@/domain/account/redirect";
+
+describe("resolveNextPath", () => {
+  it("returns a valid nested path unchanged", () => {
+    expect(resolveNextPath("/profile")).toBe("/profile");
+    expect(resolveNextPath("/projects/new-build/history")).toBe("/projects/new-build/history");
+  });
+
+  it("keeps a query string on an otherwise valid path", () => {
+    expect(resolveNextPath("/profile?tab=preferences")).toBe("/profile?tab=preferences");
+  });
+
+  it("rejects protocol-relative and absolute URLs", () => {
+    expect(resolveNextPath("//evil.example")).toBe("/");
+    expect(resolveNextPath("https://evil.example")).toBe("/");
+    expect(resolveNextPath("http://evil.example/profile")).toBe("/");
+    expect(resolveNextPath("javascript:alert(1)")).toBe("/");
+    expect(resolveNextPath("///evil.example")).toBe("/");
+  });
+
+  it("rejects traversal segments", () => {
+    expect(resolveNextPath("/a/../b")).toBe("/");
+    expect(resolveNextPath("/..")).toBe("/");
+    expect(resolveNextPath("/../etc/passwd")).toBe("/");
+  });
+
+  it("rejects backslashes anywhere in the candidate", () => {
+    expect(resolveNextPath("/\\evil.example")).toBe("/");
+    expect(resolveNextPath("\\\\evil.example")).toBe("/");
+    expect(resolveNextPath("/profile\\..\\admin")).toBe("/");
+  });
+
+  it("rejects empty, blank, null, and undefined candidates", () => {
+    expect(resolveNextPath("")).toBe("/");
+    expect(resolveNextPath("   ")).toBe("/");
+    expect(resolveNextPath(null)).toBe("/");
+    expect(resolveNextPath(undefined)).toBe("/");
+  });
+
+  it("rejects relative paths that do not start with a slash", () => {
+    expect(resolveNextPath("profile")).toBe("/");
+    expect(resolveNextPath("./profile")).toBe("/");
+  });
+
+  it("rejects candidates carrying control characters or whitespace", () => {
+    expect(resolveNextPath("/profile\nSet-Cookie: x=1")).toBe("/");
+    expect(resolveNextPath("/pro file")).toBe("/");
+    expect(resolveNextPath("/profile\u0000")).toBe("/");
+  });
+
+  it("accepts the root path itself", () => {
+    expect(resolveNextPath("/")).toBe("/");
+  });
+});
