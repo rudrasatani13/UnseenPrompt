@@ -85,8 +85,8 @@ jobs:
         run: npm install --global pnpm@${PNPM_VERSION}
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Start isolated test database
-        run: pnpm exec supabase db start
+      - name: Start isolated Supabase stack
+        run: pnpm exec supabase start
       - name: Reset database from migrations and seed
         run: pnpm exec supabase db reset --yes
       - name: Lint database schema
@@ -98,9 +98,7 @@ jobs:
         run: |
           status_file="$(mktemp)"
           trap 'rm -f "$status_file"' EXIT
-          # The CLI exits non-zero when optional local services are stopped, while still emitting
-          # valid API credentials. The explicit non-empty checks below remain authoritative.
-          pnpm exec supabase status -o env > "$status_file" || true
+          pnpm exec supabase status -o env > "$status_file"
 
           set -a
           # The isolated local CLI emits shell-quoted assignments; sourcing preserves exact values.
