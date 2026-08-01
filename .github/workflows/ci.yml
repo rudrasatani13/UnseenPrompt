@@ -98,7 +98,9 @@ jobs:
         run: |
           status_file="$(mktemp)"
           trap 'rm -f "$status_file"' EXIT
-          pnpm exec supabase status -o env > "$status_file"
+          # The CLI exits non-zero when optional local services are stopped, while still emitting
+          # valid API credentials. The explicit non-empty checks below remain authoritative.
+          pnpm exec supabase status -o env > "$status_file" || true
 
           set -a
           # The isolated local CLI emits shell-quoted assignments; sourcing preserves exact values.
