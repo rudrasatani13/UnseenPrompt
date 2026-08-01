@@ -264,12 +264,16 @@ describe("Supabase account authorization", () => {
     });
     expect((await invalidBearer.from("profiles").select("id")).error).not.toBeNull();
 
+    const invalidJwt = [
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9",
+      "eyJzdWIiOiJhIn0",
+      "invalid-signature",
+    ].join(".");
     const wronglySignedJwt = createClient(supabaseUrl, publishableKey, {
       auth: { autoRefreshToken: false, persistSession: false },
       global: {
         headers: {
-          Authorization:
-            "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhIn0.invalid-signature",
+          Authorization: `Bearer ${invalidJwt}`,
         },
       },
     });
