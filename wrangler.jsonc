@@ -72,7 +72,7 @@
       },
       "vars": {
         "APP_ENV": "staging",
-        "NEXT_PUBLIC_APP_URL": "https://staging.unseenprompt.com",
+        "NEXT_PUBLIC_APP_URL": "https://unseenprompt-staging.rudrasatani.workers.dev",
         "RELEASE_SHA": "staging",
         "MAINTENANCE_MODE": "off",
       },

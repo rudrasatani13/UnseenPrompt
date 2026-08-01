@@ -7,6 +7,7 @@ export async function assertCloudflareDeployment({
   deploymentUrl,
   expectedReleaseSha,
   healthcheckToken,
+  verifyAuthSurface = false,
   fetchImpl = fetch,
   sleep = defaultSleep,
 }) {
@@ -73,6 +74,31 @@ export async function assertCloudflareDeployment({
     );
   }
 
+  if (verifyAuthSurface) {
+    const signInResponse = await fetchImpl(new URL("/sign-in", baseUrl), {
+      headers: { Accept: "text/html" },
+      redirect: "manual",
+    });
+    if (signInResponse.status !== 200) {
+      throw new Error(`Sign-in surface failed with HTTP ${signInResponse.status}`);
+    }
+
+    const profileResponse = await fetchImpl(new URL("/profile", baseUrl), {
+      headers: { Accept: "text/html" },
+      redirect: "manual",
+    });
+    const profileLocation = profileResponse.headers.get("location");
+    const signInLocation = profileLocation ? new URL(profileLocation, baseUrl) : null;
+    const redirectsToSignIn =
+      [302, 303, 307, 308].includes(profileResponse.status) &&
+      signInLocation?.pathname === "/sign-in" &&
+      signInLocation.searchParams.get("next") === "/profile";
+
+    if (!redirectsToSignIn) {
+      throw new Error(`Profile auth guard failed with HTTP ${profileResponse.status}`);
+    }
+  }
+
   if (!healthcheckToken) {
     return;
   }
@@ -121,6 +147,7 @@ export async function main(env = process.env) {
     deploymentUrl: env.DEPLOYMENT_URL,
     expectedReleaseSha: env.GITHUB_SHA,
     healthcheckToken: env.HEALTHCHECK_TOKEN,
+    verifyAuthSurface: env.VERIFY_AUTH_SURFACE === "true",
   });
 }
 
