@@ -19,6 +19,8 @@ env:
   NEXT_PUBLIC_APP_URL: http://localhost:3000
   RELEASE_SHA: test
   MAINTENANCE_MODE: "off"
+  NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: sb_publishable_ci_dummy_000000000000
   PNPM_VERSION: 11.17.0
   NODE_VERSION: 24
 
@@ -91,7 +93,33 @@ jobs:
         run: pnpm db:lint
       - name: Run database tests
         run: pnpm test:db
-      - name: Run concurrent idempotency integration tests
+      - name: Export isolated Supabase API credentials for authorization tests
+        shell: bash
+        run: |
+          status_file="$(mktemp)"
+          trap 'rm -f "$status_file"' EXIT
+          pnpm exec supabase status -o env > "$status_file"
+
+          set -a
+          # The isolated local CLI emits shell-quoted assignments; sourcing preserves exact values.
+          # No value is echoed, and the temporary file is removed when this step exits.
+          source "$status_file"
+          set +a
+
+          api_url="${API_URL:-}"
+          publishable_key="${PUBLISHABLE_KEY:-${ANON_KEY:-}}"
+          service_role_key="${SECRET_KEY:-${SERVICE_ROLE_KEY:-}}"
+
+          test -n "$api_url"
+          test -n "$publishable_key"
+          test -n "$service_role_key"
+
+          {
+            printf 'SUPABASE_AUTH_TEST_URL=%s\n' "$api_url"
+            printf 'SUPABASE_AUTH_TEST_PUBLISHABLE_KEY=%s\n' "$publishable_key"
+            printf 'SUPABASE_AUTH_TEST_SERVICE_ROLE_KEY=%s\n' "$service_role_key"
+          } >> "$GITHUB_ENV"
+      - name: Run database integration tests
         env:
           SUPABASE_DB_URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
         run: pnpm test:db:concurrency

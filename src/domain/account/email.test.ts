@@ -1,0 +1,39 @@
+import { describe, expect, it } from "vitest";
+
+import { normalizeAccountEmail } from "@/domain/account/email";
+
+describe("normalizeAccountEmail", () => {
+  it("trims surrounding whitespace and lowercases the whole address", () => {
+    expect(normalizeAccountEmail("  Person@Example.COM ")).toBe("person@example.com");
+  });
+
+  it("applies NFC normalization before validation", () => {
+    // "cafe" + combining acute is NFC-composed to "café", which is still non-ASCII and rejected.
+    expect(normalizeAccountEmail("café@example.com")).toBeNull();
+  });
+
+  it("rejects empty and oversized addresses", () => {
+    expect(normalizeAccountEmail("")).toBeNull();
+    expect(normalizeAccountEmail("   ")).toBeNull();
+    expect(normalizeAccountEmail(`${"a".repeat(250)}@x.com`)).toBeNull();
+  });
+
+  it("rejects malformed addresses", () => {
+    expect(normalizeAccountEmail("not-an-email")).toBeNull();
+    expect(normalizeAccountEmail("@example.com")).toBeNull();
+    expect(normalizeAccountEmail("person@")).toBeNull();
+    expect(normalizeAccountEmail("person@example")).toBeNull();
+    expect(normalizeAccountEmail("a@b@c.com")).toBeNull();
+  });
+
+  it("rejects control characters and non-ASCII", () => {
+    expect(normalizeAccountEmail("person\u0000@example.com")).toBeNull();
+    expect(normalizeAccountEmail("persón@example.com")).toBeNull();
+  });
+
+  it("accepts a 254-character address at the bound", () => {
+    const validAtBound = `${"a".repeat(64)}@${"b".repeat(186)}.co`;
+    expect(validAtBound.length).toBe(254);
+    expect(normalizeAccountEmail(validAtBound)).toBe(validAtBound);
+  });
+});

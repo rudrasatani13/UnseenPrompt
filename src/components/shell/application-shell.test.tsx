@@ -44,10 +44,11 @@ describe("ApplicationShell", () => {
   it("reuses the same navigation data for desktop and mobile surfaces", () => {
     renderShell();
 
-    const newProjectLinks = screen.getAllByRole("link", { name: "New Project" });
-    expect(newProjectLinks.length).toBeGreaterThanOrEqual(1);
+    for (const label of ["New Project", "Profile"] as const) {
+      expect(screen.getAllByRole("link", { name: label }).length).toBeGreaterThanOrEqual(1);
+    }
 
-    for (const label of ["Projects", "Profile", "Usage"] as const) {
+    for (const label of ["Projects", "Usage"] as const) {
       expect(screen.getAllByText(label).length).toBeGreaterThanOrEqual(1);
     }
   });
@@ -99,7 +100,7 @@ describe("ApplicationShell", () => {
   it("keeps Soon entries non-interactive", () => {
     renderShell();
 
-    for (const label of ["Projects", "Profile", "Usage"] as const) {
+    for (const label of ["Projects", "Usage"] as const) {
       const matches = screen.getAllByText(label);
       for (const match of matches) {
         expect(match.closest("a")).toBeNull();

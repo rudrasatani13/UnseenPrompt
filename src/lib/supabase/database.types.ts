@@ -713,6 +713,50 @@ export type Database = {
           },
         ];
       };
+      project_preference_overrides: {
+        Row: {
+          coding_style: Json | null;
+          created_at: string;
+          deployment_preference: string | null;
+          id: string;
+          preferred_stack: Json | null;
+          preferred_stack_behavior: string | null;
+          project_id: string;
+          skill_level: string | null;
+          updated_at: string;
+        };
+        Insert: {
+          coding_style?: Json | null;
+          created_at?: string;
+          deployment_preference?: string | null;
+          id?: string;
+          preferred_stack?: Json | null;
+          preferred_stack_behavior?: string | null;
+          project_id: string;
+          skill_level?: string | null;
+          updated_at?: string;
+        };
+        Update: {
+          coding_style?: Json | null;
+          created_at?: string;
+          deployment_preference?: string | null;
+          id?: string;
+          preferred_stack?: Json | null;
+          preferred_stack_behavior?: string | null;
+          project_id?: string;
+          skill_level?: string | null;
+          updated_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "project_preference_overrides_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: true;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       project_summaries: {
         Row: {
           based_on_event_sequence: number;

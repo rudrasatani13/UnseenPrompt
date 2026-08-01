@@ -1,6 +1,6 @@
 # UnseenPrompt
 
-**Status:** Phase 3 — Supabase data platform and ownership model
+**Status:** Phase 4 code complete — CI database and hosted-auth verification pending
 
 **Primary domain:** `https://unseenprompt.com` (Cloudflare Worker Custom Domain)
 
@@ -11,10 +11,12 @@ UnseenPrompt does **not** currently provide:
 - Direct repository, IDE, or local-machine access
 - Autonomous execution of coding agents
 - Team accounts
-- Production user authentication clients (Phase 4) — schema and RLS are in place
+- Production product authentication surface — intentionally gated until a launch phase
 
-Phase 3 delivers versioned product schema, personal-account isolation, immutable history, atomic
-project writes, and private Storage foundations.
+Phase 4 adds Google OAuth and magic-link clients for non-production environments, authoritative
+server-side session enforcement, explicit profile/preferences memory, project-local overrides,
+deletion requests, and owner-filtered structured export preparation. Production continues to serve
+only the coming-soon waitlist.
 
 ## Prerequisites
 
@@ -83,6 +85,7 @@ pnpm exec supabase db start
 pnpm exec supabase db reset --yes
 pnpm db:lint
 pnpm test:db
+pnpm test:db:concurrency
 pnpm db:types:check
 ```
 
@@ -105,25 +108,30 @@ pnpm test:unit -- src/config/env/schema.test.ts
 | Product schema + RLS + pgTAP                      | Implemented (CI `database` job)                |
 | Atomic `create_project` / `commit_project_change` | Implemented                                    |
 | Private `project-artifacts` bucket                | Implemented (read-only client policies)        |
+| Non-production authentication + session guards    | Implemented; hosted staging setup pending      |
+| Profile, preferences, deletion request, export    | Implemented                                    |
+| Project preference overrides + RLS tests          | Implemented; database suite runs in CI         |
+| Production product surface                        | Disabled behind the production gate            |
 | Staging deployment                                | DB migrate then Worker on push to `main`       |
 | Production deployment                             | Paused unless `PRODUCTION_DEPLOY_ENABLED=true` |
 | Production traffic                                | Live on `unseenprompt.com` and `www`           |
 
 Operator procedures: [docs/deployment/cloudflare-runbook.md](docs/deployment/cloudflare-runbook.md).
-Execution plan: [docs/architecture/phase-3-supabase-data-platform-execution-plan.md](docs/architecture/phase-3-supabase-data-platform-execution-plan.md).
+Execution plan: [docs/architecture/phase-4-authentication-profile-memory-execution-plan.md](docs/architecture/phase-4-authentication-profile-memory-execution-plan.md).
 
 ## Documentation
 
-| Document                                                                                                                                 | Purpose                         |
-| ---------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------- |
-| [docs/UnseenPrompt – PRODUCT_PLAN.md](docs/UnseenPrompt%20%E2%80%93%20PRODUCT_PLAN.md)                                                   | Product master plan             |
-| [docs/UnseenPrompt – DEVELOPMENT_PLAN.md](docs/UnseenPrompt%20%E2%80%93%20DEVELOPMENT_PLAN.md)                                           | Development roadmap             |
-| [docs/architecture/phase-0-foundations.md](docs/architecture/phase-0-foundations.md)                                                     | Phase 0 architecture decisions  |
-| [docs/architecture/phase-1-cloudflare-topology.md](docs/architecture/phase-1-cloudflare-topology.md)                                     | Phase 1 Workers topology        |
-| [docs/architecture/phase-3-supabase-data-platform-execution-plan.md](docs/architecture/phase-3-supabase-data-platform-execution-plan.md) | Phase 3 agent execution plan    |
-| [docs/deployment/cloudflare-runbook.md](docs/deployment/cloudflare-runbook.md)                                                           | Deploy, smoke, rollback         |
-| [docs/conventions/naming.md](docs/conventions/naming.md)                                                                                 | Naming conventions              |
-| [docs/development/environment-contract.md](docs/development/environment-contract.md)                                                     | Environment variable contract   |
-| [docs/development/workers-dependencies.md](docs/development/workers-dependencies.md)                                                     | Workers dependency policy       |
-| [CONTRIBUTING.md](CONTRIBUTING.md)                                                                                                       | Contribution workflow           |
-| [SECURITY.md](SECURITY.md)                                                                                                               | Vulnerability and secret policy |
+| Document                                                                                                                                               | Purpose                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------- |
+| [docs/UnseenPrompt – PRODUCT_PLAN.md](docs/UnseenPrompt%20%E2%80%93%20PRODUCT_PLAN.md)                                                                 | Product master plan             |
+| [docs/UnseenPrompt – DEVELOPMENT_PLAN.md](docs/UnseenPrompt%20%E2%80%93%20DEVELOPMENT_PLAN.md)                                                         | Development roadmap             |
+| [docs/architecture/phase-0-foundations.md](docs/architecture/phase-0-foundations.md)                                                                   | Phase 0 architecture decisions  |
+| [docs/architecture/phase-1-cloudflare-topology.md](docs/architecture/phase-1-cloudflare-topology.md)                                                   | Phase 1 Workers topology        |
+| [docs/architecture/phase-3-supabase-data-platform-execution-plan.md](docs/architecture/phase-3-supabase-data-platform-execution-plan.md)               | Phase 3 agent execution plan    |
+| [docs/architecture/phase-4-authentication-profile-memory-execution-plan.md](docs/architecture/phase-4-authentication-profile-memory-execution-plan.md) | Phase 4 agent execution plan    |
+| [docs/deployment/cloudflare-runbook.md](docs/deployment/cloudflare-runbook.md)                                                                         | Deploy, smoke, rollback         |
+| [docs/conventions/naming.md](docs/conventions/naming.md)                                                                                               | Naming conventions              |
+| [docs/development/environment-contract.md](docs/development/environment-contract.md)                                                                   | Environment variable contract   |
+| [docs/development/workers-dependencies.md](docs/development/workers-dependencies.md)                                                                   | Workers dependency policy       |
+| [CONTRIBUTING.md](CONTRIBUTING.md)                                                                                                                     | Contribution workflow           |
+| [SECURITY.md](SECURITY.md)                                                                                                                             | Vulnerability and secret policy |

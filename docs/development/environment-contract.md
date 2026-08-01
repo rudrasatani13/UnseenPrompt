@@ -91,3 +91,26 @@ These values must never be configured on preview or staging:
 | `RESEND_API_KEY`                 | Secret                                           |
 | `WAITLIST_TOKEN_SECRET`          | Secret                                           |
 | `WAITLIST_FROM_EMAIL`            | Server (`UnseenPrompt <hello@unseenprompt.com>`) |
+
+## Phase 4 application auth
+
+| Variable                               | Visibility | Local                    | Preview                   | Staging                   | Production         | Owner    |
+| -------------------------------------- | ---------- | ------------------------ | ------------------------- | ------------------------- | ------------------ | -------- |
+| `NEXT_PUBLIC_SUPABASE_URL`             | Public     | `http://127.0.0.1:54321` | preview project HTTPS URL | staging project HTTPS URL | unset until launch | Platform |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Public     | local publishable key    | preview publishable key   | staging publishable key   | unset until launch | Platform |
+
+Validated in `src/config/supabase` (not `src/config/env`). HTTPS is required when `APP_ENV` is
+`staging` or `production`; HTTP loopback is allowed for `local` and `test`. The publishable key
+must be non-empty, at most 255 characters, and must never start with `sb_secret` — a pasted
+secret key fails validation rather than shipping to the client bundle.
+
+Production values stay unset until the launch phase enables the product surface. Validation is
+lazy: only consumers parse these values, so the production coming-soon path does not require
+them.
+
+Supabase Auth dashboard prerequisites are operator-owned and configured outside this repository:
+redirect URLs per environment, the Google provider, the magic-link email template, and custom
+SMTP for staging and production.
+
+The waitlist variables above are unchanged: `SUPABASE_URL` and `SUPABASE_SECRET_KEY` remain
+server-only production waitlist credentials and are never exposed as public client keys.
