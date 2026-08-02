@@ -87,6 +87,136 @@ jobs:
             echo "STAGING_SUPABASE_PUBLISHABLE_KEY must be a publishable key"
             exit 1
           fi
+      - name: Require staging model routing configuration
+        env:
+          MODEL_PRIMARY_PROVIDER: ${{ vars.STAGING_MODEL_PRIMARY_PROVIDER }}
+          MODEL_PRIMARY_MODEL: ${{ vars.STAGING_MODEL_PRIMARY_MODEL }}
+          MODEL_PRIMARY_INPUT_COST_MICROS_PER_MILLION_TOKENS: ${{ vars.STAGING_MODEL_PRIMARY_INPUT_COST_MICROS_PER_MILLION_TOKENS }}
+          MODEL_PRIMARY_OUTPUT_COST_MICROS_PER_MILLION_TOKENS: ${{ vars.STAGING_MODEL_PRIMARY_OUTPUT_COST_MICROS_PER_MILLION_TOKENS }}
+          MODEL_FALLBACK_PROVIDER: ${{ vars.STAGING_MODEL_FALLBACK_PROVIDER }}
+          MODEL_FALLBACK_MODEL: ${{ vars.STAGING_MODEL_FALLBACK_MODEL }}
+          MODEL_FALLBACK_INPUT_COST_MICROS_PER_MILLION_TOKENS: ${{ vars.STAGING_MODEL_FALLBACK_INPUT_COST_MICROS_PER_MILLION_TOKENS }}
+          MODEL_FALLBACK_OUTPUT_COST_MICROS_PER_MILLION_TOKENS: ${{ vars.STAGING_MODEL_FALLBACK_OUTPUT_COST_MICROS_PER_MILLION_TOKENS }}
+          MODEL_TOTAL_DEADLINE_MS: ${{ vars.STAGING_MODEL_TOTAL_DEADLINE_MS }}
+          MODEL_ATTEMPT_TIMEOUT_MS: ${{ vars.STAGING_MODEL_ATTEMPT_TIMEOUT_MS }}
+          MODEL_MAX_OUTPUT_TOKENS: ${{ vars.STAGING_MODEL_MAX_OUTPUT_TOKENS }}
+        run: |
+          set -euo pipefail
+
+          require_non_empty() {
+            local name="$1"
+            local value="${!name:-}"
+            if [[ -z "$value" ]]; then
+              echo "Missing staging model variable: $name"
+              return 1
+            fi
+          }
+
+          require_integer_in_range() {
+            local name="$1"
+            local minimum="$2"
+            local maximum="$3"
+            local value="${!name:-}"
+            if [[ ! "$value" =~ ^(0|[1-9][0-9]*)$ ]] ||
+              (( ${#value} > 13 )) ||
+              (( 10#$value < minimum || 10#$value > maximum )); then
+              echo "Invalid staging model variable: $name (expected integer ${minimum}..${maximum})"
+              return 1
+            fi
+          }
+
+          required_names=(
+            MODEL_PRIMARY_PROVIDER
+            MODEL_PRIMARY_MODEL
+            MODEL_PRIMARY_INPUT_COST_MICROS_PER_MILLION_TOKENS
+            MODEL_PRIMARY_OUTPUT_COST_MICROS_PER_MILLION_TOKENS
+            MODEL_FALLBACK_PROVIDER
+            MODEL_FALLBACK_MODEL
+            MODEL_FALLBACK_INPUT_COST_MICROS_PER_MILLION_TOKENS
+            MODEL_FALLBACK_OUTPUT_COST_MICROS_PER_MILLION_TOKENS
+            MODEL_TOTAL_DEADLINE_MS
+            MODEL_ATTEMPT_TIMEOUT_MS
+            MODEL_MAX_OUTPUT_TOKENS
+          )
+          for name in "${required_names[@]}"; do
+            require_non_empty "$name"
+          done
+
+          if [[ ! "$MODEL_PRIMARY_PROVIDER" =~ ^(anthropic|openai|gemini)$ ]]; then
+            echo "Invalid staging model variable: MODEL_PRIMARY_PROVIDER"
+            exit 1
+          fi
+          if [[ ! "$MODEL_FALLBACK_PROVIDER" =~ ^(anthropic|openai|gemini)$ ]]; then
+            echo "Invalid staging model variable: MODEL_FALLBACK_PROVIDER"
+            exit 1
+          fi
+          if [[ "$MODEL_PRIMARY_PROVIDER" == "$MODEL_FALLBACK_PROVIDER" ]]; then
+            echo "MODEL_FALLBACK_PROVIDER must differ from MODEL_PRIMARY_PROVIDER"
+            exit 1
+          fi
+          for name in MODEL_PRIMARY_MODEL MODEL_FALLBACK_MODEL; do
+            if [[ ! "${!name}" =~ ^[A-Za-z0-9][A-Za-z0-9._:/-]{0,159}$ ]]; then
+              echo "Invalid staging model variable: $name"
+              exit 1
+            fi
+          done
+          for name in \
+            MODEL_PRIMARY_INPUT_COST_MICROS_PER_MILLION_TOKENS \
+            MODEL_PRIMARY_OUTPUT_COST_MICROS_PER_MILLION_TOKENS \
+            MODEL_FALLBACK_INPUT_COST_MICROS_PER_MILLION_TOKENS \
+            MODEL_FALLBACK_OUTPUT_COST_MICROS_PER_MILLION_TOKENS; do
+            require_integer_in_range "$name" 0 1000000000000
+          done
+          require_integer_in_range MODEL_TOTAL_DEADLINE_MS 1000 120000
+          require_integer_in_range MODEL_ATTEMPT_TIMEOUT_MS 500 60000
+          require_integer_in_range MODEL_MAX_OUTPUT_TOKENS 64 65536
+          if (( 10#$MODEL_ATTEMPT_TIMEOUT_MS > 10#$MODEL_TOTAL_DEADLINE_MS )); then
+            echo "MODEL_ATTEMPT_TIMEOUT_MS cannot exceed MODEL_TOTAL_DEADLINE_MS"
+            exit 1
+          fi
+      - name: Require staging Worker provider secrets
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          secret_list_file="$(mktemp)"
+          secret_error_file="$(mktemp)"
+          trap 'rm -f "$secret_list_file" "$secret_error_file"' EXIT
+
+          if ! pnpm exec wrangler secret list --env staging --format json \
+            >"$secret_list_file" 2>"$secret_error_file"; then
+            echo "Unable to inspect staging Worker secret names; refusing deploy."
+            exit 1
+          fi
+
+          node - "$secret_list_file" <<'NODE'
+          const { readFileSync } = require("node:fs");
+
+          const payload = JSON.parse(readFileSync(process.argv[2], "utf8"));
+          const records = Array.isArray(payload) ? payload : payload?.secrets;
+          const required = [
+            "HEALTHCHECK_TOKEN",
+            "ANTHROPIC_API_KEY",
+            "OPENAI_API_KEY",
+            "GEMINI_API_KEY",
+          ];
+
+          if (
+            !Array.isArray(records) ||
+            records.some((record) => typeof record?.name !== "string")
+          ) {
+            console.error("Cloudflare returned an unexpected staging secret-list shape.");
+            process.exit(1);
+          }
+
+          const names = new Set(records.map((record) => record.name));
+          const missing = required.filter((name) => !names.has(name));
+          if (missing.length > 0) {
+            console.error(`Missing staging Worker secret names: ${missing.join(", ")}`);
+            process.exit(1);
+          }
+          NODE
       - name: Require staging database credentials
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.STAGING_SUPABASE_ACCESS_TOKEN }}
@@ -140,13 +270,35 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ vars.STAGING_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: ${{ vars.STAGING_SUPABASE_PUBLISHABLE_KEY }}
+          MODEL_PRIMARY_PROVIDER: ${{ vars.STAGING_MODEL_PRIMARY_PROVIDER }}
+          MODEL_PRIMARY_MODEL: ${{ vars.STAGING_MODEL_PRIMARY_MODEL }}
+          MODEL_PRIMARY_INPUT_COST_MICROS_PER_MILLION_TOKENS: ${{ vars.STAGING_MODEL_PRIMARY_INPUT_COST_MICROS_PER_MILLION_TOKENS }}
+          MODEL_PRIMARY_OUTPUT_COST_MICROS_PER_MILLION_TOKENS: ${{ vars.STAGING_MODEL_PRIMARY_OUTPUT_COST_MICROS_PER_MILLION_TOKENS }}
+          MODEL_FALLBACK_PROVIDER: ${{ vars.STAGING_MODEL_FALLBACK_PROVIDER }}
+          MODEL_FALLBACK_MODEL: ${{ vars.STAGING_MODEL_FALLBACK_MODEL }}
+          MODEL_FALLBACK_INPUT_COST_MICROS_PER_MILLION_TOKENS: ${{ vars.STAGING_MODEL_FALLBACK_INPUT_COST_MICROS_PER_MILLION_TOKENS }}
+          MODEL_FALLBACK_OUTPUT_COST_MICROS_PER_MILLION_TOKENS: ${{ vars.STAGING_MODEL_FALLBACK_OUTPUT_COST_MICROS_PER_MILLION_TOKENS }}
+          MODEL_TOTAL_DEADLINE_MS: ${{ vars.STAGING_MODEL_TOTAL_DEADLINE_MS }}
+          MODEL_ATTEMPT_TIMEOUT_MS: ${{ vars.STAGING_MODEL_ATTEMPT_TIMEOUT_MS }}
+          MODEL_MAX_OUTPUT_TOKENS: ${{ vars.STAGING_MODEL_MAX_OUTPUT_TOKENS }}
           WRANGLER_OUTPUT_FILE_PATH: ${{ runner.temp }}/wrangler-output.ndjson
         run: |
           pnpm exec wrangler deploy \
             --env staging \
             --var "RELEASE_SHA:${{ needs.gate.outputs.release_sha }}" \
             --var "NEXT_PUBLIC_SUPABASE_URL:${NEXT_PUBLIC_SUPABASE_URL}" \
-            --var "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}"
+            --var "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY:${NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY}" \
+            --var "MODEL_PRIMARY_PROVIDER:${MODEL_PRIMARY_PROVIDER}" \
+            --var "MODEL_PRIMARY_MODEL:${MODEL_PRIMARY_MODEL}" \
+            --var "MODEL_PRIMARY_INPUT_COST_MICROS_PER_MILLION_TOKENS:${MODEL_PRIMARY_INPUT_COST_MICROS_PER_MILLION_TOKENS}" \
+            --var "MODEL_PRIMARY_OUTPUT_COST_MICROS_PER_MILLION_TOKENS:${MODEL_PRIMARY_OUTPUT_COST_MICROS_PER_MILLION_TOKENS}" \
+            --var "MODEL_FALLBACK_PROVIDER:${MODEL_FALLBACK_PROVIDER}" \
+            --var "MODEL_FALLBACK_MODEL:${MODEL_FALLBACK_MODEL}" \
+            --var "MODEL_FALLBACK_INPUT_COST_MICROS_PER_MILLION_TOKENS:${MODEL_FALLBACK_INPUT_COST_MICROS_PER_MILLION_TOKENS}" \
+            --var "MODEL_FALLBACK_OUTPUT_COST_MICROS_PER_MILLION_TOKENS:${MODEL_FALLBACK_OUTPUT_COST_MICROS_PER_MILLION_TOKENS}" \
+            --var "MODEL_TOTAL_DEADLINE_MS:${MODEL_TOTAL_DEADLINE_MS}" \
+            --var "MODEL_ATTEMPT_TIMEOUT_MS:${MODEL_ATTEMPT_TIMEOUT_MS}" \
+            --var "MODEL_MAX_OUTPUT_TOKENS:${MODEL_MAX_OUTPUT_TOKENS}"
       - name: Resolve staging URL
         id: staging
         env:

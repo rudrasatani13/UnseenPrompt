@@ -19,6 +19,13 @@ MAINTENANCE_MODE=off
 # OPENAI_API_KEY=replace-with-local-secret
 # GEMINI_API_KEY=replace-with-local-secret
 
+# Operator-only live provider contract probe (never CI and never part of `pnpm test:unit`).
+# Keep these credentials only in the ignored `.dev.vars` file. The probe makes exactly one
+# sequential request to each provider with a synthetic closed `{ok:boolean}` schema, fixed models,
+# a 512-token output cap, and a 30-second AbortSignal timeout. It prints provider names and safe
+# usage counts only; missing-key diagnostics print names only.
+# Run manually with: pnpm test:live:providers
+
 # Production waitlist secrets only (never for preview/staging). Fake values:
 # TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
 # SUPABASE_SECRET_KEY=sb_secret_local_test_value_000000000000

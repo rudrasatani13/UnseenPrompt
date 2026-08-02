@@ -1,6 +1,6 @@
 # UnseenPrompt
 
-**Status:** Phase 5 implementation and generated types complete — isolated DB CI and live-provider operator verification pending
+**Status:** Phase 5 implementation and generated types complete — isolated DB CI complete; live-provider operator verification pending
 
 **Primary domain:** `https://unseenprompt.com` (Cloudflare Worker Custom Domain)
 
@@ -101,6 +101,19 @@ Negative environment test:
 pnpm test:unit -- src/config/env/schema.test.ts
 ```
 
+Operator-only live provider contract probe (manual; never CI or `pnpm test:unit`):
+
+```bash
+# Set GEMINI_API_KEY, OPENAI_API_KEY, and ANTHROPIC_API_KEY only in ignored .dev.vars.
+pnpm test:live:providers
+```
+
+The probe calls Gemini, OpenAI, and Anthropic sequentially once each using fixed models and a
+synthetic closed `{ok:boolean}` schema. It uses a 512-token output cap and a 30-second
+`AbortSignal` timeout, performs no retries or gateway/database work, and prints only provider names,
+safe usage counts, and stable error codes. A successful live result remains an operator gate and is
+not claimed by this repository until the command has been run with real credentials.
+
 ## Phase status
 
 | Gate                                              | State                                          |
@@ -115,6 +128,8 @@ pnpm test:unit -- src/config/env/schema.test.ts
 | Non-production authentication + session guards    | Implemented; hosted staging setup pending      |
 | Profile, preferences, deletion request, export    | Implemented                                    |
 | Project preference overrides + RLS tests          | Implemented; database suite runs in CI         |
+| Phase 5 generation persistence + isolated DB CI   | Implemented; CI database gate complete         |
+| Phase 5 live provider contract verification       | Pending operator live probe                    |
 | Production product surface                        | Disabled behind the production gate            |
 | Staging deployment                                | DB migrate then Worker on push to `main`       |
 | Production deployment                             | Paused unless `PRODUCTION_DEPLOY_ENABLED=true` |

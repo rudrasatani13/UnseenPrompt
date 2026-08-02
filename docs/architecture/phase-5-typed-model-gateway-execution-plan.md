@@ -1,6 +1,6 @@
 # Phase 5 — Typed Model Gateway and Provider Contracts
 
-**Status:** Controlling execution plan — implementation and generated types complete; isolated DB CI and live-provider operator verification pending
+**Status:** Controlling execution plan — implementation and generated types complete; isolated DB CI complete; live-provider operator verification pending
 **Roadmap source:** `docs/UnseenPrompt – DEVELOPMENT_PLAN.md`
 **Scope:** Phase 5 only
 **Depends on:** Phase 1 Cloudflare runtime and Phase 3 data platform
@@ -935,6 +935,20 @@ pnpm test:db
 pnpm test:db:concurrency
 pnpm db:types:check
 ```
+
+The provider contract suite also has an operator-only live probe. It is deliberately excluded from
+unit/CI runs because it requires real provider credentials and incurs external cost:
+
+```text
+# Set GEMINI_API_KEY, OPENAI_API_KEY, and ANTHROPIC_API_KEY only in ignored .dev.vars.
+pnpm test:live:providers
+```
+
+The probe calls the existing Gemini, OpenAI, and Anthropic adapters sequentially exactly once each
+with the fixed models, one synthetic closed `{ok:boolean}` schema, a 512-token output cap, and a
+30-second `AbortSignal` timeout. It performs no retry, gateway orchestration, database mutation, or
+raw candidate/key/body logging. The live-provider gate remains pending until an operator observes a
+successful run; isolated database CI is already complete.
 
 Do not claim a gate passed unless its output was observed. Do not run database checks against shared
 development, staging, or production.
