@@ -397,6 +397,7 @@ export type Database = {
           retry_count: number;
           started_at: string | null;
           status: string;
+          validation_result: string;
         };
         Insert: {
           completed_at?: string | null;
@@ -419,6 +420,7 @@ export type Database = {
           retry_count?: number;
           started_at?: string | null;
           status: string;
+          validation_result?: string;
         };
         Update: {
           completed_at?: string | null;
@@ -441,6 +443,7 @@ export type Database = {
           retry_count?: number;
           started_at?: string | null;
           status?: string;
+          validation_result?: string;
         };
         Relationships: [
           {
@@ -1183,6 +1186,26 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      claim_generation_run: {
+        Args: {
+          p_idempotency_key: string;
+          p_input_schema_version?: string;
+          p_operation_kind: string;
+          p_output_schema_version?: string;
+          p_project_id: string;
+          p_project_state_version: number;
+          p_request_fingerprint: string;
+        };
+        Returns: {
+          correlation_id: string;
+          input_schema_version: string;
+          operation_kind: string;
+          output_schema_version: string;
+          project_state_version: number;
+          run_id: string;
+          status: string;
+        }[];
+      };
       commit_project_change: {
         Args: {
           p_active_milestone_id: string;
@@ -1200,6 +1223,39 @@ export type Database = {
           p_title: string;
         };
         Returns: Json;
+      };
+      complete_generation_run: {
+        Args: {
+          p_error_code?: string;
+          p_estimated_cost_micros?: number;
+          p_input_tokens?: number;
+          p_latency_ms?: number;
+          p_model?: string;
+          p_output_tokens?: number;
+          p_provider?: string;
+          p_retry_count?: number;
+          p_run_id: string;
+          p_status: string;
+          p_validation_result?: string;
+        };
+        Returns: {
+          correlation_id: string;
+          error_code: string;
+          estimated_cost_micros: number;
+          input_schema_version: string;
+          input_tokens: number;
+          latency_ms: number;
+          model: string;
+          operation_kind: string;
+          output_schema_version: string;
+          output_tokens: number;
+          project_state_version: number;
+          provider: string;
+          retry_count: number;
+          run_id: string;
+          status: string;
+          validation_result: string;
+        }[];
       };
       confirm_waitlist_entry: {
         Args: { p_now: string; p_token_hash: string };
