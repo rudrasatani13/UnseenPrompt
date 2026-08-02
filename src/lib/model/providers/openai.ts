@@ -81,21 +81,17 @@ const responseEnvelopeSchema = z
 
 const providerErrorEnvelopeSchema = z
   .object({
-    code: z.string().optional(),
-    type: z.string().optional(),
-    error: z
-      .object({
-        code: z.string().optional(),
-        type: z.string().optional(),
-      })
-      .passthrough()
-      .optional(),
+    code: z.unknown().optional(),
+    type: z.unknown().optional(),
+    error: z.unknown().optional(),
   })
   .passthrough();
+const providerErrorCodeSchema = z.string().trim().max(128);
 
 const QUOTA_ERROR_CODES = new Set([
   "billing_hard_limit_reached",
   "billing_not_active",
+  "credit_balance_exhausted",
   "insufficient_funds",
   "insufficient_quota",
   "payment_required",
@@ -122,16 +118,26 @@ function normalizeUsage(usage: z.infer<typeof responseUsageSchema> | null | unde
   };
 }
 
-function extractSafeErrorCode(value: unknown): string | null {
+function extractSafeErrorCodes(value: unknown): readonly string[] {
   const parsed = providerErrorEnvelopeSchema.safeParse(value);
-  if (!parsed.success) return null;
+  if (!parsed.success) return [];
 
-  const code =
-    parsed.data.error?.code ?? parsed.data.code ?? parsed.data.error?.type ?? parsed.data.type;
-  return typeof code === "string" ? code.toLowerCase() : null;
+  const candidates: unknown[] = [parsed.data.code, parsed.data.type];
+  const nested = parsed.data.error;
+  if (typeof nested === "object" && nested !== null && !Array.isArray(nested)) {
+    const nestedParsed = providerErrorEnvelopeSchema.safeParse(nested);
+    if (nestedParsed.success) {
+      candidates.push(nestedParsed.data.code, nestedParsed.data.type);
+    }
+  }
+
+  return candidates.flatMap((candidate) => {
+    const bounded = providerErrorCodeSchema.safeParse(candidate);
+    return bounded.success ? [bounded.data.toLowerCase()] : [];
+  });
 }
 
-async function responseHasQuotaCode(response: Response): Promise<boolean> {
+async function responseHasQuotaCode(response: Response, correlationId: string): Promise<boolean> {
   try {
     const text = await readBoundedResponseText(response, MAX_RESPONSE_BYTES);
     let body: unknown;
@@ -141,10 +147,13 @@ async function responseHasQuotaCode(response: Response): Promise<boolean> {
       if (error instanceof MalformedJsonError) return false;
       return false;
     }
-    const code = extractSafeErrorCode(body);
-    return code !== null && QUOTA_ERROR_CODES.has(code);
+    return extractSafeErrorCodes(body).some((code) => QUOTA_ERROR_CODES.has(code));
   } catch (error: unknown) {
-    // A body-read failure must not hide the stable HTTP status mapping.
+    if (error instanceof BoundedResponseError && error.reason === "aborted") {
+      // Preserve caller cancellation without retaining the stream error or its message.
+      throw createModelGatewayError("aborted", correlationId);
+    }
+    // Other body-read failures must not hide the stable HTTP status mapping.
     if (error instanceof BoundedResponseError) return false;
     return false;
   }
@@ -237,7 +246,10 @@ export function createOpenAIAdapter(options: OpenAIAdapterOptions): ProviderAdap
       }
 
       if (!response.ok) {
-        if (response.status === 429 && (await responseHasQuotaCode(response))) {
+        if (
+          response.status === 429 &&
+          (await responseHasQuotaCode(response, request.correlationId))
+        ) {
           throw createModelGatewayError("billing_or_quota_exhausted", request.correlationId, {
             httpStatus: response.status,
           });

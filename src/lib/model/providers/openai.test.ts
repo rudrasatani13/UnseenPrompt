@@ -169,11 +169,95 @@ describe("OpenAI Responses adapter", () => {
 
   it("maps an OpenAI insufficient-quota 429 separately from ordinary rate limits", async () => {
     const fetchImplementation: ProviderFetch = async () =>
-      errorResponse(429, { error: { code: "insufficient_quota", message: "secret" } });
+      errorResponse(429, {
+        error: {
+          code: "credit_balance_exhausted",
+          type: "insufficient_quota",
+          message: "OPENAI_BILLING_BODY_SENTINEL",
+        },
+      });
+
+    try {
+      await createOpenAIAdapter({ apiKey, fetch: fetchImplementation }).generate(request);
+      expect.unreachable("expected a billing error");
+    } catch (error: unknown) {
+      expect(error).toMatchObject({ code: "billing_or_quota_exhausted", httpStatus: 429 });
+      expect(String(error)).not.toContain("OPENAI_BILLING_BODY_SENTINEL");
+      expect(JSON.stringify(error)).not.toContain("OPENAI_BILLING_BODY_SENTINEL");
+      expect(JSON.stringify(error)).not.toContain(apiKey);
+    }
+  });
+
+  it.each([
+    { error: { code: "ordinary_error", type: "insufficient_quota" } },
+    { error: { code: "credit_balance_exhausted", type: "ordinary_error" } },
+    { code: "ordinary_error", type: "insufficient_quota" },
+    { code: "credit_balance_exhausted", type: "ordinary_error" },
+  ] as const)("considers every bounded OpenAI error code/type candidate", async (body) => {
+    const fetchImplementation: ProviderFetch = async () => errorResponse(429, body);
 
     await expect(
       createOpenAIAdapter({ apiKey, fetch: fetchImplementation }).generate(request),
     ).rejects.toMatchObject({ code: "billing_or_quota_exhausted", httpStatus: 429 });
+  });
+
+  it("bounds OpenAI error code fields before classification", async () => {
+    const sentinel = "OPENAI_OVERSIZED_CODE_SENTINEL";
+    const oversizedCode = `${"x".repeat(129)}${sentinel}`;
+    const fetchImplementation: ProviderFetch = async () =>
+      errorResponse(429, { error: { code: oversizedCode } });
+
+    const error = await createOpenAIAdapter({ apiKey, fetch: fetchImplementation })
+      .generate(request)
+      .catch((value: unknown) => value);
+
+    expect(error).toMatchObject({ code: "rate_limited", httpStatus: 429 });
+    expect(String(error)).not.toContain(sentinel);
+    expect(JSON.stringify(error)).not.toContain(sentinel);
+    expect(JSON.stringify(error)).not.toContain(apiKey);
+  });
+
+  it("preserves cancellation when an OpenAI 429 body read aborts", async () => {
+    const stream = new ReadableStream<Uint8Array>({
+      pull() {
+        return Promise.reject(
+          Object.assign(new Error("OPENAI_ABORT_BODY_SENTINEL"), { name: "AbortError" }),
+        );
+      },
+    });
+    const error = await createOpenAIAdapter({
+      apiKey,
+      fetch: async () => new Response(stream, { status: 429 }),
+    })
+      .generate(request)
+      .catch((value: unknown) => value);
+
+    expect(error).toMatchObject({ code: "aborted" });
+    expect(String(error)).not.toContain("OPENAI_ABORT_BODY_SENTINEL");
+    expect(JSON.stringify(error)).not.toContain("OPENAI_ABORT_BODY_SENTINEL");
+  });
+
+  it("keeps malformed and oversized OpenAI 429 bodies rate limited", async () => {
+    const malformedSecret = "OPENAI_MALFORMED_429_SENTINEL";
+    const malformedError = await createOpenAIAdapter({
+      apiKey,
+      fetch: async () => new Response(`{"error":{"message":"${malformedSecret}`, { status: 429 }),
+    })
+      .generate(request)
+      .catch((value: unknown) => value);
+    expect(malformedError).toMatchObject({ code: "rate_limited", httpStatus: 429 });
+    expect(String(malformedError)).not.toContain(malformedSecret);
+    expect(JSON.stringify(malformedError)).not.toContain(malformedSecret);
+
+    const oversizedError = await createOpenAIAdapter({
+      apiKey,
+      fetch: async () => new Response("x".repeat(MAX_RESPONSE_BYTES + 1), { status: 429 }),
+    })
+      .generate(request)
+      .catch((value: unknown) => value);
+    expect(oversizedError).toMatchObject({ code: "rate_limited", httpStatus: 429 });
+    expect(String(oversizedError)).not.toContain("x");
+    expect(JSON.stringify(oversizedError)).not.toContain("x");
   });
 
   it.each([
