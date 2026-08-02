@@ -12,13 +12,16 @@ Operational procedures for UnseenPrompt Workers. Do **not** put real account IDs
 
 ## Secret ownership and rotation
 
-| Secret                         | Where stored                        | Owner    | Rotation                                                   |
-| ------------------------------ | ----------------------------------- | -------- | ---------------------------------------------------------- |
-| `HEALTHCHECK_TOKEN`            | Local, staging, production only     | Platform | Generate ≥32 random bytes; never reuse across environments |
-| `CLOUDFLARE_API_TOKEN`         | `staging`/`production` Environments | Platform | Separate credentials for each deployment environment       |
-| `CLOUDFLARE_ACCOUNT_ID`        | `staging`/`production` Environments | Platform | Cloudflare account identifier                              |
-| `STAGING_HEALTHCHECK_TOKEN`    | GitHub Environment `staging`        | Platform | Must match staging Worker secret                           |
-| `PRODUCTION_HEALTHCHECK_TOKEN` | GitHub Environment `production`     | Platform | Must match production Worker secret                        |
+| Secret                         | Where stored                           | Owner          | Rotation                                                   |
+| ------------------------------ | -------------------------------------- | -------------- | ---------------------------------------------------------- |
+| `HEALTHCHECK_TOKEN`            | Local, staging, production only        | Platform       | Generate ≥32 random bytes; never reuse across environments |
+| `CLOUDFLARE_API_TOKEN`         | `staging`/`production` Environments    | Platform       | Separate credentials for each deployment environment       |
+| `CLOUDFLARE_ACCOUNT_ID`        | `staging`/`production` Environments    | Platform       | Cloudflare account identifier                              |
+| `STAGING_HEALTHCHECK_TOKEN`    | GitHub Environment `staging`           | Platform       | Must match staging Worker secret                           |
+| `PRODUCTION_HEALTHCHECK_TOKEN` | GitHub Environment `production`        | Platform       | Must match production Worker secret                        |
+| `ANTHROPIC_API_KEY`            | Cloudflare Worker secret, staging only | Model operator | Rotate in Cloudflare; never place in GitHub or logs        |
+| `OPENAI_API_KEY`               | Cloudflare Worker secret, staging only | Model operator | Rotate in Cloudflare; never place in GitHub or logs        |
+| `GEMINI_API_KEY`               | Cloudflare Worker secret, staging only | Model operator | Rotate in Cloudflare; never place in GitHub or logs        |
 
 Generate a local token for Wrangler:
 
@@ -26,6 +29,11 @@ Generate a local token for Wrangler:
 openssl rand -base64 48
 pnpm exec wrangler secret put HEALTHCHECK_TOKEN --env staging
 pnpm exec wrangler secret put HEALTHCHECK_TOKEN --env production
+
+# Staging Phase 5 route credentials (values entered interactively, never committed)
+pnpm exec wrangler secret put ANTHROPIC_API_KEY --env staging
+pnpm exec wrangler secret put OPENAI_API_KEY --env staging
+pnpm exec wrangler secret put GEMINI_API_KEY --env staging
 ```
 
 ## Local commands
@@ -50,14 +58,34 @@ Automatic after **Continuous Integration succeeds** for a push to `main` (`workf
 
 1. Quality gates on the release SHA
 2. Require all staging Supabase secrets (fail closed if any are missing)
-3. Staging database dry-run + apply pending migrations (`supabase db push`)
-4. `pnpm cf:build`
-5. `wrangler deploy --env staging --var RELEASE_SHA:<sha>`
-6. Resolve URL with `node scripts/wrangler-output.mjs deployment-url`
-7. `DEPLOYMENT_URL=... HEALTHCHECK_TOKEN=... GITHUB_SHA=... pnpm test:cf-deployment`
+3. Require and validate all protected GitHub `staging` model route variables (fail closed)
+4. Query the staging Worker secret-name list and require `HEALTHCHECK_TOKEN`,
+   `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and `GEMINI_API_KEY` (names only; fail closed)
+5. Staging database dry-run + apply pending migrations (`supabase db push`)
+6. `pnpm cf:build`
+7. `wrangler deploy --env staging` with `RELEASE_SHA`, Supabase, and validated `MODEL_*` values
+   passed as `--var` (without `--keep-vars`)
+8. Resolve URL with `node scripts/wrangler-output.mjs deployment-url`
+9. `DEPLOYMENT_URL=... HEALTHCHECK_TOKEN=... GITHUB_SHA=... pnpm test:cf-deployment`
 
 Database migration must succeed before the Worker deploy for the same commit. Never run `supabase/seed.sql` against staging.
 Staging secrets are mandatory; the job does not skip migration and deploy the Worker alone.
+
+The current staging route is Gemini `gemini-2.5-flash-lite` (100000 input / 400000 output micros
+per million tokens), falling back to OpenAI `gpt-5-nano` (50000 input / 400000 output micros per
+million tokens), with no reviewer, a 30000 ms total deadline, a 12000 ms attempt timeout, and a
+4096-token output cap. The model operator owns these values in the GitHub Environment variables
+listed in [the environment contract](../development/environment-contract.md). Official references:
+[Gemini model](https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash-lite),
+[Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing),
+[GPT-5 nano](https://developers.openai.com/api/docs/models/gpt-5-nano), and
+[OpenAI pricing](https://openai.com/api/pricing/).
+
+Wrangler's default behavior (because `--keep-vars` is intentionally omitted) deletes previous
+dashboard variables before applying the config and this release's `--var MODEL_*` values. Dashboard
+edits are therefore overwritten at the next staging deploy; they are not persistent route state.
+Cloudflare secrets are additive and are not deleted by deploys, so rotate provider keys explicitly.
+The workflow never receives or logs provider key values, and production remains unchanged.
 
 All remote smoke commands **require** `GITHUB_SHA` (the exact expected 40-character release identity).
 

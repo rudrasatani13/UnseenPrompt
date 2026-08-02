@@ -154,9 +154,53 @@ route-specific micros-per-million-token rates in protected environment settings 
 pricing or the selected model changes; historical estimates are not rewritten. A missing or stale
 rate must be handled as an operator configuration issue, never by trusting a caller-supplied rate.
 
+### Persistent staging route
+
+The protected GitHub Environment named `staging` is the operator-owned source of truth for the
+non-secret route settings below. The release workflow validates every value and passes the
+validated `MODEL_*` names to Wrangler on every staging deploy. Keep the `STAGING_` prefix on these
+GitHub variable names; it prevents accidentally reading a repository-level or production value.
+
+| GitHub Environment variable                                    | Current value           | Runtime variable                                       |
+| -------------------------------------------------------------- | ----------------------- | ------------------------------------------------------ |
+| `STAGING_MODEL_PRIMARY_PROVIDER`                               | `gemini`                | `MODEL_PRIMARY_PROVIDER`                               |
+| `STAGING_MODEL_PRIMARY_MODEL`                                  | `gemini-2.5-flash-lite` | `MODEL_PRIMARY_MODEL`                                  |
+| `STAGING_MODEL_PRIMARY_INPUT_COST_MICROS_PER_MILLION_TOKENS`   | `100000`                | `MODEL_PRIMARY_INPUT_COST_MICROS_PER_MILLION_TOKENS`   |
+| `STAGING_MODEL_PRIMARY_OUTPUT_COST_MICROS_PER_MILLION_TOKENS`  | `400000`                | `MODEL_PRIMARY_OUTPUT_COST_MICROS_PER_MILLION_TOKENS`  |
+| `STAGING_MODEL_FALLBACK_PROVIDER`                              | `openai`                | `MODEL_FALLBACK_PROVIDER`                              |
+| `STAGING_MODEL_FALLBACK_MODEL`                                 | `gpt-5-nano`            | `MODEL_FALLBACK_MODEL`                                 |
+| `STAGING_MODEL_FALLBACK_INPUT_COST_MICROS_PER_MILLION_TOKENS`  | `50000`                 | `MODEL_FALLBACK_INPUT_COST_MICROS_PER_MILLION_TOKENS`  |
+| `STAGING_MODEL_FALLBACK_OUTPUT_COST_MICROS_PER_MILLION_TOKENS` | `400000`                | `MODEL_FALLBACK_OUTPUT_COST_MICROS_PER_MILLION_TOKENS` |
+| `STAGING_MODEL_TOTAL_DEADLINE_MS`                              | `30000`                 | `MODEL_TOTAL_DEADLINE_MS`                              |
+| `STAGING_MODEL_ATTEMPT_TIMEOUT_MS`                             | `12000`                 | `MODEL_ATTEMPT_TIMEOUT_MS`                             |
+| `STAGING_MODEL_MAX_OUTPUT_TOKENS`                              | `4096`                  | `MODEL_MAX_OUTPUT_TOKENS`                              |
+
+The reviewer group is intentionally absent in staging: do not create any
+`STAGING_MODEL_REVIEWER_*` variables. The selected model and rates are operator estimates tied to
+the [Gemini 2.5 Flash-Lite model](https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash-lite),
+[Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing),
+[GPT-5 nano model](https://developers.openai.com/api/docs/models/gpt-5-nano), and
+[OpenAI API pricing](https://openai.com/api/pricing/). Recheck those official sources before
+changing a route; rates in this table are micros per one million tokens, not billing authority.
+
+Provider keys are never GitHub variables or GitHub secrets and are never passed as `--var` values.
+The staging Worker must instead have `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and `GEMINI_API_KEY`
+uploaded as Cloudflare secrets. The release workflow uses the Cloudflare API to list secret names
+before any staging migration or deploy and fails closed unless all three names (plus
+`HEALTHCHECK_TOKEN`) are present; it never reads or prints secret values. `wrangler.jsonc` also
+marks all three as required for staging, which keeps generated Worker types and local Wrangler
+configuration aligned. Production has its own unchanged secret contract and does not receive these
+Phase 5 keys.
+
+The staging deploy intentionally omits Wrangler's `--keep-vars`. Wrangler therefore deletes prior
+dashboard variables before applying the configuration and the `--var MODEL_*` values from the
+current protected GitHub Environment. Dashboard edits are not a second source of truth: they are
+overwritten on the next deploy. Secrets are not deleted by deploys, so rotate or remove provider
+keys explicitly with the Cloudflare dashboard/CLI and keep them out of logs.
+
 The committed `.env.example` contains only commented non-secret route examples; it never contains
 provider-key names or values. `.dev.vars.example` may show commented secret placeholders solely to
 document the local secret shape. For local or test execution, copy the route shape into the ignored
 `.env.local` or `.dev.vars` file and use synthetic credentials supplied through the local secret
-mechanism. Never place a real provider key in either committed template, and never configure
-production-shaped credentials for preview or staging while Phase 5 remains infrastructure-only.
+mechanism. Never place a real provider key in either committed template, and never reuse production
+credentials for preview or staging.
