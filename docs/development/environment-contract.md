@@ -114,3 +114,49 @@ SMTP for staging and production.
 
 The waitlist variables above are unchanged: `SUPABASE_URL` and `SUPABASE_SECRET_KEY` remain
 server-only production waitlist credentials and are never exposed as public client keys.
+
+## Phase 5 typed model gateway
+
+Model gateway configuration is server-only and is read exclusively by
+`src/config/model/server.ts`. Provider credentials are operator-owned protected secrets. They must
+never use a `NEXT_PUBLIC_` name, appear in `.env.example`, enter client bundles, or be written to
+logs, fixtures, snapshots, or deployment artifacts.
+
+| Name                                                   | Visibility | Contract                                                                    | Owner          |
+| ------------------------------------------------------ | ---------- | --------------------------------------------------------------------------- | -------------- |
+| `ANTHROPIC_API_KEY`                                    | Secret     | Required when an Anthropic route is referenced; unused keys may be omitted  | Model operator |
+| `OPENAI_API_KEY`                                       | Secret     | Required when an OpenAI route is referenced; unused keys may be omitted     | Model operator |
+| `GEMINI_API_KEY`                                       | Secret     | Required when a Gemini route is referenced; unused keys may be omitted      | Model operator |
+| `MODEL_PRIMARY_PROVIDER`                               | Server     | `anthropic`, `openai`, or `gemini`                                          | Model operator |
+| `MODEL_PRIMARY_MODEL`                                  | Server     | 1–160 characters: letters, digits, `.`, `_`, `:`, `/`, or `-`               | Model operator |
+| `MODEL_PRIMARY_INPUT_COST_MICROS_PER_MILLION_TOKENS`   | Server     | Nonnegative integer, at most `1_000_000_000_000`                            | Model operator |
+| `MODEL_PRIMARY_OUTPUT_COST_MICROS_PER_MILLION_TOKENS`  | Server     | Nonnegative integer, at most `1_000_000_000_000`                            | Model operator |
+| `MODEL_FALLBACK_PROVIDER`                              | Server     | Required and must differ from `MODEL_PRIMARY_PROVIDER`                      | Model operator |
+| `MODEL_FALLBACK_MODEL`                                 | Server     | Same bounded identifier contract as the primary model                       | Model operator |
+| `MODEL_FALLBACK_INPUT_COST_MICROS_PER_MILLION_TOKENS`  | Server     | Nonnegative integer, at most `1_000_000_000_000`                            | Model operator |
+| `MODEL_FALLBACK_OUTPUT_COST_MICROS_PER_MILLION_TOKENS` | Server     | Nonnegative integer, at most `1_000_000_000_000`                            | Model operator |
+| `MODEL_REVIEWER_PROVIDER`                              | Server     | Optional; reviewer fields must be configured as one complete group          | Model operator |
+| `MODEL_REVIEWER_MODEL`                                 | Server     | Optional; required with the reviewer provider and both rates                | Model operator |
+| `MODEL_REVIEWER_INPUT_COST_MICROS_PER_MILLION_TOKENS`  | Server     | Optional; nonnegative integer when reviewer is enabled                      | Model operator |
+| `MODEL_REVIEWER_OUTPUT_COST_MICROS_PER_MILLION_TOKENS` | Server     | Optional; nonnegative integer when reviewer is enabled                      | Model operator |
+| `MODEL_TOTAL_DEADLINE_MS`                              | Server     | Integer `1_000`–`120_000`; default `30_000`                                 | Model operator |
+| `MODEL_ATTEMPT_TIMEOUT_MS`                             | Server     | Integer `500`–`60_000`, never greater than total deadline; default `12_000` | Model operator |
+| `MODEL_MAX_OUTPUT_TOKENS`                              | Server     | Integer `64`–`65_536`; default `4_096`                                      | Model operator |
+
+The parser is strict and rejects unknown model settings. Callers cannot configure execution
+budgets: production calls are capped at three, with one transport retry, one structured repair,
+one fallback entry, and one reviewer call (four provider calls absolute when the reviewer is
+enabled). These limits are code-owned invariants.
+
+Rates are estimates used for safe generation metadata, not billing authority. Model catalogs and
+provider prices drift independently of this repository. The model operator must update the
+route-specific micros-per-million-token rates in protected environment settings when provider
+pricing or the selected model changes; historical estimates are not rewritten. A missing or stale
+rate must be handled as an operator configuration issue, never by trusting a caller-supplied rate.
+
+The committed `.env.example` contains only commented non-secret route examples; it never contains
+provider-key names or values. `.dev.vars.example` may show commented secret placeholders solely to
+document the local secret shape. For local or test execution, copy the route shape into the ignored
+`.env.local` or `.dev.vars` file and use synthetic credentials supplied through the local secret
+mechanism. Never place a real provider key in either committed template, and never configure
+production-shaped credentials for preview or staging while Phase 5 remains infrastructure-only.

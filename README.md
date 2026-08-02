@@ -1,6 +1,6 @@
 # UnseenPrompt
 
-**Status:** Phase 4 code complete — CI database and hosted-auth verification pending
+**Status:** Phase 5 implementation and generated types complete — isolated DB CI and live-provider operator verification pending
 
 **Primary domain:** `https://unseenprompt.com` (Cloudflare Worker Custom Domain)
 
@@ -17,6 +17,10 @@ Phase 4 adds Google OAuth and magic-link clients for non-production environments
 server-side session enforcement, explicit profile/preferences memory, project-local overrides,
 deletion requests, and owner-filtered structured export preparation. Production continues to serve
 only the coming-soon waitlist.
+
+Phase 5 adds a server-only, provider-neutral model gateway with nine versioned output schemas,
+Anthropic/OpenAI/Gemini adapters, runtime validation, one bounded repair, fallback/reviewer limits,
+and safe execution metadata. Production gating and waitlist behavior are unchanged.
 
 ## Prerequisites
 
@@ -117,7 +121,8 @@ pnpm test:unit -- src/config/env/schema.test.ts
 | Production traffic                                | Live on `unseenprompt.com` and `www`           |
 
 Operator procedures: [docs/deployment/cloudflare-runbook.md](docs/deployment/cloudflare-runbook.md).
-Execution plan: [docs/architecture/phase-4-authentication-profile-memory-execution-plan.md](docs/architecture/phase-4-authentication-profile-memory-execution-plan.md).
+Execution plans: [docs/architecture/phase-4-authentication-profile-memory-execution-plan.md](docs/architecture/phase-4-authentication-profile-memory-execution-plan.md) and
+[docs/architecture/phase-5-typed-model-gateway-execution-plan.md](docs/architecture/phase-5-typed-model-gateway-execution-plan.md).
 
 ## Documentation
 
@@ -129,6 +134,7 @@ Execution plan: [docs/architecture/phase-4-authentication-profile-memory-executi
 | [docs/architecture/phase-1-cloudflare-topology.md](docs/architecture/phase-1-cloudflare-topology.md)                                                   | Phase 1 Workers topology        |
 | [docs/architecture/phase-3-supabase-data-platform-execution-plan.md](docs/architecture/phase-3-supabase-data-platform-execution-plan.md)               | Phase 3 agent execution plan    |
 | [docs/architecture/phase-4-authentication-profile-memory-execution-plan.md](docs/architecture/phase-4-authentication-profile-memory-execution-plan.md) | Phase 4 agent execution plan    |
+| [docs/architecture/phase-5-typed-model-gateway-execution-plan.md](docs/architecture/phase-5-typed-model-gateway-execution-plan.md)                     | Phase 5 execution plan          |
 | [docs/deployment/cloudflare-runbook.md](docs/deployment/cloudflare-runbook.md)                                                                         | Deploy, smoke, rollback         |
 | [docs/conventions/naming.md](docs/conventions/naming.md)                                                                                               | Naming conventions              |
 | [docs/development/environment-contract.md](docs/development/environment-contract.md)                                                                   | Environment variable contract   |

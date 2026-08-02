@@ -1,6 +1,8 @@
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 
 import { ESLint } from "eslint";
+import * as ts from "typescript";
 import { describe, expect, it } from "vitest";
 
 const eslint = new ESLint({ cwd: process.cwd() });
@@ -19,6 +21,161 @@ async function lintFrom(filePath: string, source: string) {
  * parallel load, so this suite declares the real cost of the operation.
  */
 const eslintBootstrapTimeout = 30_000;
+
+const sourceExtensions = /\.(?:ts|tsx|js|jsx)$/u;
+const textExtensions = /\.(?:ts|tsx|js|jsx|mjs|cjs|json|snap|env|txt|ya?ml)$/u;
+const textBasenames = new Set([".env.example", ".dev.vars.example"]);
+const ignoredDirectories = new Set([
+  ".git",
+  ".next",
+  ".open-next",
+  ".worktrees",
+  ".wrangler",
+  ".superpowers",
+  "node_modules",
+  "dist",
+  "build",
+  "coverage",
+  "playwright-report",
+  "test-results",
+]);
+
+function sourceFilesUnder(relativeRoot: string): readonly string[] {
+  const root = path.join(process.cwd(), relativeRoot);
+  if (!existsSync(root)) return [];
+
+  const files: string[] = [];
+  function walk(directory: string): void {
+    for (const entry of readdirSync(directory)) {
+      const fullPath = path.join(directory, entry);
+      const stats = statSync(fullPath);
+      if (stats.isDirectory()) {
+        walk(fullPath);
+      } else if (sourceExtensions.test(entry)) {
+        files.push(fullPath);
+      }
+    }
+  }
+  walk(root);
+  return files;
+}
+
+function sourceText(filePath: string): string {
+  return readFileSync(filePath, "utf8");
+}
+
+const modelInfrastructureRoot = path.resolve(process.cwd(), "src/lib/model");
+const modelServerConfigModule = path.resolve(process.cwd(), "src/config/model/server");
+const moduleExtensions = /(?:\.d)?\.(?:ts|tsx|js|jsx|mjs|cjs)$/u;
+
+function moduleSpecifiersFromSource(filePath: string, source: string): readonly string[] {
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    source,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const specifiers: string[] = [];
+
+  function addSpecifier(value: ts.Node | undefined): void {
+    if (value !== undefined && ts.isStringLiteralLike(value)) {
+      specifiers.push(value.text);
+    }
+  }
+
+  function visit(node: ts.Node): void {
+    if (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) {
+      addSpecifier(node.moduleSpecifier);
+    } else if (
+      ts.isImportEqualsDeclaration(node) &&
+      ts.isExternalModuleReference(node.moduleReference)
+    ) {
+      addSpecifier(node.moduleReference.expression);
+    } else if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument)) {
+      addSpecifier(node.argument.literal);
+    } else if (
+      ts.isCallExpression(node) &&
+      node.expression.kind === ts.SyntaxKind.ImportKeyword &&
+      node.arguments.length >= 1
+    ) {
+      addSpecifier(node.arguments[0]);
+    }
+
+    ts.forEachChild(node, visit);
+  }
+
+  visit(sourceFile);
+  return specifiers;
+}
+
+function withoutModuleExtension(filePath: string): string {
+  return filePath.replace(moduleExtensions, "");
+}
+
+function isWithinPath(candidate: string, root: string): boolean {
+  const relative = path.relative(root, candidate);
+  return (
+    relative === "" ||
+    (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
+  );
+}
+
+function resolvedModuleTarget(importerPath: string, specifier: string): string | null {
+  if (specifier.startsWith("@/")) {
+    return path.resolve(process.cwd(), "src", specifier.slice(2));
+  }
+  if (specifier.startsWith(".")) {
+    return path.resolve(path.dirname(importerPath), specifier);
+  }
+  return null;
+}
+
+function isForbiddenServerModelSpecifier(importerPath: string, specifier: string): boolean {
+  const target = resolvedModuleTarget(importerPath, specifier);
+  if (target === null) return false;
+
+  const normalizedTarget = withoutModuleExtension(path.normalize(target));
+  return (
+    isWithinPath(normalizedTarget, modelInfrastructureRoot) ||
+    normalizedTarget === modelServerConfigModule
+  );
+}
+
+function forbiddenServerModelSpecifiers(filePath: string, source: string): readonly string[] {
+  const absoluteFilePath = path.resolve(filePath);
+  return moduleSpecifiersFromSource(absoluteFilePath, source).filter((specifier) =>
+    isForbiddenServerModelSpecifier(absoluteFilePath, specifier),
+  );
+}
+
+function textFilesUnder(relativeRoot: string): readonly string[] {
+  const root = path.join(process.cwd(), relativeRoot);
+  if (!existsSync(root)) return [];
+
+  const files: string[] = [];
+  function walk(directory: string): void {
+    for (const entry of readdirSync(directory)) {
+      if (ignoredDirectories.has(entry)) continue;
+      const fullPath = path.join(directory, entry);
+      const stats = statSync(fullPath);
+      if (stats.isDirectory()) {
+        walk(fullPath);
+      } else if (textExtensions.test(entry) || textBasenames.has(entry)) {
+        files.push(fullPath);
+      }
+    }
+  }
+  walk(root);
+  return files;
+}
+
+function productionModelFiles(): readonly string[] {
+  return [
+    ...sourceFilesUnder("src/config/model").filter((filePath) => !filePath.endsWith(".test.ts")),
+    ...sourceFilesUnder("src/lib/model").filter((filePath) => !filePath.endsWith(".test.ts")),
+  ];
+}
 
 describe("architectural import boundaries", () => {
   it(
@@ -95,5 +252,106 @@ describe("architectural import boundaries", () => {
     }
 
     expect(offenders).toEqual([]);
+  });
+
+  it("marks model config, gateway infrastructure, adapters, and store as server-only", () => {
+    const requiredServerOnly = [
+      path.join(process.cwd(), "src/config/model/server.ts"),
+      ...sourceFilesUnder("src/lib/model").filter((filePath) => !filePath.endsWith(".test.ts")),
+    ];
+
+    const offenders = requiredServerOnly.filter(
+      (filePath) => !/^import ["']server-only["'];/u.test(sourceText(filePath)),
+    );
+    expect(offenders).toEqual([]);
+  });
+
+  it("keeps provider infrastructure out of the domain layer", () => {
+    const forbiddenDomainImport =
+      /(?:@\/lib\/model|@\/config\/model\/server|server-only|api\.anthropic\.com|api\.openai\.com|generativelanguage\.googleapis\.com|\b(?:anthropic|openai|gemini)\b)/iu;
+    const offenders = sourceFilesUnder("src/domain")
+      .filter((filePath) => !filePath.endsWith(".test.ts"))
+      .filter((filePath) => forbiddenDomainImport.test(sourceText(filePath)));
+
+    expect(offenders).toEqual([]);
+  });
+
+  it("detects alias and relative server model imports in every supported module form", () => {
+    const fixturePath = path.join(process.cwd(), "src/app/client-boundary-fixture.ts");
+    const offenders = forbiddenServerModelSpecifiers(
+      fixturePath,
+      [
+        'import "@/lib/model/gateway";',
+        'export * from "../lib/model/provider";',
+        'import "../lib/model/http";',
+        'const load = () => import("../lib/model/cost");',
+        'import type { ModelEnvironment } from "@/config/model/server";',
+        'export { getServerModelEnvironment } from "../config/model/server";',
+      ].join("\n"),
+    );
+
+    expect(offenders).toEqual([
+      "@/lib/model/gateway",
+      "../lib/model/provider",
+      "../lib/model/http",
+      "../lib/model/cost",
+      "@/config/model/server",
+      "../config/model/server",
+    ]);
+  });
+
+  it("prevents public/client modules from importing server model code", () => {
+    const offenders = ["src/app", "src/components", "src/features"]
+      .flatMap((root) => sourceFilesUnder(root))
+      .filter((filePath) => !filePath.includes(`${path.sep}api${path.sep}`))
+      .flatMap((filePath) =>
+        forbiddenServerModelSpecifiers(filePath, sourceText(filePath)).map(
+          (specifier) => `${filePath}: ${specifier}`,
+        ),
+      );
+
+    expect(offenders).toEqual([]);
+  });
+
+  it("keeps provider secrets out of public/client source, fixtures, and snapshots", () => {
+    const publicNamePattern = /\bNEXT_PUBLIC_(?:ANTHROPIC|OPENAI|GEMINI)[A-Z0-9_]*/u;
+    const keyValuePattern =
+      /\b(?:ANTHROPIC|OPENAI|GEMINI)_API_KEY\s*=\s*(?!replace-with-local-secret\b)[^\s#]+/u;
+    const keyShapePattern =
+      /(?:sk-ant-api\d{2}-[A-Za-z0-9_-]{20,}|sk-(?:proj|live|admin)-[A-Za-z0-9_-]{20,}|AIzaSy[A-Za-z0-9_-]{30,})/u;
+    const offenders = textFilesUnder(".").filter((filePath) => {
+      const source = sourceText(filePath);
+      return (
+        publicNamePattern.test(source) ||
+        keyValuePattern.test(source) ||
+        keyShapePattern.test(source)
+      );
+    });
+
+    expect(offenders).toEqual([]);
+  });
+
+  it("has no console/log calls in Phase 5 production server modules", () => {
+    const logPattern = /\bconsole\.(?:log|warn|error|info|debug|trace)\s*\(/u;
+    const offenders = productionModelFiles().filter((filePath) =>
+      logPattern.test(sourceText(filePath)),
+    );
+
+    expect(offenders).toEqual([]);
+  });
+
+  it("uses fixed provider origins that are not key- or content-derived", () => {
+    const endpointSources = [
+      ["src/lib/model/providers/anthropic.ts", "https://api.anthropic.com/v1/messages"],
+      ["src/lib/model/providers/openai.ts", "https://api.openai.com/v1/responses"],
+      ["src/lib/model/providers/gemini.ts", "https://generativelanguage.googleapis.com"],
+    ] as const;
+    const derivedUrlPattern = /https?:[^\n]*\$\{[^}]*\b(?:apiKey|input|systemInstruction)\b/u;
+
+    for (const [relativePath, endpoint] of endpointSources) {
+      const source = sourceText(path.join(process.cwd(), relativePath));
+      expect(source).toContain(endpoint);
+      expect(source).not.toMatch(derivedUrlPattern);
+    }
   });
 });

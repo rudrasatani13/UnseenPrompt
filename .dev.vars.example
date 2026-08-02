@@ -2,6 +2,23 @@
 HEALTHCHECK_TOKEN=replace-with-at-least-32-random-bytes
 MAINTENANCE_MODE=off
 
+# Phase 5 model gateway: safe local route examples. Keep credentials in the ignored `.dev.vars`
+# file and replace the commented placeholders with local/test-only values.
+# MODEL_PRIMARY_PROVIDER=anthropic
+# MODEL_PRIMARY_MODEL=claude-test-1
+# MODEL_PRIMARY_INPUT_COST_MICROS_PER_MILLION_TOKENS=0
+# MODEL_PRIMARY_OUTPUT_COST_MICROS_PER_MILLION_TOKENS=0
+# MODEL_FALLBACK_PROVIDER=openai
+# MODEL_FALLBACK_MODEL=gpt-test-1
+# MODEL_FALLBACK_INPUT_COST_MICROS_PER_MILLION_TOKENS=0
+# MODEL_FALLBACK_OUTPUT_COST_MICROS_PER_MILLION_TOKENS=0
+# MODEL_TOTAL_DEADLINE_MS=30000
+# MODEL_ATTEMPT_TIMEOUT_MS=12000
+# MODEL_MAX_OUTPUT_TOKENS=4096
+# ANTHROPIC_API_KEY=replace-with-local-secret
+# OPENAI_API_KEY=replace-with-local-secret
+# GEMINI_API_KEY=replace-with-local-secret
+
 # Production waitlist secrets only (never for preview/staging). Fake values:
 # TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
 # SUPABASE_SECRET_KEY=sb_secret_local_test_value_000000000000
