@@ -71,15 +71,21 @@ Automatic after **Continuous Integration succeeds** for a push to `main` (`workf
 Database migration must succeed before the Worker deploy for the same commit. Never run `supabase/seed.sql` against staging.
 Staging secrets are mandatory; the job does not skip migration and deploy the Worker alone.
 
-The current staging route is Gemini `gemini-2.5-flash-lite` (100000 input / 400000 output micros
+The current staging route is Gemini `gemini-3.1-flash-lite` (250000 input / 1500000 output micros
 per million tokens), falling back to OpenAI `gpt-5-nano` (50000 input / 400000 output micros per
 million tokens), with no reviewer, a 30000 ms total deadline, a 12000 ms attempt timeout, and a
 4096-token output cap. The model operator owns these values in the GitHub Environment variables
 listed in [the environment contract](../development/environment-contract.md). Official references:
-[Gemini model](https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash-lite),
+[Gemini model](https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite),
 [Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing),
 [GPT-5 nano](https://developers.openai.com/api/docs/models/gpt-5-nano), and
 [OpenAI pricing](https://openai.com/api/pricing/).
+
+This Gemini replacement is evidence-based, not an alias or preview migration. The former
+`gemini-2.5-flash-lite` route returned HTTP 200 for metadata but HTTP 404 for `generateContent`
+with the operator key. An exact structured synthetic call to stable `gemini-3.1-flash-lite`
+returned HTTP 200 with a valid schema response (24 input tokens and 5 output tokens); the operator
+probe is pinned to that stable model.
 
 Wrangler's default behavior (because `--keep-vars` is intentionally omitted) deletes previous
 dashboard variables before applying the config and this release's `--var MODEL_*` values. Dashboard

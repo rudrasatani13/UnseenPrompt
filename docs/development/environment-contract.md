@@ -164,9 +164,9 @@ GitHub variable names; it prevents accidentally reading a repository-level or pr
 | GitHub Environment variable                                    | Current value           | Runtime variable                                       |
 | -------------------------------------------------------------- | ----------------------- | ------------------------------------------------------ |
 | `STAGING_MODEL_PRIMARY_PROVIDER`                               | `gemini`                | `MODEL_PRIMARY_PROVIDER`                               |
-| `STAGING_MODEL_PRIMARY_MODEL`                                  | `gemini-2.5-flash-lite` | `MODEL_PRIMARY_MODEL`                                  |
-| `STAGING_MODEL_PRIMARY_INPUT_COST_MICROS_PER_MILLION_TOKENS`   | `100000`                | `MODEL_PRIMARY_INPUT_COST_MICROS_PER_MILLION_TOKENS`   |
-| `STAGING_MODEL_PRIMARY_OUTPUT_COST_MICROS_PER_MILLION_TOKENS`  | `400000`                | `MODEL_PRIMARY_OUTPUT_COST_MICROS_PER_MILLION_TOKENS`  |
+| `STAGING_MODEL_PRIMARY_MODEL`                                  | `gemini-3.1-flash-lite` | `MODEL_PRIMARY_MODEL`                                  |
+| `STAGING_MODEL_PRIMARY_INPUT_COST_MICROS_PER_MILLION_TOKENS`   | `250000`                | `MODEL_PRIMARY_INPUT_COST_MICROS_PER_MILLION_TOKENS`   |
+| `STAGING_MODEL_PRIMARY_OUTPUT_COST_MICROS_PER_MILLION_TOKENS`  | `1500000`               | `MODEL_PRIMARY_OUTPUT_COST_MICROS_PER_MILLION_TOKENS`  |
 | `STAGING_MODEL_FALLBACK_PROVIDER`                              | `openai`                | `MODEL_FALLBACK_PROVIDER`                              |
 | `STAGING_MODEL_FALLBACK_MODEL`                                 | `gpt-5-nano`            | `MODEL_FALLBACK_MODEL`                                 |
 | `STAGING_MODEL_FALLBACK_INPUT_COST_MICROS_PER_MILLION_TOKENS`  | `50000`                 | `MODEL_FALLBACK_INPUT_COST_MICROS_PER_MILLION_TOKENS`  |
@@ -177,11 +177,17 @@ GitHub variable names; it prevents accidentally reading a repository-level or pr
 
 The reviewer group is intentionally absent in staging: do not create any
 `STAGING_MODEL_REVIEWER_*` variables. The selected model and rates are operator estimates tied to
-the [Gemini 2.5 Flash-Lite model](https://ai.google.dev/gemini-api/docs/models/gemini-2.5-flash-lite),
+the stable [Gemini 3.1 Flash-Lite model](https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite),
 [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing),
 [GPT-5 nano model](https://developers.openai.com/api/docs/models/gpt-5-nano), and
 [OpenAI API pricing](https://openai.com/api/pricing/). Recheck those official sources before
 changing a route; rates in this table are micros per one million tokens, not billing authority.
+
+The Gemini route is an evidence-based replacement, not an alias or preview migration. The prior
+`gemini-2.5-flash-lite` probe returned HTTP 200 for model metadata but HTTP 404 for `generateContent`
+with the operator key. An exact structured synthetic call to stable `gemini-3.1-flash-lite` returned
+HTTP 200 with a valid schema response (24 input tokens and 5 output tokens), so the route and the
+operator probe use the stable model explicitly.
 
 Provider keys are never GitHub variables or GitHub secrets and are never passed as `--var` values.
 The staging Worker must instead have `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and `GEMINI_API_KEY`

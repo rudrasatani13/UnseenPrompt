@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { GEMINI_LIVE_PROVIDER_MODEL } from "./live-provider-contract";
 import {
   formatLiveProviderUsage,
   isExactLiveProviderCandidate,
@@ -45,6 +46,10 @@ describe("operator live provider contract helpers", () => {
     expect(
       formatLiveProviderUsage({ inputTokens: null, outputTokens: Number.NaN, totalTokens: -1 }),
     ).toBe("input_tokens=unknown output_tokens=unknown total_tokens=unknown");
+  });
+
+  it("pins the Gemini probe to the evidence-backed stable model", () => {
+    expect(GEMINI_LIVE_PROVIDER_MODEL).toBe("gemini-3.1-flash-lite");
   });
 
   it("reaches the missing-key gate without making a provider request", () => {

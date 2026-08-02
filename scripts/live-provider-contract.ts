@@ -24,11 +24,14 @@ interface LiveProviderSpec {
   readonly createAdapter: (apiKey: string) => ProviderAdapter;
 }
 
+/** Stable Gemini model validated by the operator's exact structured probe. */
+export const GEMINI_LIVE_PROVIDER_MODEL = "gemini-3.1-flash-lite";
+
 const LIVE_PROVIDER_SPECS: readonly LiveProviderSpec[] = [
   {
     name: "gemini",
     keyName: "GEMINI_API_KEY",
-    model: "gemini-2.5-flash-lite",
+    model: GEMINI_LIVE_PROVIDER_MODEL,
     createAdapter: (apiKey) => createGeminiAdapter({ apiKey }),
   },
   {

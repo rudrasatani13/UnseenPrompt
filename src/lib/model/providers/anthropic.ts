@@ -12,7 +12,11 @@ import {
   mapProviderTransportError,
   ModelGatewayError,
 } from "@/lib/model/errors";
-import { BoundedResponseError, readBoundedJsonResponse } from "@/lib/model/http";
+import {
+  BoundedResponseError,
+  MAX_RESPONSE_BYTES,
+  readBoundedJsonResponse,
+} from "@/lib/model/http";
 import type {
   ProviderAdapter,
   ProviderAdapterRequest,
@@ -56,6 +60,28 @@ const anthropicMessageSchema = z
     usage: anthropicUsageSchema.optional(),
   })
   .passthrough();
+
+const MAX_ANTHROPIC_ERROR_FIELD_LENGTH = 1_024;
+const anthropicErrorFieldSchema = z.string().max(MAX_ANTHROPIC_ERROR_FIELD_LENGTH);
+const anthropicErrorEnvelopeSchema = z
+  .object({
+    type: z.literal("error"),
+    error: z
+      .object({
+        type: z.literal("invalid_request_error"),
+        message: anthropicErrorFieldSchema,
+      })
+      .passthrough(),
+  })
+  .passthrough();
+
+/**
+ * Anthropic reports exhausted prepaid credits as one exact 400 invalid-request message. Keep the
+ * optional documented follow-up sentence explicit so arbitrary prefixes, suffixes, or rewrites do
+ * not become billing errors.
+ */
+const ANTHROPIC_CREDIT_BALANCE_MESSAGE_PATTERN =
+  /^Your credit balance is too low to access the (?:Anthropic|Claude) API\.(?: Please go to Plans & Billing to upgrade or purchase credits\.)?$/;
 
 export interface AnthropicAdapterOptions {
   /** The server-only key is sent in a header and is never included in a URL or error. */
@@ -168,6 +194,28 @@ function parseResponseBody(
   return parsed.data;
 }
 
+function errorMessageIndicatesBillingExhaustion(value: unknown): boolean {
+  const parsed = anthropicErrorEnvelopeSchema.safeParse(value);
+  if (!parsed.success) return false;
+
+  return ANTHROPIC_CREDIT_BALANCE_MESSAGE_PATTERN.test(parsed.data.error.message);
+}
+
+/** Read only a bounded 400 body for Anthropic's credit-balance diagnostic. */
+async function classifyAnthropicBadRequest(
+  response: Response,
+): Promise<"billing_or_quota_exhausted" | "aborted" | null> {
+  try {
+    const body = await readBoundedJsonResponse(response, MAX_RESPONSE_BYTES);
+    return errorMessageIndicatesBillingExhaustion(body) ? "billing_or_quota_exhausted" : null;
+  } catch (error: unknown) {
+    // A body that is malformed, oversized, or otherwise unreadable remains a generic 400. Preserve
+    // the existing cancellation contract if the bounded reader observes an abort while draining.
+    if (error instanceof BoundedResponseError && error.reason === "aborted") return "aborted";
+    return null;
+  }
+}
+
 function isModelGatewayError(value: unknown): value is ModelGatewayError {
   return value instanceof ModelGatewayError;
 }
@@ -202,6 +250,17 @@ export function createAnthropicAdapter(options: AnthropicAdapterOptions): Provid
       }
 
       if (!response.ok) {
+        if (response.status === 400) {
+          const classification = await classifyAnthropicBadRequest(response);
+          if (classification === "billing_or_quota_exhausted") {
+            throw createModelGatewayError("billing_or_quota_exhausted", request.correlationId, {
+              httpStatus: response.status,
+            });
+          }
+          if (classification === "aborted") {
+            throw createModelGatewayError("aborted", request.correlationId);
+          }
+        }
         throw mapProviderResponseError(response, request.correlationId);
       }
 

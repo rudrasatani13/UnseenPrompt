@@ -126,7 +126,7 @@ describe("Anthropic Messages adapter", () => {
     [504, "provider_unavailable"],
     [529, "provider_unavailable"],
     [418, "provider_error"],
-  ] as const)("maps HTTP %s to %s without reading or exposing the body", async (status, code) => {
+  ] as const)("maps HTTP %s to %s without exposing the body", async (status, code) => {
     const secretBody = "provider-body-secret";
     const { fetch, calls } = makeFetch(jsonResponse({ error: secretBody }, status));
     const adapter = createAnthropicAdapter({ apiKey, fetch });
@@ -138,6 +138,200 @@ describe("Anthropic Messages adapter", () => {
     expect(JSON.stringify(error)).not.toContain(apiKey);
     expect(JSON.stringify(error)).not.toContain(prompt);
     expect(calls()).toBe(1);
+  });
+
+  it.each([
+    "Your credit balance is too low to access the Claude API.",
+    "Your credit balance is too low to access the Anthropic API.",
+    "Your credit balance is too low to access the Claude API. Please go to Plans & Billing to upgrade or purchase credits.",
+  ] as const)("classifies explicit Anthropic billing exhaustion safely", async (message) => {
+    const bodySecret = "ANTHROPIC_BILLING_BODY_SENTINEL";
+    const { fetch, calls } = makeFetch(
+      jsonResponse(
+        {
+          type: "error",
+          error: { type: "invalid_request_error", message, detail: bodySecret },
+        },
+        400,
+      ),
+    );
+
+    const error = await createAnthropicAdapter({ apiKey, fetch })
+      .generate(request())
+      .catch((value: unknown) => value);
+
+    expect(error).toMatchObject({ code: "billing_or_quota_exhausted", httpStatus: 400 });
+    expect(String(error)).not.toContain(bodySecret);
+    expect(JSON.stringify(error)).not.toContain(bodySecret);
+    expect(JSON.stringify(error)).not.toContain(apiKey);
+    expect(JSON.stringify(error)).not.toContain(prompt);
+    expect(calls()).toBe(1);
+  });
+
+  it.each([
+    [
+      "unknown validation",
+      {
+        type: "error",
+        error: {
+          type: "invalid_request_error",
+          message: "The requested max_tokens value is invalid.",
+        },
+      },
+    ],
+    [
+      "root message only",
+      {
+        type: "error",
+        message: "Your credit balance is too low to access the Claude API.",
+      },
+    ],
+    [
+      "wrong error type",
+      {
+        type: "error",
+        error: {
+          type: "authentication_error",
+          message: "Your credit balance is too low to access the Claude API.",
+        },
+      },
+    ],
+    [
+      "wrong root type",
+      {
+        type: "invalid_request_error",
+        error: {
+          type: "invalid_request_error",
+          message: "Your credit balance is too low to access the Claude API.",
+        },
+      },
+    ],
+    [
+      "embedded prompt phrase",
+      {
+        type: "error",
+        error: {
+          type: "invalid_request_error",
+          message: 'Echoed prompt: "Your credit balance is too low to access the Claude API."',
+        },
+      },
+    ],
+    [
+      "prefix trick",
+      {
+        type: "error",
+        error: {
+          type: "invalid_request_error",
+          message: "Notice: Your credit balance is too low to access the Claude API.",
+        },
+      },
+    ],
+    [
+      "suffix trick",
+      {
+        type: "error",
+        error: {
+          type: "invalid_request_error",
+          message: "Your credit balance is too low to access the Claude API. Unexpected.",
+        },
+      },
+    ],
+    [
+      "billing validation",
+      {
+        type: "error",
+        error: { type: "invalid_request_error", message: "Billing address is required." },
+      },
+    ],
+    [
+      "payment validation",
+      {
+        type: "error",
+        error: { type: "invalid_request_error", message: "Payment method is invalid." },
+      },
+    ],
+    [
+      "quota validation",
+      {
+        type: "error",
+        error: { type: "invalid_request_error", message: "Quota parameter is invalid." },
+      },
+    ],
+    [
+      "wording change",
+      {
+        type: "error",
+        error: {
+          type: "invalid_request_error",
+          message: "Your credit balance is low to access the Claude API.",
+        },
+      },
+    ],
+  ] as const)("keeps Anthropic 400 %s generic", async (_label, envelope) => {
+    const unknownSecret = "ANTHROPIC_UNKNOWN_400_SENTINEL";
+    const unknown = await createAnthropicAdapter({
+      apiKey,
+      fetch: async () => jsonResponse({ ...envelope, sentinel: unknownSecret }, 400),
+    })
+      .generate(request())
+      .catch((value: unknown) => value);
+    expect(unknown).toMatchObject({ code: "invalid_provider_request", httpStatus: 400 });
+    expect(String(unknown)).not.toContain(unknownSecret);
+    expect(JSON.stringify(unknown)).not.toContain(unknownSecret);
+  });
+
+  it("keeps malformed and oversized Anthropic 400 bodies generic and bounded", async () => {
+    const malformedSecret = "ANTHROPIC_MALFORMED_400_SENTINEL";
+    const malformed = await createAnthropicAdapter({
+      apiKey,
+      fetch: async () => new Response(`{"error":{"message":"${malformedSecret}`, { status: 400 }),
+    })
+      .generate(request())
+      .catch((value: unknown) => value);
+    expect(malformed).toMatchObject({ code: "invalid_provider_request", httpStatus: 400 });
+    expect(String(malformed)).not.toContain(malformedSecret);
+    expect(JSON.stringify(malformed)).not.toContain(malformedSecret);
+
+    const oversizedSecret = "ANTHROPIC_OVERSIZED_400_SENTINEL";
+    const oversized = await createAnthropicAdapter({
+      apiKey,
+      fetch: async () =>
+        new Response(
+          JSON.stringify({
+            type: "error",
+            error: {
+              type: "invalid_request_error",
+              message: `Your credit balance is too low ${oversizedSecret}`,
+            },
+          }) + "x".repeat(MAX_RESPONSE_BYTES),
+          { status: 400 },
+        ),
+    })
+      .generate(request())
+      .catch((value: unknown) => value);
+    expect(oversized).toMatchObject({ code: "invalid_provider_request", httpStatus: 400 });
+    expect(String(oversized)).not.toContain(oversizedSecret);
+    expect(JSON.stringify(oversized)).not.toContain(oversizedSecret);
+  });
+
+  it("preserves cancellation when a bounded Anthropic 400 body read aborts", async () => {
+    const stream = new ReadableStream<Uint8Array>({
+      pull() {
+        return Promise.reject(
+          Object.assign(new Error("ANTHROPIC_ABORT_BODY_SENTINEL"), { name: "AbortError" }),
+        );
+      },
+    });
+    const error = await createAnthropicAdapter({
+      apiKey,
+      fetch: async () => new Response(stream, { status: 400 }),
+    })
+      .generate(request())
+      .catch((value: unknown) => value);
+
+    expect(error).toMatchObject({ code: "aborted" });
+    expect(String(error)).not.toContain("ANTHROPIC_ABORT_BODY_SENTINEL");
+    expect(JSON.stringify(error)).not.toContain("ANTHROPIC_ABORT_BODY_SENTINEL");
   });
 
   it("maps refusal and explicit max-token truncation before inspecting content", async () => {
