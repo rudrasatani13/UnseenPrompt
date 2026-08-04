@@ -322,8 +322,8 @@ async function executeCommand(
 
 async function lockProject(client: pg.Client, projectId: string): Promise<void> {
   await client.query("begin");
-  await setAuth(client);
   await client.query(`select id from public.projects where id = $1 for update`, [projectId]);
+  await setAuth(client);
 }
 
 async function projectEventSequence(
