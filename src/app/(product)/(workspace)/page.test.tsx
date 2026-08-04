@@ -29,13 +29,13 @@ vi.mock("@/features/waitlist/waitlist-form", () => ({
   WaitlistForm: () => <div data-testid="waitlist-form-stub">Form</div>,
 }));
 
-function environmentFor(appEnv: string) {
+function environmentFor(appEnv: string, maintenance = "off") {
   return {
     APP_ENV: appEnv,
     NEXT_PUBLIC_APP_URL:
       appEnv === "production" ? "https://unseenprompt.com" : "http://127.0.0.1:3000",
     RELEASE_SHA: "test",
-    MAINTENANCE_MODE: "off",
+    MAINTENANCE_MODE: maintenance,
   };
 }
 
@@ -106,5 +106,14 @@ describe("HomePage environment and account gates", () => {
     expect(screen.getByTestId("waitlist-form-stub")).toBeInTheDocument();
     expect(getAuthenticatedContext).not.toHaveBeenCalled();
     expect(await axe(container)).toHaveNoViolations();
+  });
+
+  it("leaves authentication to the maintenance layout while maintenance is on", async () => {
+    getServerEnvironment.mockReturnValue(environmentFor("local", "on"));
+    const { default: HomePage } = await import("./page");
+
+    expect(await HomePage()).toBeNull();
+    expect(getAuthenticatedContext).not.toHaveBeenCalled();
+    expect(createSupabaseAccountRepository).not.toHaveBeenCalled();
   });
 });

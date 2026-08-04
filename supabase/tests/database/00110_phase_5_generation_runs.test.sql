@@ -243,7 +243,7 @@ create temporary table tmp_generation_claim as
 select *
 from public.claim_generation_run(
   '01000000-0000-4000-8000-000000000011', 1,
-  'generation-key-1', repeat('e', 64), 'intent_detection', 'unseenprompt.model-gateway-request.v1', 'unseenprompt.model-output.intent_detection.v1'
+  'generation-key-1', repeat('e', 64), 'risk_flags', 'unseenprompt.model-gateway-request.v1', 'unseenprompt.model-output.risk_flags.v1'
 );
 
 select is((select count(*)::int from tmp_generation_claim), 1, 'first claim returns one bounded row');
@@ -267,14 +267,14 @@ select is(
 select throws_ok(
   $$select * from public.claim_generation_run(
       '01000000-0000-4000-8000-000000000011', 1,
-      'generation-key-1', repeat('f', 64), 'intent_detection', 'unseenprompt.model-gateway-request.v1', 'unseenprompt.model-output.intent_detection.v1'
+      'generation-key-1', repeat('f', 64), 'risk_flags', 'unseenprompt.model-gateway-request.v1', 'unseenprompt.model-output.risk_flags.v1'
     )$$,
   'P0001', 'idempotency_conflict', 'same key with different fingerprint conflicts'
 );
 select throws_ok(
   $$select * from public.claim_generation_run(
       '01000000-0000-4000-8000-000000000011', 1,
-      'generation-key-1', repeat('e', 64), 'intent_detection', 'unseenprompt.model-gateway-request.v1', 'unseenprompt.model-output.intent_detection.v1'
+      'generation-key-1', repeat('e', 64), 'risk_flags', 'unseenprompt.model-gateway-request.v1', 'unseenprompt.model-output.risk_flags.v1'
     )$$,
   'P0001', 'idempotency_in_progress', 'same key while running is rejected'
 );
@@ -443,7 +443,7 @@ select throws_ok(
 select throws_ok(
   $$select * from public.claim_generation_run(
       '01000000-0000-4000-8000-000000000011', 1,
-      'generation-key-1', repeat('e', 64), 'intent_detection', 'unseenprompt.model-gateway-request.v1', 'unseenprompt.model-output.intent_detection.v1'
+      'generation-key-1', repeat('e', 64), 'risk_flags', 'unseenprompt.model-gateway-request.v1', 'unseenprompt.model-output.risk_flags.v1'
     )$$,
   'P0001', 'idempotency_replay_unavailable', 'successful replay is unavailable without output storage'
 );

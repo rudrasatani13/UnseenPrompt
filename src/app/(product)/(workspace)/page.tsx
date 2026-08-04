@@ -26,6 +26,13 @@ export default async function HomePage() {
     return <ComingSoonLanding turnstileSiteKey={siteKey} />;
   }
 
+  // The product layout owns the maintenance presentation. Do not authenticate or redirect from
+  // the page while it is active, otherwise anonymous maintenance visits would be redirected
+  // before the layout can replace the product child.
+  if (environment.MAINTENANCE_MODE === "on") {
+    return null;
+  }
+
   if (!isProductSurfaceEnabled(environment)) {
     redirect("/sign-in?next=%2F");
   }

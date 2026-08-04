@@ -989,7 +989,11 @@ begin
     if not found or v_existing.request_fingerprint is distinct from p_request_fingerprint or v_existing.resource_type is distinct from 'generation_run' or v_existing.project_id is distinct from (case when p_subject_kind='project' then p_subject_id else null end) then raise exception 'idempotency_conflict' using errcode='P0001'; end if;
     if v_existing.status='in_progress' then raise exception 'idempotency_in_progress' using errcode='P0001'; end if;
     if v_existing.status='failed' then
-      select error_code into v_run.error_code from public.generation_runs where id=v_existing.resource_id and idempotency_record_id=v_existing.id;
+      select gr.error_code
+      into v_run.error_code
+      from public.generation_runs gr
+      where gr.id = v_existing.resource_id
+        and gr.idempotency_record_id = v_existing.id;
       if v_run.error_code is not null then raise exception using message=v_run.error_code, errcode='P0001'; end if;
       raise exception 'generation_failed' using errcode='P0001';
     end if;

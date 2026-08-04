@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const runtimeState = vi.hoisted(() => ({
   appEnvironment: "local" as "local" | "production",
+  maintenanceMode: "off" as "off" | "on",
   user: null as User | null,
   refreshedCookie: null as string | null,
 }));
@@ -31,7 +32,7 @@ vi.mock("@/config/env/server", () => ({
     APP_ENV: runtimeState.appEnvironment,
     NEXT_PUBLIC_APP_URL: "https://unseenprompt.com",
     RELEASE_SHA: "test-release",
-    MAINTENANCE_MODE: "off",
+    MAINTENANCE_MODE: runtimeState.maintenanceMode,
   }),
 }));
 
@@ -48,6 +49,7 @@ describe("middleware", () => {
     vi.resetModules();
     createProxySession.mockClear();
     runtimeState.appEnvironment = "local";
+    runtimeState.maintenanceMode = "off";
     runtimeState.user = null;
     runtimeState.refreshedCookie = null;
   });
@@ -109,6 +111,17 @@ describe("middleware", () => {
 
     const { middleware } = await import("./middleware");
     const response = await middleware(requestFor("/profile"));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+    expect(createProxySession).not.toHaveBeenCalled();
+  });
+
+  it("lets the maintenance presentation reach product layouts without session routing", async () => {
+    runtimeState.maintenanceMode = "on";
+
+    const { middleware } = await import("./middleware");
+    const response = await middleware(requestFor("/"));
 
     expect(response.status).toBe(200);
     expect(response.headers.get("location")).toBeNull();
