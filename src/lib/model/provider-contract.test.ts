@@ -203,18 +203,14 @@ const harnesses: readonly ProviderHarness[] = [
       expect(body.model).toBe(model);
       expect(body.messages).toEqual([
         { role: "system", content: systemInstruction },
-        { role: "user", content: input },
+        {
+          role: "user",
+          content: `${input}\n\nRespond with JSON only. Match this exact JSON schema (${outputSchemaName}) and include no extra keys:\n${JSON.stringify(outputSchema)}`,
+        },
       ]);
       expect(body.max_tokens).toBe(request.maxOutputTokens);
       expect(body.store).toBe(false);
-      expect(body.response_format).toEqual({
-        type: "json_schema",
-        json_schema: {
-          name: outputSchemaName,
-          schema: outputSchema,
-          strict: true,
-        },
-      });
+      expect(body.response_format).toEqual({ type: "json_object" });
     },
   },
 ];

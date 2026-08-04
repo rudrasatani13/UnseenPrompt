@@ -189,19 +189,19 @@ export function createOpenCodeAdapter(options: OpenCodeAdapterOptions): Provider
             model: request.model,
             messages: [
               { role: "system", content: request.systemInstruction },
-              { role: "user", content: request.input },
+              {
+                // The OpenCode Go upstream rejects strict json_schema response formats for this
+                // route, so the exact schema travels in the length-delimited user turn and the
+                // gateway still validates (and repairs) the returned JSON against the operation
+                // schema. Never trust this formatting as an enforcement boundary.
+                role: "user",
+                content: `${request.input}\n\nRespond with JSON only. Match this exact JSON schema (${request.outputSchemaName}) and include no extra keys:\n${JSON.stringify(request.outputSchema)}`,
+              },
             ],
             max_tokens: request.maxOutputTokens,
             temperature: 0,
             store: false,
-            response_format: {
-              type: "json_schema",
-              json_schema: {
-                name: request.outputSchemaName,
-                schema: request.outputSchema,
-                strict: true,
-              },
-            },
+            response_format: { type: "json_object" },
           }),
           signal: request.signal,
         });

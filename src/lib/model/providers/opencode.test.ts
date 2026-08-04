@@ -107,19 +107,15 @@ describe("OpenCode Go Chat Completions adapter", () => {
       model: request.model,
       messages: [
         { role: "system", content: systemInstruction },
-        { role: "user", content: input },
+        {
+          role: "user",
+          content: `${input}\n\nRespond with JSON only. Match this exact JSON schema (${request.outputSchemaName}) and include no extra keys:\n${JSON.stringify(outputSchema)}`,
+        },
       ],
       max_tokens: request.maxOutputTokens,
       temperature: 0,
       store: false,
-      response_format: {
-        type: "json_schema",
-        json_schema: {
-          name: request.outputSchemaName,
-          schema: outputSchema,
-          strict: true,
-        },
-      },
+      response_format: { type: "json_object" },
     });
     expect(result).toEqual({
       value: '{"answer":"ok"}',
