@@ -127,6 +127,7 @@ export default defineConfig([
   globalIgnores([
     ".next/**",
     ".open-next/**",
+    ".qoder/**",
     ".worktrees/**",
     "coverage/**",
     "next-env.d.ts",

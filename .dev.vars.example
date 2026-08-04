@@ -18,11 +18,14 @@ MAINTENANCE_MODE=off
 # ANTHROPIC_API_KEY=replace-with-local-secret
 # OPENAI_API_KEY=replace-with-local-secret
 # GEMINI_API_KEY=replace-with-local-secret
+# Optional OpenCode Go subscription key (staging route only); omit when not subscribed.
+# OPENCODE_API_KEY=replace-with-local-secret
 
 # Operator-only live provider contract probe (never CI and never part of `pnpm test:unit`).
 # Keep these credentials only in the ignored `.dev.vars` file. The probe makes exactly one
 # sequential request to each provider with a synthetic closed `{ok:boolean}` schema, fixed models,
-# a 512-token output cap, and a 30-second AbortSignal timeout. It prints provider names and safe
+# a 512-token output cap, and a 30-second AbortSignal timeout. The OpenCode Go spec is optional:
+# it is skipped when `OPENCODE_API_KEY` is absent. It prints provider names and safe
 # usage counts only; missing-key diagnostics print names only.
 # Run manually with: pnpm test:live:providers
 

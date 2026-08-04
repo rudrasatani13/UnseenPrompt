@@ -7,6 +7,7 @@ import type { Database } from "@/lib/supabase/database.types";
 import { createAnthropicAdapter } from "@/lib/model/providers/anthropic";
 import { createGeminiAdapter } from "@/lib/model/providers/gemini";
 import { createOpenAIAdapter } from "@/lib/model/providers/openai";
+import { createOpenCodeAdapter } from "@/lib/model/providers/opencode";
 import { createModelGateway } from "@/lib/model/gateway";
 import {
   createSupabaseGenerationRunStore,
@@ -26,6 +27,7 @@ export function createDiscoveryRuntime(
     anthropic: createAnthropicAdapter({ apiKey: environment.apiKeys.anthropic ?? "" }),
     openai: createOpenAIAdapter({ apiKey: environment.apiKeys.openai ?? "" }),
     gemini: createGeminiAdapter({ apiKey: environment.apiKeys.gemini ?? "" }),
+    opencode: createOpenCodeAdapter({ apiKey: environment.apiKeys.opencode ?? "" }),
   } as const;
   let ownerIdPromise: Promise<string> | undefined;
   const gateway = createModelGateway({

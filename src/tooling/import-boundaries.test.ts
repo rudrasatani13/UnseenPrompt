@@ -281,7 +281,7 @@ describe("architectural import boundaries", () => {
 
   it("keeps provider infrastructure out of the domain layer", () => {
     const forbiddenDomainImport =
-      /(?:@\/lib\/model|@\/config\/model\/server|server-only|api\.anthropic\.com|api\.openai\.com|generativelanguage\.googleapis\.com|\b(?:anthropic|openai|gemini)\b)/iu;
+      /(?:@\/lib\/model|@\/config\/model\/server|server-only|api\.anthropic\.com|api\.openai\.com|generativelanguage\.googleapis\.com|opencode\.ai|\b(?:anthropic|openai|gemini|opencode)\b)/iu;
     const offenders = sourceFilesUnder("src/domain")
       .filter((filePath) => !filePath.endsWith(".test.ts"))
       .filter((filePath) => forbiddenDomainImport.test(sourceText(filePath)));

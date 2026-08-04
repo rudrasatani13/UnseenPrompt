@@ -12,6 +12,7 @@ export function getServerModelEnvironment(): ModelEnvironment {
     ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY,
     OPENAI_API_KEY: process.env.OPENAI_API_KEY,
     GEMINI_API_KEY: process.env.GEMINI_API_KEY,
+    OPENCODE_API_KEY: process.env.OPENCODE_API_KEY,
     MODEL_PRIMARY_PROVIDER: process.env.MODEL_PRIMARY_PROVIDER,
     MODEL_PRIMARY_MODEL: process.env.MODEL_PRIMARY_MODEL,
     MODEL_PRIMARY_INPUT_COST_MICROS_PER_MILLION_TOKENS:

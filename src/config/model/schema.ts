@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 /** Providers supported by the Phase 5 provider-neutral gateway. */
-export const MODEL_PROVIDERS = ["anthropic", "openai", "gemini"] as const;
+export const MODEL_PROVIDERS = ["anthropic", "openai", "gemini", "opencode"] as const;
 
 export type ModelProvider = (typeof MODEL_PROVIDERS)[number];
 
@@ -69,7 +69,8 @@ export interface ModelEnvironment {
  */
 export type ModelEnvironmentInput = Readonly<Record<string, string | undefined>>;
 
-type ModelProviderKeyName = "ANTHROPIC_API_KEY" | "OPENAI_API_KEY" | "GEMINI_API_KEY";
+type ModelProviderKeyName =
+  "ANTHROPIC_API_KEY" | "OPENAI_API_KEY" | "GEMINI_API_KEY" | "OPENCODE_API_KEY";
 
 const modelProviderSchema = z.enum(MODEL_PROVIDERS);
 const modelIdentifierSchema = z
@@ -117,6 +118,7 @@ const modelEnvironmentSchema = z
     ANTHROPIC_API_KEY: providerSecretSchema.optional(),
     OPENAI_API_KEY: providerSecretSchema.optional(),
     GEMINI_API_KEY: providerSecretSchema.optional(),
+    OPENCODE_API_KEY: providerSecretSchema.optional(),
 
     MODEL_PRIMARY_PROVIDER: modelProviderSchema,
     MODEL_PRIMARY_MODEL: modelIdentifierSchema,
@@ -209,6 +211,7 @@ const modelEnvironmentSchema = z
       anthropic: "ANTHROPIC_API_KEY",
       openai: "OPENAI_API_KEY",
       gemini: "GEMINI_API_KEY",
+      opencode: "OPENCODE_API_KEY",
     };
     const referencedProviders = new Set<ModelProvider>([
       values.MODEL_PRIMARY_PROVIDER,
@@ -235,11 +238,17 @@ const providerKeyNames: Record<ModelProvider, ModelProviderKeyName> = {
   anthropic: "ANTHROPIC_API_KEY",
   openai: "OPENAI_API_KEY",
   gemini: "GEMINI_API_KEY",
+  opencode: "OPENCODE_API_KEY",
 };
 
 function isProviderSecretPath(path: readonly PropertyKey[]): boolean {
   const field = path[0];
-  return field === "ANTHROPIC_API_KEY" || field === "OPENAI_API_KEY" || field === "GEMINI_API_KEY";
+  return (
+    field === "ANTHROPIC_API_KEY" ||
+    field === "OPENAI_API_KEY" ||
+    field === "GEMINI_API_KEY" ||
+    field === "OPENCODE_API_KEY"
+  );
 }
 
 /**

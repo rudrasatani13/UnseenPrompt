@@ -104,7 +104,7 @@ const RETRYABLE_CODES = new Set<ModelErrorCode>([
   "rate_limited",
   "provider_unavailable",
 ]);
-const PROVIDER_IDS = new Set<ProviderId>(["anthropic", "openai", "gemini"]);
+const PROVIDER_IDS = new Set<ProviderId>(["anthropic", "openai", "gemini", "opencode"]);
 
 type Clock = () => number;
 type Digest = (input: Uint8Array) => Promise<ArrayBuffer>;

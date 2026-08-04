@@ -4,7 +4,7 @@ import type { ModelUsage } from "@/domain/model/contracts";
 import type { ProviderJsonSchema } from "@/domain/model/json-schema";
 
 /** Provider identifiers are an infrastructure concern and must not enter the domain layer. */
-export const PROVIDER_IDS = ["anthropic", "openai", "gemini"] as const;
+export const PROVIDER_IDS = ["anthropic", "openai", "gemini", "opencode"] as const;
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 
 /** The operator-configured route used by the gateway and its cost estimator. */

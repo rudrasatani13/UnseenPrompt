@@ -1,5 +1,6 @@
 .next
 .open-next
+.qoder
 coverage
 node_modules
 pnpm-lock.yaml

@@ -122,26 +122,27 @@ Model gateway configuration is server-only and is read exclusively by
 never use a `NEXT_PUBLIC_` name, appear in `.env.example`, enter client bundles, or be written to
 logs, fixtures, snapshots, or deployment artifacts.
 
-| Name                                                   | Visibility | Contract                                                                    | Owner          |
-| ------------------------------------------------------ | ---------- | --------------------------------------------------------------------------- | -------------- |
-| `ANTHROPIC_API_KEY`                                    | Secret     | Required when an Anthropic route is referenced; unused keys may be omitted  | Model operator |
-| `OPENAI_API_KEY`                                       | Secret     | Required when an OpenAI route is referenced; unused keys may be omitted     | Model operator |
-| `GEMINI_API_KEY`                                       | Secret     | Required when a Gemini route is referenced; unused keys may be omitted      | Model operator |
-| `MODEL_PRIMARY_PROVIDER`                               | Server     | `anthropic`, `openai`, or `gemini`                                          | Model operator |
-| `MODEL_PRIMARY_MODEL`                                  | Server     | 1–160 characters: letters, digits, `.`, `_`, `:`, `/`, or `-`               | Model operator |
-| `MODEL_PRIMARY_INPUT_COST_MICROS_PER_MILLION_TOKENS`   | Server     | Nonnegative integer, at most `1_000_000_000_000`                            | Model operator |
-| `MODEL_PRIMARY_OUTPUT_COST_MICROS_PER_MILLION_TOKENS`  | Server     | Nonnegative integer, at most `1_000_000_000_000`                            | Model operator |
-| `MODEL_FALLBACK_PROVIDER`                              | Server     | Required and must differ from `MODEL_PRIMARY_PROVIDER`                      | Model operator |
-| `MODEL_FALLBACK_MODEL`                                 | Server     | Same bounded identifier contract as the primary model                       | Model operator |
-| `MODEL_FALLBACK_INPUT_COST_MICROS_PER_MILLION_TOKENS`  | Server     | Nonnegative integer, at most `1_000_000_000_000`                            | Model operator |
-| `MODEL_FALLBACK_OUTPUT_COST_MICROS_PER_MILLION_TOKENS` | Server     | Nonnegative integer, at most `1_000_000_000_000`                            | Model operator |
-| `MODEL_REVIEWER_PROVIDER`                              | Server     | Optional; reviewer fields must be configured as one complete group          | Model operator |
-| `MODEL_REVIEWER_MODEL`                                 | Server     | Optional; required with the reviewer provider and both rates                | Model operator |
-| `MODEL_REVIEWER_INPUT_COST_MICROS_PER_MILLION_TOKENS`  | Server     | Optional; nonnegative integer when reviewer is enabled                      | Model operator |
-| `MODEL_REVIEWER_OUTPUT_COST_MICROS_PER_MILLION_TOKENS` | Server     | Optional; nonnegative integer when reviewer is enabled                      | Model operator |
-| `MODEL_TOTAL_DEADLINE_MS`                              | Server     | Integer `1_000`–`120_000`; default `30_000`                                 | Model operator |
-| `MODEL_ATTEMPT_TIMEOUT_MS`                             | Server     | Integer `500`–`60_000`, never greater than total deadline; default `12_000` | Model operator |
-| `MODEL_MAX_OUTPUT_TOKENS`                              | Server     | Integer `64`–`65_536`; default `4_096`                                      | Model operator |
+| Name                                                   | Visibility | Contract                                                                     | Owner          |
+| ------------------------------------------------------ | ---------- | ---------------------------------------------------------------------------- | -------------- |
+| `ANTHROPIC_API_KEY`                                    | Secret     | Required when an Anthropic route is referenced; unused keys may be omitted   | Model operator |
+| `OPENAI_API_KEY`                                       | Secret     | Required when an OpenAI route is referenced; unused keys may be omitted      | Model operator |
+| `GEMINI_API_KEY`                                       | Secret     | Required when a Gemini route is referenced; unused keys may be omitted       | Model operator |
+| `OPENCODE_API_KEY`                                     | Secret     | Required when an OpenCode Go route is referenced; unused keys may be omitted | Model operator |
+| `MODEL_PRIMARY_PROVIDER`                               | Server     | `anthropic`, `openai`, `gemini`, or `opencode`                               | Model operator |
+| `MODEL_PRIMARY_MODEL`                                  | Server     | 1–160 characters: letters, digits, `.`, `_`, `:`, `/`, or `-`                | Model operator |
+| `MODEL_PRIMARY_INPUT_COST_MICROS_PER_MILLION_TOKENS`   | Server     | Nonnegative integer, at most `1_000_000_000_000`                             | Model operator |
+| `MODEL_PRIMARY_OUTPUT_COST_MICROS_PER_MILLION_TOKENS`  | Server     | Nonnegative integer, at most `1_000_000_000_000`                             | Model operator |
+| `MODEL_FALLBACK_PROVIDER`                              | Server     | Required and must differ from `MODEL_PRIMARY_PROVIDER`                       | Model operator |
+| `MODEL_FALLBACK_MODEL`                                 | Server     | Same bounded identifier contract as the primary model                        | Model operator |
+| `MODEL_FALLBACK_INPUT_COST_MICROS_PER_MILLION_TOKENS`  | Server     | Nonnegative integer, at most `1_000_000_000_000`                             | Model operator |
+| `MODEL_FALLBACK_OUTPUT_COST_MICROS_PER_MILLION_TOKENS` | Server     | Nonnegative integer, at most `1_000_000_000_000`                             | Model operator |
+| `MODEL_REVIEWER_PROVIDER`                              | Server     | Optional; reviewer fields must be configured as one complete group           | Model operator |
+| `MODEL_REVIEWER_MODEL`                                 | Server     | Optional; required with the reviewer provider and both rates                 | Model operator |
+| `MODEL_REVIEWER_INPUT_COST_MICROS_PER_MILLION_TOKENS`  | Server     | Optional; nonnegative integer when reviewer is enabled                       | Model operator |
+| `MODEL_REVIEWER_OUTPUT_COST_MICROS_PER_MILLION_TOKENS` | Server     | Optional; nonnegative integer when reviewer is enabled                       | Model operator |
+| `MODEL_TOTAL_DEADLINE_MS`                              | Server     | Integer `1_000`–`120_000`; default `30_000`                                  | Model operator |
+| `MODEL_ATTEMPT_TIMEOUT_MS`                             | Server     | Integer `500`–`60_000`, never greater than total deadline; default `12_000`  | Model operator |
+| `MODEL_MAX_OUTPUT_TOKENS`                              | Server     | Integer `64`–`65_536`; default `4_096`                                       | Model operator |
 
 The parser is strict and rejects unknown model settings. Callers cannot configure execution
 budgets: production calls are capped at three, with one transport retry, one structured repair,
@@ -163,38 +164,45 @@ GitHub variable names; it prevents accidentally reading a repository-level or pr
 
 | GitHub Environment variable                                    | Current value           | Runtime variable                                       |
 | -------------------------------------------------------------- | ----------------------- | ------------------------------------------------------ |
-| `STAGING_MODEL_PRIMARY_PROVIDER`                               | `gemini`                | `MODEL_PRIMARY_PROVIDER`                               |
-| `STAGING_MODEL_PRIMARY_MODEL`                                  | `gemini-3.1-flash-lite` | `MODEL_PRIMARY_MODEL`                                  |
-| `STAGING_MODEL_PRIMARY_INPUT_COST_MICROS_PER_MILLION_TOKENS`   | `250000`                | `MODEL_PRIMARY_INPUT_COST_MICROS_PER_MILLION_TOKENS`   |
-| `STAGING_MODEL_PRIMARY_OUTPUT_COST_MICROS_PER_MILLION_TOKENS`  | `1500000`               | `MODEL_PRIMARY_OUTPUT_COST_MICROS_PER_MILLION_TOKENS`  |
-| `STAGING_MODEL_FALLBACK_PROVIDER`                              | `openai`                | `MODEL_FALLBACK_PROVIDER`                              |
-| `STAGING_MODEL_FALLBACK_MODEL`                                 | `gpt-5-nano`            | `MODEL_FALLBACK_MODEL`                                 |
-| `STAGING_MODEL_FALLBACK_INPUT_COST_MICROS_PER_MILLION_TOKENS`  | `50000`                 | `MODEL_FALLBACK_INPUT_COST_MICROS_PER_MILLION_TOKENS`  |
-| `STAGING_MODEL_FALLBACK_OUTPUT_COST_MICROS_PER_MILLION_TOKENS` | `400000`                | `MODEL_FALLBACK_OUTPUT_COST_MICROS_PER_MILLION_TOKENS` |
+| `STAGING_MODEL_PRIMARY_PROVIDER`                               | `opencode`              | `MODEL_PRIMARY_PROVIDER`                               |
+| `STAGING_MODEL_PRIMARY_MODEL`                                  | `deepseek-v4-flash`     | `MODEL_PRIMARY_MODEL`                                  |
+| `STAGING_MODEL_PRIMARY_INPUT_COST_MICROS_PER_MILLION_TOKENS`   | `140000`                | `MODEL_PRIMARY_INPUT_COST_MICROS_PER_MILLION_TOKENS`   |
+| `STAGING_MODEL_PRIMARY_OUTPUT_COST_MICROS_PER_MILLION_TOKENS`  | `280000`                | `MODEL_PRIMARY_OUTPUT_COST_MICROS_PER_MILLION_TOKENS`  |
+| `STAGING_MODEL_FALLBACK_PROVIDER`                              | `gemini`                | `MODEL_FALLBACK_PROVIDER`                              |
+| `STAGING_MODEL_FALLBACK_MODEL`                                 | `gemini-3.5-flash-lite` | `MODEL_FALLBACK_MODEL`                                 |
+| `STAGING_MODEL_FALLBACK_INPUT_COST_MICROS_PER_MILLION_TOKENS`  | `300000`                | `MODEL_FALLBACK_INPUT_COST_MICROS_PER_MILLION_TOKENS`  |
+| `STAGING_MODEL_FALLBACK_OUTPUT_COST_MICROS_PER_MILLION_TOKENS` | `2500000`               | `MODEL_FALLBACK_OUTPUT_COST_MICROS_PER_MILLION_TOKENS` |
 | `STAGING_MODEL_TOTAL_DEADLINE_MS`                              | `30000`                 | `MODEL_TOTAL_DEADLINE_MS`                              |
 | `STAGING_MODEL_ATTEMPT_TIMEOUT_MS`                             | `12000`                 | `MODEL_ATTEMPT_TIMEOUT_MS`                             |
 | `STAGING_MODEL_MAX_OUTPUT_TOKENS`                              | `4096`                  | `MODEL_MAX_OUTPUT_TOKENS`                              |
 
 The reviewer group is intentionally absent in staging: do not create any
-`STAGING_MODEL_REVIEWER_*` variables. The selected model and rates are operator estimates tied to
-the stable [Gemini 3.1 Flash-Lite model](https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite),
-[Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing),
-[GPT-5 nano model](https://developers.openai.com/api/docs/models/gpt-5-nano), and
-[OpenAI API pricing](https://openai.com/api/pricing/). Recheck those official sources before
-changing a route; rates in this table are micros per one million tokens, not billing authority.
+`STAGING_MODEL_REVIEWER_*` variables. The primary route is served by the
+[OpenCode Go gateway](https://opencode.ai/go) (an OpenAI-compatible Chat Completions endpoint at
+`https://opencode.ai/zen/go/v1`; see the [OpenCode Go docs](https://opencode.ai/docs/go)), and the
+fallback stays on the stable [Gemini 3.5 Flash-Lite model](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite)
+with [Gemini API pricing](https://ai.google.dev/gemini-api/docs/pricing). Recheck those official
+sources before changing a route; rates in this table are micros per one million tokens, not billing
+authority.
 
 The Gemini route is an evidence-based replacement, not an alias or preview migration. The prior
 `gemini-2.5-flash-lite` probe returned HTTP 200 for model metadata but HTTP 404 for `generateContent`
-with the operator key. An exact structured synthetic call to stable `gemini-3.1-flash-lite` returned
-HTTP 200 with a valid schema response (24 input tokens and 5 output tokens), so the route and the
-operator probe use the stable model explicitly.
+with the operator key. An exact structured synthetic call to stable `gemini-3.5-flash-lite` returned
+HTTP 200 with a valid schema response, so the route and the operator probe use the stable model
+explicitly.
+
+The OpenCode Go route is staging-only and subscription-gated: `deepseek-v4-flash` is part of the
+Go catalog, while pay-as-you-go-only Zen models such as `gpt-5.6-luna` are deliberately not routed
+through it. The operator probe (`pnpm test:live:providers`) treats `OPENCODE_API_KEY` as optional
+and skips the OpenCode spec when the key is absent, so environments without the subscription keep
+passing.
 
 Provider keys are never GitHub variables or GitHub secrets and are never passed as `--var` values.
-The staging Worker must instead have `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and `GEMINI_API_KEY`
-uploaded as Cloudflare secrets. The release workflow uses the Cloudflare API to list secret names
-before any staging migration or deploy and fails closed unless all three names (plus
-`HEALTHCHECK_TOKEN`) are present; it never reads or prints secret values. `wrangler.jsonc` also
-marks all three as required for staging, which keeps generated Worker types and local Wrangler
+The staging Worker must instead have `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, and
+`OPENCODE_API_KEY` uploaded as Cloudflare secrets. The release workflow uses the Cloudflare API to
+list secret names before any staging migration or deploy and fails closed unless all four names
+(plus `HEALTHCHECK_TOKEN`) are present; it never reads or prints secret values. `wrangler.jsonc`
+also marks all four as required for staging, which keeps generated Worker types and local Wrangler
 configuration aligned. Production has its own unchanged secret contract and does not receive these
 Phase 5 keys.
 

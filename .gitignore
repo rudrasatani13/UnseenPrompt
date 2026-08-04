@@ -20,6 +20,7 @@ supabase/.temp/
 
 .superpowers/
 .worktrees/
+.qoder/
 
 .DS_Store
 *.log

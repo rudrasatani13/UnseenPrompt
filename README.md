@@ -122,11 +122,13 @@ Operator-only live provider contract probe (manual; never CI or `pnpm test:unit`
 
 ```bash
 # Set GEMINI_API_KEY, OPENAI_API_KEY, and ANTHROPIC_API_KEY only in ignored .dev.vars.
+# OPENCODE_API_KEY is optional (staging OpenCode Go route); omit it when not subscribed.
 pnpm test:live:providers
 ```
 
 The probe calls Gemini, OpenAI, and Anthropic sequentially once each using fixed models and a
-synthetic closed `{ok:boolean}` schema. It uses a 512-token output cap and a 30-second
+synthetic closed `{ok:boolean}` schema, plus OpenCode Go `deepseek-v4-flash` when the optional
+`OPENCODE_API_KEY` is present (skipped otherwise). It uses a 512-token output cap and a 30-second
 `AbortSignal` timeout, performs no retries or gateway/database work, and prints only provider names,
 safe usage counts, and stable error codes. A successful live result remains an operator gate and is
 not claimed by this repository until the command has been run with real credentials.
