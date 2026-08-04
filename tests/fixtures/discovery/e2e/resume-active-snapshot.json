@@ -1,0 +1,51 @@
+{
+  "projectId": "33333333-3333-4333-8333-333333333333",
+  "mode": "new_build",
+  "stage": "discovery",
+  "stateVersion": 2,
+  "initialRequestText": "Build a small field notebook for recording observations.",
+  "session": {
+    "id": "44444444-4444-4444-8444-444444444444",
+    "projectId": "33333333-3333-4333-8333-333333333333",
+    "sourceDraftId": "22222222-2222-4222-8222-222222222222",
+    "status": "active",
+    "policyVersion": 1,
+    "activeQuestionId": "66666666-6666-4666-8666-666666666666",
+    "latestAssessmentId": null,
+    "confirmedTurnCount": 1,
+    "blockCode": null,
+    "startedAt": "2026-08-04T00:00:00.000Z",
+    "completedAt": null,
+    "abandonedAt": null
+  },
+  "confirmedQuestions": [],
+  "confirmedAnswers": [],
+  "assessments": [],
+  "activeQuestion": {
+    "id": "66666666-6666-4666-8666-666666666666",
+    "projectId": "33333333-3333-4333-8333-333333333333",
+    "sessionId": "44444444-4444-4444-8444-444444444444",
+    "generationRunId": "77777777-7777-4777-8777-777777777777",
+    "position": 1,
+    "targetFactKey": "clarify_scope",
+    "basisStateVersion": 1,
+    "questionText": "What should the first useful version help someone accomplish?",
+    "rationale": "A concrete first outcome keeps the initial build focused.",
+    "suggestedAnswers": [
+      {
+        "label": "Capture observations",
+        "value": "Capture observations"
+      },
+      {
+        "label": "Share a short report",
+        "value": "Share a short report"
+      }
+    ],
+    "allowsFreeText": true,
+    "questionFingerprint": "957a2812e3f342098a2db3331575de6aabcb00bfc7a6963d5ebf5717815124b0",
+    "status": "active",
+    "createdAt": "2026-08-04T00:00:00.000Z",
+    "answeredAt": null,
+    "supersededAt": null
+  }
+}

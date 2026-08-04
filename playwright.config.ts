@@ -33,6 +33,7 @@ function readMaintenanceMode(): MaintenanceMode {
 const appEnvironment = readAppEnvironment();
 const maintenanceMode = readMaintenanceMode();
 const port = Number(process.env.E2E_PORT ?? "3100");
+const authStorageState = process.env.E2E_AUTH_STORAGE_STATE;
 
 if (!Number.isInteger(port) || port <= 0 || port > 65535) {
   throw new Error(`E2E_PORT must be a valid TCP port; received ${String(process.env.E2E_PORT)}`);
@@ -88,6 +89,7 @@ export default defineConfig({
     trace: "on-first-retry",
     screenshot: "only-on-failure",
     video: "retain-on-failure",
+    ...(authStorageState === undefined ? {} : { storageState: authStorageState }),
   },
   projects: [
     {
@@ -105,6 +107,13 @@ export default defineConfig({
     {
       name: "wide",
       use: { ...devices["Desktop Chrome"], viewport: { width: 1440, height: 900 } },
+    },
+    {
+      // Phase 7's deterministic browser gate uses an ephemeral local Supabase fixture and
+      // browser-level API mocks. It is intentionally isolated from the regular viewport matrix.
+      name: "phase7-mock",
+      testMatch: /discovery-mock\.spec\.ts/,
+      use: { ...devices["Desktop Chrome"], viewport: { width: 1024, height: 768 } },
     },
   ],
   webServer: {

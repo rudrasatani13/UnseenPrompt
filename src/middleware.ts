@@ -79,5 +79,13 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 }
 
 export const config = {
-  matcher: ["/sign-in", "/onboarding", "/profile", "/api/account/:path*", "/auth/sign-out"],
+  matcher: [
+    "/",
+    "/sign-in",
+    "/onboarding",
+    "/profile",
+    "/projects/:path*",
+    "/api/account/:path*",
+    "/auth/sign-out",
+  ],
 };

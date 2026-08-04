@@ -1,8 +1,15 @@
 import { expect, test } from "@playwright/test";
 
-import { waitForProductReady } from "./helpers";
+import { hasAuthenticatedE2EState, waitForProductReady } from "./helpers";
 
 test.describe("application shell", () => {
+  test.beforeEach(async ({}, testInfo) => {
+    testInfo.skip(
+      !hasAuthenticatedE2EState(),
+      "requires a disposable authenticated E2E storage state for application-shell journeys",
+    );
+  });
+
   test("matches the locked responsive chrome", async ({ page }, testInfo) => {
     await page.goto("/");
     await waitForProductReady(page);

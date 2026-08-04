@@ -1,0 +1,8 @@
+{
+  "id": "hinglish-request",
+  "mode": "feature",
+  "skillLevel": "intermediate",
+  "language": "hi-Latn",
+  "initialRequestText": "Mere project me users ko saved filters share karne hain, but private data leak nahi hona chahiye.",
+  "tags": ["hinglish", "privacy"]
+}

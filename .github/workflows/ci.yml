@@ -70,6 +70,80 @@ jobs:
             test-results/
           if-no-files-found: ignore
 
+  phase7-browser:
+    name: Phase 7 deterministic browser gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      # These are non-secret parser fixtures. The browser test intercepts every provider-bound
+      # command, so no value is a usable provider credential or sent off-host.
+      MODEL_PRIMARY_PROVIDER: anthropic
+      MODEL_PRIMARY_MODEL: phase7-e2e-fixture
+      MODEL_PRIMARY_INPUT_COST_MICROS_PER_MILLION_TOKENS: "0"
+      MODEL_PRIMARY_OUTPUT_COST_MICROS_PER_MILLION_TOKENS: "0"
+      MODEL_FALLBACK_PROVIDER: openai
+      MODEL_FALLBACK_MODEL: phase7-e2e-fallback
+      MODEL_FALLBACK_INPUT_COST_MICROS_PER_MILLION_TOKENS: "0"
+      MODEL_FALLBACK_OUTPUT_COST_MICROS_PER_MILLION_TOKENS: "0"
+      ANTHROPIC_API_KEY: ci-placeholder-not-a-provider-credential
+      OPENAI_API_KEY: ci-placeholder-not-a-provider-credential
+      E2E_PHASE7_STORAGE_STATE: ${{ runner.temp }}/phase7-auth-state.json
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - name: Set up Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - name: Install pnpm
+        run: npm install --global pnpm@${PNPM_VERSION}
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Install Playwright Chromium
+        run: pnpm exec playwright install --with-deps chromium
+      - name: Start isolated Supabase stack
+        run: pnpm exec supabase start
+      - name: Reset isolated database
+        run: pnpm exec supabase db reset --yes
+      - name: Export isolated Supabase credentials without logging them
+        shell: bash
+        run: |
+          status_file="$(mktemp)"
+          trap 'rm -f "$status_file"' EXIT
+          pnpm exec supabase status -o env > "$status_file"
+
+          set -a
+          source "$status_file"
+          set +a
+
+          api_url="${API_URL:-}"
+          publishable_key="${PUBLISHABLE_KEY:-${ANON_KEY:-}}"
+          service_role_key="${SECRET_KEY:-${SERVICE_ROLE_KEY:-}}"
+          test -n "$api_url"
+          test -n "$publishable_key"
+          test -n "$service_role_key"
+
+          {
+            printf 'NEXT_PUBLIC_SUPABASE_URL=%s\n' "$api_url"
+            printf 'SUPABASE_AUTH_TEST_URL=%s\n' "$api_url"
+            printf 'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=%s\n' "$publishable_key"
+            printf 'SUPABASE_AUTH_TEST_PUBLISHABLE_KEY=%s\n' "$publishable_key"
+            printf 'SUPABASE_AUTH_TEST_SERVICE_ROLE_KEY=%s\n' "$service_role_key"
+          } >> "$GITHUB_ENV"
+      - name: Seed ephemeral auth and abandoned discovery fixture
+        run: pnpm exec tsx tests/e2e/phase7-setup.ts
+      - name: Run deterministic Phase 7 browser test
+        env:
+          E2E_PHASE7_MOCK: on
+          E2E_AUTH_STORAGE_STATE: ${{ runner.temp }}/phase7-auth-state.json
+          E2E_APP_ENV: test
+          E2E_PORT: "3200"
+          NEXT_PUBLIC_APP_URL: http://127.0.0.1:3200
+        run: pnpm exec playwright test tests/e2e/discovery-mock.spec.ts --project=phase7-mock
+      - name: Stop isolated Supabase stack
+        if: always()
+        run: pnpm exec supabase stop --no-backup
+
   database:
     name: Database
     runs-on: ubuntu-latest

@@ -1,0 +1,8 @@
+{
+  "id": "bug-intermediate-hindi",
+  "mode": "bug",
+  "skillLevel": "intermediate",
+  "language": "hi",
+  "initialRequestText": "फ़िल्टर लगाने के बाद डैशबोर्ड गलत परिणाम दिखाता है। इसे दोबारा बनाने और ठीक करने में मदद चाहिए।",
+  "tags": ["multilingual", "correction"]
+}

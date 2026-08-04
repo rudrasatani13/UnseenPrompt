@@ -1,0 +1,8 @@
+{
+  "id": "feature-expert",
+  "mode": "feature",
+  "skillLevel": "expert",
+  "language": "en",
+  "initialRequestText": "Add an audit-safe bulk export flow to the existing workspace dashboard without widening tenant access.",
+  "tags": ["expert", "requirements"]
+}

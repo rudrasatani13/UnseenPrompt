@@ -1,0 +1,8 @@
+{
+  "id": "test-intermediate-mixed-script",
+  "mode": "test",
+  "skillLevel": "intermediate",
+  "language": "hi-Latn",
+  "initialRequestText": "Mujhe इस workflow ke liye regression tests chahiye, खासकर retry aur stale state ke liye.",
+  "tags": ["multilingual", "mixed-script"]
+}

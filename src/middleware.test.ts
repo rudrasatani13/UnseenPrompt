@@ -62,6 +62,18 @@ describe("middleware", () => {
     );
   });
 
+  it("protects the home composer and project pages while APIs keep JSON auth semantics", async () => {
+    const { middleware } = await import("./middleware");
+
+    const homeResponse = await middleware(requestFor("/"));
+    const projectResponse = await middleware(requestFor("/projects/project-1/discovery"));
+
+    expect(homeResponse.headers.get("location")).toBe("https://unseenprompt.com/sign-in?next=%2F");
+    expect(projectResponse.headers.get("location")).toBe(
+      "https://unseenprompt.com/sign-in?next=%2Fprojects%2Fproject-1%2Fdiscovery",
+    );
+  });
+
   it("lets a sessionless request reach the anonymous sign-in page", async () => {
     const { middleware } = await import("./middleware");
     const request = requestFor("/sign-in");
@@ -122,9 +134,11 @@ describe("middleware", () => {
     const { config } = await import("./middleware");
 
     expect(config.matcher).toEqual([
+      "/",
       "/sign-in",
       "/onboarding",
       "/profile",
+      "/projects/:path*",
       "/api/account/:path*",
       "/auth/sign-out",
     ]);

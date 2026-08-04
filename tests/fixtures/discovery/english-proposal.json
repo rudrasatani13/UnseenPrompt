@@ -1,0 +1,8 @@
+{
+  "id": "english-proposal",
+  "mode": "review",
+  "skillLevel": "expert",
+  "language": "en",
+  "initialRequestText": "Review the final discovery context and produce concise English requirements only; do not confirm decisions or milestones.",
+  "tags": ["english-proposal", "requirements-only"]
+}

@@ -2,6 +2,12 @@ import { expect, type Page } from "@playwright/test";
 
 const PRODUCT_HEADING = "Start with the messy version.";
 const COMING_SOON_HEADING = "Bring the half-finished thing.";
+const SIGN_IN_HEADING = "Sign in";
+
+/** Authenticated browser journeys opt in with a disposable Playwright storage-state file. */
+export function hasAuthenticatedE2EState(): boolean {
+  return process.env.E2E_AUTH_STORAGE_STATE !== undefined;
+}
 
 /**
  * Wait until the product page has settled into real content — not a loading
@@ -15,6 +21,20 @@ export async function waitForProductReady(page: Page): Promise<void> {
       name: PRODUCT_HEADING,
     }),
   ).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('[data-slot="app-loading"]')).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Something went wrong" })).toHaveCount(0);
+  await expect(page.locator("nextjs-portal")).toHaveCount(0);
+  await page.evaluate(() => document.fonts.ready);
+}
+
+/** Wait until an anonymous non-production visitor has been redirected to the sign-in surface. */
+export async function waitForAnonymousHomeReady(page: Page): Promise<void> {
+  await page.waitForLoadState("domcontentloaded");
+  await expect(page).toHaveURL(/\/sign-in\?next=%2F$/);
+  await expect(page.getByRole("heading", { level: 1, name: SIGN_IN_HEADING })).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(page.locator('[data-slot="sign-in-panel"]')).toBeVisible();
   await expect(page.locator('[data-slot="app-loading"]')).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Something went wrong" })).toHaveCount(0);
   await expect(page.locator("nextjs-portal")).toHaveCount(0);

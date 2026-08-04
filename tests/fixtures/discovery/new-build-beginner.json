@@ -1,0 +1,8 @@
+{
+  "id": "new-build-beginner",
+  "mode": "new_build",
+  "skillLevel": "beginner",
+  "language": "en",
+  "initialRequestText": "I want to make a simple reading list for my family.",
+  "tags": ["early", "sparse"]
+}

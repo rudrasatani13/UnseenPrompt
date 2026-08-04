@@ -1,0 +1,8 @@
+{
+  "id": "another-non-english",
+  "mode": "deploy",
+  "skillLevel": "intermediate",
+  "language": "es",
+  "initialRequestText": "Necesito un plan de despliegue reversible con verificación y recuperación segura.",
+  "tags": ["multilingual", "non-english"]
+}

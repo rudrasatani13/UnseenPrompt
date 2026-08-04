@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { waitForGalleryReady, waitForProductReady } from "./helpers";
+import { hasAuthenticatedE2EState, waitForGalleryReady, waitForProductReady } from "./helpers";
 
 test.describe("visual regression", () => {
   test.beforeEach(async ({ page }) => {
@@ -8,14 +8,14 @@ test.describe("visual regression", () => {
   });
 
   test("homepage mobile", async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== "mobile");
+    test.skip(testInfo.project.name !== "mobile" || !hasAuthenticatedE2EState());
     await page.goto("/");
     await waitForProductReady(page);
     await expect(page).toHaveScreenshot("homepage-mobile.png", { fullPage: true });
   });
 
   test("homepage wide", async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== "wide");
+    test.skip(testInfo.project.name !== "wide" || !hasAuthenticatedE2EState());
     await page.goto("/");
     await waitForProductReady(page);
     await expect(page).toHaveScreenshot("homepage-wide.png", { fullPage: true });
@@ -37,7 +37,7 @@ test.describe("visual regression", () => {
   });
 
   test("mobile navigation sheet open", async ({ page }, testInfo) => {
-    test.skip(testInfo.project.name !== "mobile");
+    test.skip(testInfo.project.name !== "mobile" || !hasAuthenticatedE2EState());
     await page.goto("/");
     await waitForProductReady(page);
     await page.getByRole("button", { name: "Open navigation" }).click();

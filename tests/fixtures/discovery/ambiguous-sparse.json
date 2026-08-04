@@ -1,0 +1,8 @@
+{
+  "id": "ambiguous-sparse",
+  "mode": "improve",
+  "skillLevel": "beginner",
+  "language": "undetermined",
+  "initialRequestText": "Make it better.",
+  "tags": ["ambiguous", "sparse"]
+}
