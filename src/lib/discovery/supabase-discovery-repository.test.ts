@@ -387,6 +387,71 @@ describe("Supabase discovery repository", () => {
     ).rejects.toMatchObject({ code: "persistence_failed" });
   });
 
+  it("accepts the exact abandoned Phase 7 E2E fixture snapshot", async () => {
+    const projectId = "33333333-3333-4333-8333-333333333333";
+    const draftId = "22222222-2222-4222-8222-222222222222";
+    const sessionId = "44444444-4444-4444-8444-444444444444";
+    const questionId = "66666666-6666-4666-8666-666666666666";
+    const generationRunId = "77777777-7777-4777-8777-777777777777";
+    const timestamp = "2026-08-04T00:00:00.000Z";
+    const questionText = "What should the first useful version help someone accomplish?";
+    const fixtureSnapshot = {
+      projectId,
+      mode: "new_build",
+      stage: "discovery",
+      stateVersion: 1,
+      initialRequestText: "Build a small field notebook for recording observations.",
+      session: {
+        id: sessionId,
+        projectId,
+        sourceDraftId: draftId,
+        status: "abandoned",
+        policyVersion: 1,
+        activeQuestionId: questionId,
+        latestAssessmentId: null,
+        confirmedTurnCount: 1,
+        blockCode: null,
+        startedAt: timestamp,
+        completedAt: null,
+        abandonedAt: timestamp,
+      },
+      confirmedQuestions: [],
+      confirmedAnswers: [],
+      assessments: [],
+      activeQuestion: {
+        id: questionId,
+        projectId,
+        sessionId,
+        generationRunId,
+        position: 1,
+        targetFactKey: "clarify_scope",
+        basisStateVersion: 1,
+        questionText,
+        rationale: "A concrete first outcome keeps the initial build focused.",
+        suggestedAnswers: [
+          { label: "Capture observations", value: "Capture observations" },
+          { label: "Share a short report", value: "Share a short report" },
+        ],
+        allowsFreeText: true,
+        questionFingerprint: questionFingerprintV1(questionText),
+        status: "active",
+        createdAt: timestamp,
+        answeredAt: null,
+        supersededAt: null,
+      },
+    } as const;
+    expect(discoverySnapshotSchema.safeParse(fixtureSnapshot).success).toBe(true);
+
+    const fake = fakeRpc({ data: fixtureSnapshot, error: null });
+    await expect(
+      createSupabaseDiscoveryRepository(fake.client).getSnapshot(projectId),
+    ).resolves.toMatchObject({
+      projectId,
+      session: { status: "abandoned", activeQuestionId: questionId },
+      activeQuestion: { id: questionId, generationRunId },
+    });
+  });
+
   it("rejects duplicate fingerprints, broken answer lineage, and invalid suggestion membership", async () => {
     const baseQuestion = snapshot().confirmedQuestions[0];
     const duplicate = fakeRpc({

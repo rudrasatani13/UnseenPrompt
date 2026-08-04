@@ -9,6 +9,7 @@ import {
   PHASE7_MOCK_SESSION_ID,
 } from "./phase7-fixtures";
 import { buildPhase7StorageState, type Phase7AuthSession } from "./phase7-storage-state";
+import { discoverySnapshotSchema } from "../../src/domain/discovery/schemas";
 
 function requiredEnvironmentValue(name: string, value: string | undefined): string {
   if (!value) throw new Error(`Phase 7 E2E setup requires ${name}`);
@@ -130,6 +131,29 @@ async function rpcRequest<T>(operation: string, functionName: string, body: unkn
     headers: {
       apikey: serviceRoleKey,
       authorization: `Bearer ${serviceRoleKey}`,
+      "content-type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+  return readJson<T>(response, operation);
+}
+
+/**
+ * Verify the fixture through the same authenticated PostgREST boundary used by the server-side
+ * repository. Service-role writes alone cannot detect a missing authenticated grant, malformed
+ * session cookie payload, or an owner-scoping mismatch that would make the browser fail later.
+ */
+async function authenticatedRpcRequest<T>(
+  operation: string,
+  functionName: string,
+  body: unknown,
+  accessToken: string,
+): Promise<T> {
+  const response = await fetch(`${supabaseUrl}/rest/v1/rpc/${functionName}`, {
+    method: "POST",
+    headers: {
+      apikey: publishableKey,
+      authorization: `Bearer ${accessToken}`,
       "content-type": "application/json",
     },
     body: JSON.stringify(body),
@@ -338,6 +362,33 @@ async function main(): Promise<void> {
       active_question_id: PHASE7_MOCK_QUESTION_ID,
     },
   );
+
+  const persistedSnapshot = await authenticatedRpcRequest<unknown>(
+    "verify authenticated discovery snapshot",
+    "get_discovery_snapshot_v1",
+    { p_project_id: PHASE7_MOCK_PROJECT_ID },
+    session.access_token,
+  );
+  const parsedSnapshot = discoverySnapshotSchema.safeParse(persistedSnapshot);
+  if (!parsedSnapshot.success) {
+    throw new Error("verify authenticated discovery snapshot returned an invalid payload");
+  }
+  const snapshot = parsedSnapshot.data;
+  if (
+    snapshot.projectId !== PHASE7_MOCK_PROJECT_ID ||
+    snapshot.mode !== "new_build" ||
+    snapshot.stage !== "discovery" ||
+    snapshot.stateVersion !== 1 ||
+    snapshot.session.id !== PHASE7_MOCK_SESSION_ID ||
+    snapshot.session.sourceDraftId !== PHASE7_MOCK_DRAFT_ID ||
+    snapshot.session.status !== "abandoned" ||
+    snapshot.session.activeQuestionId !== PHASE7_MOCK_QUESTION_ID ||
+    snapshot.activeQuestion?.id !== PHASE7_MOCK_QUESTION_ID ||
+    snapshot.activeQuestion.generationRunId !== questionRunId ||
+    snapshot.activeQuestion.status !== "active"
+  ) {
+    throw new Error("verify authenticated discovery snapshot returned inconsistent fixture rows");
+  }
 
   await mkdir(dirname(storageStatePath), { recursive: true });
   await writeFile(

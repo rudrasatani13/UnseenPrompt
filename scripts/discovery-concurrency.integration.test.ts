@@ -97,6 +97,12 @@ describeDatabase("Phase 7 discovery concurrency", () => {
       ) on conflict (id) do nothing`,
       [ownerId, `phase7-race-${ownerId}@users.invalid`],
     );
+    await bootstrap.query(
+      `insert into public.profiles (id, display_name)
+       values ($1, 'Phase 7 Race IT User')
+       on conflict (id) do nothing`,
+      [ownerId],
+    );
     await bootstrap.query("commit");
   }, 15_000);
 
