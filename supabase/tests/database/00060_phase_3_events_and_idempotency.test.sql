@@ -123,6 +123,7 @@ select id, state_version, title, mode, stage, selected_tool
 from public.projects
 where title = 'Atomic Project'
 limit 1;
+grant select on tmp_project to service_role;
 
 -- Phase 6 retires the unrestricted authenticated commit RPC. Historical behavior checks use the
 -- privileged test role while the owner-derived Phase 6 command RPC is exercised separately.
@@ -172,6 +173,7 @@ select is(
 );
 
 -- Creation-key replay after projection advanced still returns original version 1.
+set local role authenticated;
 select is(
   (
     select (public.create_project(
@@ -185,6 +187,7 @@ select is(
   1::bigint,
   'create replay after commit returns original state_version 1'
 );
+set local role service_role;
 
 select is(
   (select state_version from public.projects where id = (select id from tmp_project)),

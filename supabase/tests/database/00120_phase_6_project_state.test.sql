@@ -91,7 +91,7 @@ select is((select count(*)::int from public.project_delta_applications where gen
 select is((select (public.apply_validated_project_delta_v1('02000000-0000-4000-8000-000000000001',(select run_id from tmp_phase6_claim),1)->>'replayed')::boolean),true,'duplicate delta apply replays receipt');
 select ok((select e.event_type='project.delta_proposed' and e.actor_type='user' and e.actor_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid
   and e.payload ?& array['schemaVersion','generationRunId','createdRequirementIds','updatedRequirementIds','createdDecisionIds','updatedDecisionIds','createdMilestoneIds','updatedMilestoneIds']
-  and jsonb_object_length(e.payload)=8 and e.payload->>'schemaVersion'='1'
+  and (select count(*) from jsonb_object_keys(e.payload))=8 and e.payload->>'schemaVersion'='1'
   from public.project_events e where e.project_id='02000000-0000-4000-8000-000000000001' and e.sequence_number=2),'delta event has exact versioned payload and actor');
 
 select is((public.execute_project_command_v1('02000000-0000-4000-8000-000000000001',2,'phase6-stage-key',repeat('b',64),'{"type":"transition_stage","to":"brief_confirmation"}'::jsonb)->>'state_version')::bigint,3::bigint,'stage transition commits one version');
@@ -141,7 +141,7 @@ select is((select stage from public.projects where id='02000000-0000-4000-8000-0
 select is((select blocked_from_stage from public.projects where id='02000000-0000-4000-8000-000000000001'),'ready_for_prompt','block records resume stage');
 select is((select blocker_summary from public.projects where id='02000000-0000-4000-8000-000000000001'),'Waiting for user confirmation.','block records blocker summary');
 select ok((select e.actor_type='user' and e.actor_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid
-  and e.payload ?& array['schemaVersion','from','to'] and jsonb_object_length(e.payload)=3
+  and e.payload ?& array['schemaVersion','from','to'] and (select count(*) from jsonb_object_keys(e.payload))=3
   from public.project_events e where e.project_id='02000000-0000-4000-8000-000000000001' and e.sequence_number=6),'block event is user-attributed with exact payload');
 
 create temporary table tmp_phase6_unblock as
@@ -201,7 +201,7 @@ select is((select confirmed_status from public.milestones where project_id='0200
 select ok((select confirmation_event_id is not null from public.milestones where project_id='02000000-0000-4000-8000-000000000001' limit 1),'milestone stores confirmation event');
 select ok((select e.event_type='milestone.status_confirmed' and e.actor_type='user' and e.actor_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'::uuid
   and e.payload ?& array['schemaVersion','previousMilestoneId','milestoneId','beforeStatus','afterStatus']
-  and jsonb_object_length(e.payload)=5 and e.payload->>'afterStatus'='completed'
+  and (select count(*) from jsonb_object_keys(e.payload))=5 and e.payload->>'afterStatus'='completed'
   from public.project_events e where e.project_id='02000000-0000-4000-8000-000000000001' and e.sequence_number=10),'milestone event keeps suggestion and confirmation distinct');
 
 create temporary table tmp_phase6_summary_v1 as
@@ -219,7 +219,7 @@ select is((select (result->>'state_version')::bigint from tmp_phase6_summary_v2)
 select is((select count(*)::int from public.project_summaries where project_id='02000000-0000-4000-8000-000000000001' and summary_kind='state' and status='current'),1,'one current summary remains');
 select is((select version from public.project_summaries where project_id='02000000-0000-4000-8000-000000000001' and summary_kind='state' and status='current'),2,'summary versions increase monotonically');
 select is((select count(*)::int from public.project_summaries where project_id='02000000-0000-4000-8000-000000000001' and summary_kind='state' and status='superseded'),1,'previous summary is superseded');
-select ok((select e.payload ?& array['schemaVersion','summaryId','summaryKind','version'] and jsonb_object_length(e.payload)=4 and (e.payload->>'version')::int=2
+select ok((select e.payload ?& array['schemaVersion','summaryId','summaryKind','version'] and (select count(*) from jsonb_object_keys(e.payload))=4 and (e.payload->>'version')::int=2
   from public.project_events e where e.project_id='02000000-0000-4000-8000-000000000001' and e.sequence_number=12),'summary event has versioned payload');
 
 create temporary table tmp_phase6_req_direct as
@@ -233,7 +233,7 @@ select ok((select confirmed_at is null from public.requirements where project_id
 select ok((select r.status='confirmed' and r.confirmed_at is not null and r.supersedes_requirement_id is not null
   from public.requirements r where r.source_event_id=(select (result->>'event_id')::uuid from tmp_phase6_req_direct)),'direct requirement successor is confirmed');
 select ok((select e.event_type='requirement.superseded' and e.payload ?& array['schemaVersion','entityId','predecessorId','beforeStatus','afterStatus']
-  and jsonb_object_length(e.payload)=5 and e.payload->>'beforeStatus'='confirmed' and e.payload->>'afterStatus'='superseded'
+  and (select count(*) from jsonb_object_keys(e.payload))=5 and e.payload->>'beforeStatus'='confirmed' and e.payload->>'afterStatus'='superseded'
   from public.project_events e where e.project_id='02000000-0000-4000-8000-000000000001' and e.sequence_number=13),'requirement supersession event is exact and immutable');
 
 create temporary table tmp_phase6_decision_confirm as
@@ -254,7 +254,7 @@ select ok((select confirmed_at is null from public.decisions where project_id='0
 select ok((select d.status='confirmed' and d.confirmed_at is not null and d.supersedes_decision_id is not null
   from public.decisions d where d.source_event_id=(select (result->>'event_id')::uuid from tmp_phase6_decision_direct)),'direct decision successor is confirmed');
 select ok((select e.event_type='decision.superseded' and e.payload ?& array['schemaVersion','entityId','predecessorId','beforeStatus','afterStatus']
-  and jsonb_object_length(e.payload)=5 and e.payload->>'beforeStatus'='confirmed' and e.payload->>'afterStatus'='superseded'
+  and (select count(*) from jsonb_object_keys(e.payload))=5 and e.payload->>'beforeStatus'='confirmed' and e.payload->>'afterStatus'='superseded'
   from public.project_events e where e.project_id='02000000-0000-4000-8000-000000000001' and e.sequence_number=15),'decision supersession event is exact and immutable');
 
 reset role;
