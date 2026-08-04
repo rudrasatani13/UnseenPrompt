@@ -1152,9 +1152,9 @@ end;
 $$;
 
 revoke all on function public.claim_generation_run_v3_server(uuid,text,uuid,bigint,text,text,text,text,text) from public,anon,authenticated,service_role;
-revoke all on function public.complete_generation_run_v3_server(uuid,uuid,text,text,text,integer,integer,integer,integer,bigint,text,text,text,text,text) from public,anon,authenticated,service_role;
+revoke all on function public.complete_generation_run_v3_server(uuid,uuid,text,text,text,integer,integer,integer,integer,bigint,text,text,text,text) from public,anon,authenticated,service_role;
 grant execute on function public.claim_generation_run_v3_server(uuid,text,uuid,bigint,text,text,text,text,text) to service_role;
-grant execute on function public.complete_generation_run_v3_server(uuid,uuid,text,text,text,integer,integer,integer,integer,bigint,text,text,text,text,text) to service_role;
+grant execute on function public.complete_generation_run_v3_server(uuid,uuid,text,text,text,integer,integer,integer,integer,bigint,text,text,text,text) to service_role;
 
 -- Preserve the old public signatures as explicit denial stubs. This gives existing clients a stable
 -- permission failure while preventing an authenticated JWT from reaching the generation write path.
