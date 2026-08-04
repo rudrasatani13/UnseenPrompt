@@ -397,6 +397,8 @@ export type Database = {
           retry_count: number;
           started_at: string | null;
           status: string;
+          validated_project_delta_hash: string | null;
+          validated_project_delta_text: string | null;
           validation_result: string;
         };
         Insert: {
@@ -420,6 +422,8 @@ export type Database = {
           retry_count?: number;
           started_at?: string | null;
           status: string;
+          validated_project_delta_hash?: string | null;
+          validated_project_delta_text?: string | null;
           validation_result?: string;
         };
         Update: {
@@ -443,6 +447,8 @@ export type Database = {
           retry_count?: number;
           started_at?: string | null;
           status?: string;
+          validated_project_delta_hash?: string | null;
+          validated_project_delta_text?: string | null;
           validation_result?: string;
         };
         Relationships: [
@@ -662,12 +668,62 @@ export type Database = {
         };
         Relationships: [];
       };
+      project_delta_applications: {
+        Row: {
+          applied_state_version: number;
+          created_at: string;
+          event_id: string;
+          generation_run_id: string;
+          id: string;
+          project_id: string;
+        };
+        Insert: {
+          applied_state_version: number;
+          created_at?: string;
+          event_id: string;
+          generation_run_id: string;
+          id?: string;
+          project_id: string;
+        };
+        Update: {
+          applied_state_version?: number;
+          created_at?: string;
+          event_id?: string;
+          generation_run_id?: string;
+          id?: string;
+          project_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "project_delta_applications_event_fk";
+            columns: ["project_id", "event_id"];
+            isOneToOne: false;
+            referencedRelation: "project_events";
+            referencedColumns: ["project_id", "id"];
+          },
+          {
+            foreignKeyName: "project_delta_applications_generation_run_fk";
+            columns: ["project_id", "generation_run_id"];
+            isOneToOne: false;
+            referencedRelation: "generation_runs";
+            referencedColumns: ["project_id", "id"];
+          },
+          {
+            foreignKeyName: "project_delta_applications_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       project_events: {
         Row: {
           actor_id: string | null;
           actor_type: string;
           correlation_id: string;
           created_at: string;
+          event_schema_version: number;
           event_type: string;
           id: string;
           idempotency_record_id: string | null;
@@ -680,6 +736,7 @@ export type Database = {
           actor_type: string;
           correlation_id?: string;
           created_at?: string;
+          event_schema_version?: number;
           event_type: string;
           id?: string;
           idempotency_record_id?: string | null;
@@ -692,6 +749,7 @@ export type Database = {
           actor_type?: string;
           correlation_id?: string;
           created_at?: string;
+          event_schema_version?: number;
           event_type?: string;
           id?: string;
           idempotency_record_id?: string | null;
@@ -808,6 +866,8 @@ export type Database = {
         Row: {
           active_milestone_id: string | null;
           archived_at: string | null;
+          archived_from_stage: string | null;
+          blocked_from_stage: string | null;
           blocker_summary: string | null;
           created_at: string;
           deleted_at: string | null;
@@ -824,6 +884,8 @@ export type Database = {
         Insert: {
           active_milestone_id?: string | null;
           archived_at?: string | null;
+          archived_from_stage?: string | null;
+          blocked_from_stage?: string | null;
           blocker_summary?: string | null;
           created_at?: string;
           deleted_at?: string | null;
@@ -840,6 +902,8 @@ export type Database = {
         Update: {
           active_milestone_id?: string | null;
           archived_at?: string | null;
+          archived_from_stage?: string | null;
+          blocked_from_stage?: string | null;
           blocker_summary?: string | null;
           created_at?: string;
           deleted_at?: string | null;
@@ -1186,6 +1250,14 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      apply_validated_project_delta_v1: {
+        Args: {
+          p_expected_state_version: number;
+          p_generation_run_id: string;
+          p_project_id: string;
+        };
+        Returns: Json;
+      };
       claim_generation_run: {
         Args: {
           p_idempotency_key: string;
@@ -1204,6 +1276,38 @@ export type Database = {
           project_state_version: number;
           run_id: string;
           status: string;
+        }[];
+      };
+      claim_generation_run_v2: {
+        Args: {
+          p_idempotency_key: string;
+          p_input_schema_version?: string;
+          p_operation_kind: string;
+          p_output_schema_version?: string;
+          p_project_id: string;
+          p_project_state_version: number;
+          p_request_fingerprint: string;
+        };
+        Returns: {
+          claim_status: string;
+          correlation_id: string;
+          error_code: string;
+          estimated_cost_micros: number;
+          input_schema_version: string;
+          input_tokens: number;
+          latency_ms: number;
+          model: string;
+          operation_kind: string;
+          output_schema_version: string;
+          output_tokens: number;
+          project_state_version: number;
+          provider: string;
+          retry_count: number;
+          run_id: string;
+          status: string;
+          validated_project_delta_hash: string;
+          validated_project_delta_text: string;
+          validation_result: string;
         }[];
       };
       commit_project_change: {
@@ -1257,6 +1361,42 @@ export type Database = {
           validation_result: string;
         }[];
       };
+      complete_generation_run_v2: {
+        Args: {
+          p_error_code?: string;
+          p_estimated_cost_micros?: number;
+          p_input_tokens?: number;
+          p_latency_ms?: number;
+          p_model?: string;
+          p_output_tokens?: number;
+          p_provider?: string;
+          p_retry_count?: number;
+          p_run_id: string;
+          p_status: string;
+          p_validated_project_delta_text?: string;
+          p_validation_result?: string;
+        };
+        Returns: {
+          correlation_id: string;
+          error_code: string;
+          estimated_cost_micros: number;
+          input_schema_version: string;
+          input_tokens: number;
+          latency_ms: number;
+          model: string;
+          operation_kind: string;
+          output_schema_version: string;
+          output_tokens: number;
+          project_state_version: number;
+          provider: string;
+          retry_count: number;
+          run_id: string;
+          status: string;
+          validated_project_delta_hash: string;
+          validated_project_delta_text: string;
+          validation_result: string;
+        }[];
+      };
       confirm_waitlist_entry: {
         Args: { p_now: string; p_token_hash: string };
         Returns: string;
@@ -1269,6 +1409,20 @@ export type Database = {
           p_selected_tool?: string;
           p_title: string;
         };
+        Returns: Json;
+      };
+      execute_project_command_v1: {
+        Args: {
+          p_command: Json;
+          p_expected_state_version: number;
+          p_idempotency_key: string;
+          p_project_id: string;
+          p_request_fingerprint: string;
+        };
+        Returns: Json;
+      };
+      get_project_state_snapshot_v1: {
+        Args: { p_project_id: string };
         Returns: Json;
       };
       mark_waitlist_confirmation_sent: {

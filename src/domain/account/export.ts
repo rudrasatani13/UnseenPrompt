@@ -18,6 +18,8 @@ export interface ProjectExport {
   readonly selectedTool: string | null;
   readonly activeMilestoneId: string | null;
   readonly blockerSummary: string | null;
+  readonly blockedFromStage: string | null;
+  readonly archivedFromStage: string | null;
   readonly archivedAt: string | null;
   readonly deletedAt: string | null;
   readonly lastActivityAt: string;
@@ -71,6 +73,7 @@ export interface ProjectEventExport {
   readonly id: string;
   readonly projectId: string;
   readonly sequenceNumber: number;
+  readonly eventSchemaVersion: number;
   readonly eventType: string;
   readonly actorType: string;
   readonly actorId: string | null;
