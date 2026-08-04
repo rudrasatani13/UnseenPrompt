@@ -337,6 +337,21 @@ describe("Supabase discovery repository", () => {
     });
   });
 
+  it("accepts native Supabase RPC transport metadata", async () => {
+    const fake = fakeRpc({
+      data: snapshot(),
+      error: null,
+      count: null,
+      status: 200,
+      statusText: "OK",
+      success: true,
+    });
+
+    await expect(
+      createSupabaseDiscoveryRepository(fake.client).getSnapshot(PROJECT_ID),
+    ).resolves.toMatchObject({ projectId: PROJECT_ID, session: { id: SESSION_ID } });
+  });
+
   it("accepts an abandoned snapshot with its saved active question but rejects terminal state", async () => {
     const activeQuestionText = "What should the first useful version accomplish?";
     const activeQuestion = {

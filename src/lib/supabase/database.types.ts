@@ -261,6 +261,91 @@ export type Database = {
           },
         ];
       };
+      composer_drafts: {
+        Row: {
+          abandoned_at: string | null;
+          confidence: number | null;
+          confirmed_mode: string | null;
+          confirmed_title: string | null;
+          created_at: string;
+          detected_language: string | null;
+          detected_mode: string | null;
+          id: string;
+          initial_request_text: string;
+          intent_generation_run_id: string | null;
+          last_error_code: string | null;
+          owner_id: string;
+          project_id: string | null;
+          promoted_at: string | null;
+          rationale: string | null;
+          status: string;
+          updated_at: string;
+          version: number;
+        };
+        Insert: {
+          abandoned_at?: string | null;
+          confidence?: number | null;
+          confirmed_mode?: string | null;
+          confirmed_title?: string | null;
+          created_at?: string;
+          detected_language?: string | null;
+          detected_mode?: string | null;
+          id?: string;
+          initial_request_text: string;
+          intent_generation_run_id?: string | null;
+          last_error_code?: string | null;
+          owner_id: string;
+          project_id?: string | null;
+          promoted_at?: string | null;
+          rationale?: string | null;
+          status?: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Update: {
+          abandoned_at?: string | null;
+          confidence?: number | null;
+          confirmed_mode?: string | null;
+          confirmed_title?: string | null;
+          created_at?: string;
+          detected_language?: string | null;
+          detected_mode?: string | null;
+          id?: string;
+          initial_request_text?: string;
+          intent_generation_run_id?: string | null;
+          last_error_code?: string | null;
+          owner_id?: string;
+          project_id?: string | null;
+          promoted_at?: string | null;
+          rationale?: string | null;
+          status?: string;
+          updated_at?: string;
+          version?: number;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "composer_drafts_intent_generation_fk";
+            columns: ["intent_generation_run_id"];
+            isOneToOne: false;
+            referencedRelation: "generation_runs";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "composer_drafts_owner_id_fkey";
+            columns: ["owner_id"];
+            isOneToOne: false;
+            referencedRelation: "profiles";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "composer_drafts_project_fk";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       decisions: {
         Row: {
           confirmed_at: string | null;
@@ -325,6 +410,335 @@ export type Database = {
           },
         ];
       };
+      discovery_answers: {
+        Row: {
+          answer_text: string;
+          confirmation_event_id: string;
+          created_at: string;
+          id: string;
+          project_id: string;
+          question_id: string;
+          session_id: string;
+          source: string;
+          status: string;
+          superseded_at: string | null;
+          supersedes_answer_id: string | null;
+        };
+        Insert: {
+          answer_text: string;
+          confirmation_event_id: string;
+          created_at?: string;
+          id?: string;
+          project_id: string;
+          question_id: string;
+          session_id: string;
+          source: string;
+          status?: string;
+          superseded_at?: string | null;
+          supersedes_answer_id?: string | null;
+        };
+        Update: {
+          answer_text?: string;
+          confirmation_event_id?: string;
+          created_at?: string;
+          id?: string;
+          project_id?: string;
+          question_id?: string;
+          session_id?: string;
+          source?: string;
+          status?: string;
+          superseded_at?: string | null;
+          supersedes_answer_id?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "discovery_answers_event_fk";
+            columns: ["project_id", "confirmation_event_id"];
+            isOneToOne: false;
+            referencedRelation: "project_events";
+            referencedColumns: ["project_id", "id"];
+          },
+          {
+            foreignKeyName: "discovery_answers_question_fk";
+            columns: ["project_id", "question_id"];
+            isOneToOne: false;
+            referencedRelation: "discovery_questions";
+            referencedColumns: ["project_id", "id"];
+          },
+          {
+            foreignKeyName: "discovery_answers_session_fk";
+            columns: ["project_id", "session_id"];
+            isOneToOne: false;
+            referencedRelation: "discovery_sessions";
+            referencedColumns: ["project_id", "id"];
+          },
+          {
+            foreignKeyName: "discovery_answers_supersedes_fk";
+            columns: ["project_id", "supersedes_answer_id"];
+            isOneToOne: false;
+            referencedRelation: "discovery_answers";
+            referencedColumns: ["project_id", "id"];
+          },
+        ];
+      };
+      discovery_assessments: {
+        Row: {
+          basis_state_version: number;
+          confidence: number;
+          created_at: string;
+          generation_run_id: string;
+          id: string;
+          is_sufficient: boolean;
+          missing_fact_keys: string[];
+          policy_failure_code: string | null;
+          policy_passed: boolean;
+          project_id: string;
+          rationale: string;
+          session_id: string;
+        };
+        Insert: {
+          basis_state_version: number;
+          confidence: number;
+          created_at?: string;
+          generation_run_id: string;
+          id?: string;
+          is_sufficient: boolean;
+          missing_fact_keys?: string[];
+          policy_failure_code?: string | null;
+          policy_passed: boolean;
+          project_id: string;
+          rationale: string;
+          session_id: string;
+        };
+        Update: {
+          basis_state_version?: number;
+          confidence?: number;
+          created_at?: string;
+          generation_run_id?: string;
+          id?: string;
+          is_sufficient?: boolean;
+          missing_fact_keys?: string[];
+          policy_failure_code?: string | null;
+          policy_passed?: boolean;
+          project_id?: string;
+          rationale?: string;
+          session_id?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "discovery_assessments_generation_fk";
+            columns: ["project_id", "generation_run_id"];
+            isOneToOne: false;
+            referencedRelation: "generation_runs";
+            referencedColumns: ["project_id", "id"];
+          },
+          {
+            foreignKeyName: "discovery_assessments_session_fk";
+            columns: ["project_id", "session_id"];
+            isOneToOne: false;
+            referencedRelation: "discovery_sessions";
+            referencedColumns: ["project_id", "id"];
+          },
+        ];
+      };
+      discovery_inputs: {
+        Row: {
+          confirmation_event_id: string;
+          created_at: string;
+          id: string;
+          input_text: string;
+          project_id: string;
+          session_id: string;
+          source: string;
+        };
+        Insert: {
+          confirmation_event_id: string;
+          created_at?: string;
+          id?: string;
+          input_text: string;
+          project_id: string;
+          session_id: string;
+          source?: string;
+        };
+        Update: {
+          confirmation_event_id?: string;
+          created_at?: string;
+          id?: string;
+          input_text?: string;
+          project_id?: string;
+          session_id?: string;
+          source?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "discovery_inputs_event_fk";
+            columns: ["project_id", "confirmation_event_id"];
+            isOneToOne: false;
+            referencedRelation: "project_events";
+            referencedColumns: ["project_id", "id"];
+          },
+          {
+            foreignKeyName: "discovery_inputs_session_fk";
+            columns: ["project_id", "session_id"];
+            isOneToOne: false;
+            referencedRelation: "discovery_sessions";
+            referencedColumns: ["project_id", "id"];
+          },
+        ];
+      };
+      discovery_questions: {
+        Row: {
+          allows_free_text: boolean;
+          answered_at: string | null;
+          basis_state_version: number;
+          created_at: string;
+          generation_run_id: string;
+          id: string;
+          position: number;
+          project_id: string;
+          question_fingerprint: string;
+          question_text: string;
+          rationale: string;
+          session_id: string;
+          status: string;
+          suggested_answers: Json;
+          superseded_at: string | null;
+          target_fact_key: string;
+        };
+        Insert: {
+          allows_free_text?: boolean;
+          answered_at?: string | null;
+          basis_state_version: number;
+          created_at?: string;
+          generation_run_id: string;
+          id?: string;
+          position: number;
+          project_id: string;
+          question_fingerprint: string;
+          question_text: string;
+          rationale: string;
+          session_id: string;
+          status?: string;
+          suggested_answers?: Json;
+          superseded_at?: string | null;
+          target_fact_key: string;
+        };
+        Update: {
+          allows_free_text?: boolean;
+          answered_at?: string | null;
+          basis_state_version?: number;
+          created_at?: string;
+          generation_run_id?: string;
+          id?: string;
+          position?: number;
+          project_id?: string;
+          question_fingerprint?: string;
+          question_text?: string;
+          rationale?: string;
+          session_id?: string;
+          status?: string;
+          suggested_answers?: Json;
+          superseded_at?: string | null;
+          target_fact_key?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "discovery_questions_generation_fk";
+            columns: ["project_id", "generation_run_id"];
+            isOneToOne: false;
+            referencedRelation: "generation_runs";
+            referencedColumns: ["project_id", "id"];
+          },
+          {
+            foreignKeyName: "discovery_questions_session_fk";
+            columns: ["project_id", "session_id"];
+            isOneToOne: false;
+            referencedRelation: "discovery_sessions";
+            referencedColumns: ["project_id", "id"];
+          },
+        ];
+      };
+      discovery_sessions: {
+        Row: {
+          abandoned_at: string | null;
+          active_question_id: string | null;
+          block_code: string | null;
+          completed_at: string | null;
+          confirmed_turn_count: number;
+          id: string;
+          latest_assessment_id: string | null;
+          policy_version: number;
+          project_id: string;
+          source_draft_id: string;
+          started_at: string;
+          status: string;
+        };
+        Insert: {
+          abandoned_at?: string | null;
+          active_question_id?: string | null;
+          block_code?: string | null;
+          completed_at?: string | null;
+          confirmed_turn_count?: number;
+          id?: string;
+          latest_assessment_id?: string | null;
+          policy_version?: number;
+          project_id: string;
+          source_draft_id: string;
+          started_at?: string;
+          status?: string;
+        };
+        Update: {
+          abandoned_at?: string | null;
+          active_question_id?: string | null;
+          block_code?: string | null;
+          completed_at?: string | null;
+          confirmed_turn_count?: number;
+          id?: string;
+          latest_assessment_id?: string | null;
+          policy_version?: number;
+          project_id?: string;
+          source_draft_id?: string;
+          started_at?: string;
+          status?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "discovery_sessions_active_question_fk";
+            columns: ["project_id", "active_question_id"];
+            isOneToOne: false;
+            referencedRelation: "discovery_questions";
+            referencedColumns: ["project_id", "id"];
+          },
+          {
+            foreignKeyName: "discovery_sessions_latest_assessment_fk";
+            columns: ["project_id", "latest_assessment_id"];
+            isOneToOne: false;
+            referencedRelation: "discovery_assessments";
+            referencedColumns: ["project_id", "id"];
+          },
+          {
+            foreignKeyName: "discovery_sessions_project_draft_fk";
+            columns: ["project_id", "source_draft_id"];
+            isOneToOne: false;
+            referencedRelation: "composer_drafts";
+            referencedColumns: ["project_id", "id"];
+          },
+          {
+            foreignKeyName: "discovery_sessions_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: true;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "discovery_sessions_source_draft_id_fkey";
+            columns: ["source_draft_id"];
+            isOneToOne: true;
+            referencedRelation: "composer_drafts";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       entitlements: {
         Row: {
           created_at: string;
@@ -375,9 +789,45 @@ export type Database = {
           },
         ];
       };
+      generation_outputs: {
+        Row: {
+          created_at: string;
+          generation_run_id: string;
+          operation_kind: string;
+          output_schema_version: string;
+          validated_output_hash: string;
+          validated_output_text: string;
+        };
+        Insert: {
+          created_at?: string;
+          generation_run_id: string;
+          operation_kind: string;
+          output_schema_version: string;
+          validated_output_hash: string;
+          validated_output_text: string;
+        };
+        Update: {
+          created_at?: string;
+          generation_run_id?: string;
+          operation_kind?: string;
+          output_schema_version?: string;
+          validated_output_hash?: string;
+          validated_output_text?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "generation_outputs_run_fk";
+            columns: ["generation_run_id"];
+            isOneToOne: true;
+            referencedRelation: "generation_runs";
+            referencedColumns: ["id"];
+          },
+        ];
+      };
       generation_runs: {
         Row: {
           completed_at: string | null;
+          composer_draft_id: string | null;
           correlation_id: string;
           created_at: string;
           error_code: string | null;
@@ -391,18 +841,20 @@ export type Database = {
           operation_kind: string;
           output_schema_version: string | null;
           output_tokens: number | null;
-          project_id: string;
+          project_id: string | null;
           project_state_version: number;
           provider: string | null;
           retry_count: number;
           started_at: string | null;
           status: string;
+          subject_kind: string;
           validated_project_delta_hash: string | null;
           validated_project_delta_text: string | null;
           validation_result: string;
         };
         Insert: {
           completed_at?: string | null;
+          composer_draft_id?: string | null;
           correlation_id?: string;
           created_at?: string;
           error_code?: string | null;
@@ -416,18 +868,20 @@ export type Database = {
           operation_kind: string;
           output_schema_version?: string | null;
           output_tokens?: number | null;
-          project_id: string;
+          project_id?: string | null;
           project_state_version: number;
           provider?: string | null;
           retry_count?: number;
           started_at?: string | null;
           status: string;
+          subject_kind?: string;
           validated_project_delta_hash?: string | null;
           validated_project_delta_text?: string | null;
           validation_result?: string;
         };
         Update: {
           completed_at?: string | null;
+          composer_draft_id?: string | null;
           correlation_id?: string;
           created_at?: string;
           error_code?: string | null;
@@ -441,17 +895,25 @@ export type Database = {
           operation_kind?: string;
           output_schema_version?: string | null;
           output_tokens?: number | null;
-          project_id?: string;
+          project_id?: string | null;
           project_state_version?: number;
           provider?: string | null;
           retry_count?: number;
           started_at?: string | null;
           status?: string;
+          subject_kind?: string;
           validated_project_delta_hash?: string | null;
           validated_project_delta_text?: string | null;
           validation_result?: string;
         };
         Relationships: [
+          {
+            foreignKeyName: "generation_runs_composer_draft_fk";
+            columns: ["composer_draft_id"];
+            isOneToOne: false;
+            referencedRelation: "composer_drafts";
+            referencedColumns: ["id"];
+          },
           {
             foreignKeyName: "generation_runs_idempotency_record_id_fkey";
             columns: ["idempotency_record_id"];
@@ -460,7 +922,7 @@ export type Database = {
             referencedColumns: ["id"];
           },
           {
-            foreignKeyName: "generation_runs_project_id_fkey";
+            foreignKeyName: "generation_runs_project_fk";
             columns: ["project_id"];
             isOneToOne: false;
             referencedRelation: "projects";
@@ -1250,6 +1712,26 @@ export type Database = {
       [_ in never]: never;
     };
     Functions: {
+      apply_discovery_assessment_v1: {
+        Args: {
+          p_expected_state_version: number;
+          p_generation_run_id: string;
+          p_idempotency_key: string;
+          p_project_id: string;
+          p_request_fingerprint: string;
+        };
+        Returns: Json;
+      };
+      apply_discovery_question_v1: {
+        Args: {
+          p_expected_state_version: number;
+          p_generation_run_id: string;
+          p_idempotency_key: string;
+          p_project_id: string;
+          p_request_fingerprint: string;
+        };
+        Returns: Json;
+      };
       apply_validated_project_delta_v1: {
         Args: {
           p_expected_state_version: number;
@@ -1310,6 +1792,116 @@ export type Database = {
           validation_result: string;
         }[];
       };
+      claim_generation_run_v2_server: {
+        Args: {
+          p_idempotency_key: string;
+          p_input_schema_version?: string;
+          p_operation_kind: string;
+          p_output_schema_version?: string;
+          p_owner_id: string;
+          p_project_id: string;
+          p_project_state_version: number;
+          p_request_fingerprint: string;
+        };
+        Returns: {
+          claim_status: string;
+          correlation_id: string;
+          error_code: string;
+          estimated_cost_micros: number;
+          input_schema_version: string;
+          input_tokens: number;
+          latency_ms: number;
+          model: string;
+          operation_kind: string;
+          output_schema_version: string;
+          output_tokens: number;
+          project_state_version: number;
+          provider: string;
+          retry_count: number;
+          run_id: string;
+          status: string;
+          validated_project_delta_hash: string;
+          validated_project_delta_text: string;
+          validation_result: string;
+        }[];
+      };
+      claim_generation_run_v3: {
+        Args: {
+          p_idempotency_key: string;
+          p_input_schema_version: string;
+          p_operation_kind: string;
+          p_output_schema_version: string;
+          p_request_fingerprint: string;
+          p_subject_id: string;
+          p_subject_kind: string;
+          p_subject_state_version: number;
+        };
+        Returns: {
+          claim_status: string;
+          correlation_id: string;
+          error_code: string;
+          estimated_cost_micros: number;
+          input_schema_version: string;
+          input_tokens: number;
+          latency_ms: number;
+          model: string;
+          operation_kind: string;
+          output_schema_version: string;
+          output_tokens: number;
+          project_state_version: number;
+          provider: string;
+          retry_count: number;
+          run_id: string;
+          status: string;
+          subject_id: string;
+          subject_kind: string;
+          subject_version: number;
+          validated_output_hash: string;
+          validated_output_text: string;
+          validated_project_delta_hash: string;
+          validated_project_delta_text: string;
+          validation_result: string;
+        }[];
+      };
+      claim_generation_run_v3_server: {
+        Args: {
+          p_idempotency_key: string;
+          p_input_schema_version: string;
+          p_operation_kind: string;
+          p_output_schema_version: string;
+          p_owner_id: string;
+          p_request_fingerprint: string;
+          p_subject_id: string;
+          p_subject_kind: string;
+          p_subject_state_version: number;
+        };
+        Returns: {
+          claim_status: string;
+          correlation_id: string;
+          error_code: string;
+          estimated_cost_micros: number;
+          input_schema_version: string;
+          input_tokens: number;
+          latency_ms: number;
+          model: string;
+          operation_kind: string;
+          output_schema_version: string;
+          output_tokens: number;
+          project_state_version: number;
+          provider: string;
+          retry_count: number;
+          run_id: string;
+          status: string;
+          subject_id: string;
+          subject_kind: string;
+          subject_version: number;
+          validated_output_hash: string;
+          validated_output_text: string;
+          validated_project_delta_hash: string;
+          validated_project_delta_text: string;
+          validation_result: string;
+        }[];
+      };
       commit_project_change: {
         Args: {
           p_active_milestone_id: string;
@@ -1325,6 +1917,16 @@ export type Database = {
           p_selected_tool: string;
           p_stage: string;
           p_title: string;
+        };
+        Returns: Json;
+      };
+      complete_discovery_v1: {
+        Args: {
+          p_expected_state_version: number;
+          p_generation_run_id: string;
+          p_idempotency_key: string;
+          p_project_id: string;
+          p_request_fingerprint: string;
         };
         Returns: Json;
       };
@@ -1397,9 +1999,139 @@ export type Database = {
           validation_result: string;
         }[];
       };
+      complete_generation_run_v2_server: {
+        Args: {
+          p_error_code?: string;
+          p_estimated_cost_micros?: number;
+          p_input_tokens?: number;
+          p_latency_ms?: number;
+          p_model?: string;
+          p_output_tokens?: number;
+          p_owner_id: string;
+          p_provider?: string;
+          p_retry_count?: number;
+          p_run_id: string;
+          p_status: string;
+          p_validated_project_delta_text?: string;
+          p_validation_result?: string;
+        };
+        Returns: {
+          correlation_id: string;
+          error_code: string;
+          estimated_cost_micros: number;
+          input_schema_version: string;
+          input_tokens: number;
+          latency_ms: number;
+          model: string;
+          operation_kind: string;
+          output_schema_version: string;
+          output_tokens: number;
+          project_state_version: number;
+          provider: string;
+          retry_count: number;
+          run_id: string;
+          status: string;
+          validated_project_delta_hash: string;
+          validated_project_delta_text: string;
+          validation_result: string;
+        }[];
+      };
+      complete_generation_run_v3: {
+        Args: {
+          p_error_code: string;
+          p_estimated_cost_micros: number;
+          p_input_tokens: number;
+          p_latency_ms: number;
+          p_model: string;
+          p_output_tokens: number;
+          p_provider: string;
+          p_retry_count: number;
+          p_run_id: string;
+          p_status: string;
+          p_validated_output_text?: string;
+          p_validated_project_delta_text?: string;
+          p_validation_result: string;
+        };
+        Returns: {
+          correlation_id: string;
+          error_code: string;
+          estimated_cost_micros: number;
+          input_schema_version: string;
+          input_tokens: number;
+          latency_ms: number;
+          model: string;
+          operation_kind: string;
+          output_schema_version: string;
+          output_tokens: number;
+          project_state_version: number;
+          provider: string;
+          retry_count: number;
+          run_id: string;
+          status: string;
+          subject_id: string;
+          subject_kind: string;
+          subject_version: number;
+          validated_output_hash: string;
+          validated_output_text: string;
+          validated_project_delta_hash: string;
+          validated_project_delta_text: string;
+          validation_result: string;
+        }[];
+      };
+      complete_generation_run_v3_server: {
+        Args: {
+          p_error_code: string;
+          p_estimated_cost_micros: number;
+          p_input_tokens: number;
+          p_latency_ms: number;
+          p_model: string;
+          p_output_tokens: number;
+          p_owner_id: string;
+          p_provider: string;
+          p_retry_count: number;
+          p_run_id: string;
+          p_status: string;
+          p_validated_output_text?: string;
+          p_validated_project_delta_text?: string;
+          p_validation_result: string;
+        };
+        Returns: {
+          correlation_id: string;
+          error_code: string;
+          estimated_cost_micros: number;
+          input_schema_version: string;
+          input_tokens: number;
+          latency_ms: number;
+          model: string;
+          operation_kind: string;
+          output_schema_version: string;
+          output_tokens: number;
+          project_state_version: number;
+          provider: string;
+          retry_count: number;
+          run_id: string;
+          status: string;
+          subject_id: string;
+          subject_kind: string;
+          subject_version: number;
+          validated_output_hash: string;
+          validated_output_text: string;
+          validated_project_delta_hash: string;
+          validated_project_delta_text: string;
+          validation_result: string;
+        }[];
+      };
       confirm_waitlist_entry: {
         Args: { p_now: string; p_token_hash: string };
         Returns: string;
+      };
+      create_composer_draft_v1: {
+        Args: {
+          p_idempotency_key: string;
+          p_initial_request_text: string;
+          p_request_fingerprint: string;
+        };
+        Returns: Json;
       };
       create_project: {
         Args: {
@@ -1411,6 +2143,26 @@ export type Database = {
         };
         Returns: Json;
       };
+      execute_composer_draft_command_v1: {
+        Args: {
+          p_command: Json;
+          p_draft_id: string;
+          p_expected_version: number;
+          p_idempotency_key: string;
+          p_request_fingerprint: string;
+        };
+        Returns: Json;
+      };
+      execute_discovery_command_v1: {
+        Args: {
+          p_command: Json;
+          p_expected_state_version: number;
+          p_idempotency_key: string;
+          p_project_id: string;
+          p_request_fingerprint: string;
+        };
+        Returns: Json;
+      };
       execute_project_command_v1: {
         Args: {
           p_command: Json;
@@ -1419,6 +2171,10 @@ export type Database = {
           p_project_id: string;
           p_request_fingerprint: string;
         };
+        Returns: Json;
+      };
+      get_discovery_snapshot_v1: {
+        Args: { p_project_id: string };
         Returns: Json;
       };
       get_project_state_snapshot_v1: {

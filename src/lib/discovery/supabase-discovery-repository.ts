@@ -137,6 +137,11 @@ export interface CompleteDiscoveryRpcArgs {
 export interface DiscoveryRpcResult {
   readonly data: unknown;
   readonly error: unknown;
+  /** Native PostgREST transport metadata returned by @supabase/supabase-js. */
+  readonly count?: number | null;
+  readonly status?: number;
+  readonly statusText?: string;
+  readonly success?: boolean;
 }
 
 const UUID = z.uuid();
@@ -146,7 +151,23 @@ const ID_KEY = z
   .min(1)
   .max(255)
   .refine((value) => value.trim() === value);
-const RPC_RESULT = z.strictObject({ data: z.unknown(), error: z.unknown() });
+/*
+ * Supabase's PostgREST client returns data/error plus transport metadata (count, status,
+ * statusText, and success). Keep this boundary explicit: accept only the known metadata fields
+ * and strip them before the domain parsers inspect the RPC payload. Unknown response keys are not
+ * part of the adapter contract and are deliberately discarded rather than trusted.
+ */
+const RPC_RESULT = z
+  .object({
+    data: z.unknown(),
+    error: z.unknown(),
+    count: z.number().int().nullable().optional(),
+    status: z.number().int().optional(),
+    statusText: z.string().optional(),
+    success: z.boolean().optional(),
+  })
+  .strip()
+  .transform(({ data, error }) => ({ data, error }));
 const DRAFT_ERROR_CODES = z.enum([
   "provider_unavailable",
   "persistence_failed",
