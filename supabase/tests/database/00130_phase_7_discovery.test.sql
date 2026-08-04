@@ -280,8 +280,8 @@ select set_config('request.jwt.claims','{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbb
 select is((select count(*)::int from public.composer_drafts),0,'foreign owner cannot see drafts');
 select is((select count(*)::int from public.discovery_inputs),0,'foreign owner cannot see input evidence');
 select is((select count(*)::int from public.discovery_sessions),0,'foreign owner cannot see sessions');
-select throws_ok($$select public.get_discovery_snapshot_v1((select project_id from tmp_project))$$,'P0001','discovery_not_found','foreign snapshot does not disclose project');
-select throws_ok($$select public.execute_discovery_command_v1((select project_id from tmp_project),12,'phase7-cross-owner',repeat('7',64),'{"type":"resume_discovery"}'::jsonb)$$,'P0001','project_not_found','foreign command does not disclose project');
+select throws_ok($$select public.get_discovery_snapshot_v1(current_setting('phase7.test_project_id')::uuid)$$,'P0001','discovery_not_found','foreign snapshot does not disclose project');
+select throws_ok($$select public.execute_discovery_command_v1(current_setting('phase7.test_project_id')::uuid,12,'phase7-cross-owner',repeat('7',64),'{"type":"resume_discovery"}'::jsonb)$$,'P0001','project_not_found','foreign command does not disclose project');
 reset role;
 
 select * from finish();

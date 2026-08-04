@@ -482,7 +482,12 @@ function assertSnapshotRelationships(snapshot: z.infer<typeof discoverySnapshotS
   } else if (session.activeQuestionId !== null) {
     throw persistenceFailure();
   }
-  if (session.status !== "active" && activeQuestion !== null) throw persistenceFailure();
+  // Abandoning discovery intentionally preserves the active question so resume can show the
+  // saved question without generating another one. Terminal/sufficient states still cannot carry
+  // an active question (the explicit guard below keeps that invariant readable).
+  if (activeQuestion !== null && session.status !== "active" && session.status !== "abandoned") {
+    throw persistenceFailure();
+  }
   if (
     (session.status === "sufficient" || session.status === "completed") &&
     activeQuestion !== null

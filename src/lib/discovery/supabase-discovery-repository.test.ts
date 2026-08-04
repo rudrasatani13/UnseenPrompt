@@ -20,8 +20,10 @@ const PROJECT_ID = "01000000-0000-4000-8000-000000000001";
 const DRAFT_ID = "02000000-0000-4000-8000-000000000001";
 const SESSION_ID = "03000000-0000-4000-8000-000000000001";
 const QUESTION_ID = "04000000-0000-4000-8000-000000000001";
+const ACTIVE_QUESTION_ID = "08000000-0000-4000-8000-000000000001";
 const ANSWER_ID = "05000000-0000-4000-8000-000000000001";
 const RUN_ID = "06000000-0000-4000-8000-000000000001";
+const ACTIVE_RUN_ID = "09000000-0000-4000-8000-000000000001";
 const EVENT_ID = "07000000-0000-4000-8000-000000000001";
 const CREATED_AT = "2026-01-01T00:00:00.000Z";
 
@@ -333,6 +335,56 @@ describe("Supabase discovery repository", () => {
     ).rejects.toMatchObject({
       code: "persistence_failed",
     });
+  });
+
+  it("accepts an abandoned snapshot with its saved active question but rejects terminal state", async () => {
+    const activeQuestionText = "What should the first useful version accomplish?";
+    const activeQuestion = {
+      id: ACTIVE_QUESTION_ID,
+      projectId: PROJECT_ID,
+      sessionId: SESSION_ID,
+      generationRunId: ACTIVE_RUN_ID,
+      position: 2,
+      targetFactKey: "outcome",
+      basisStateVersion: 3,
+      questionText: activeQuestionText,
+      rationale: "A concrete first outcome keeps the build focused.",
+      suggestedAnswers: [],
+      allowsFreeText: true,
+      questionFingerprint: questionFingerprintV1(activeQuestionText),
+      status: "active",
+      createdAt: CREATED_AT,
+      answeredAt: null,
+      supersededAt: null,
+    } as const;
+    const abandonedSession = {
+      ...snapshot().session,
+      status: "abandoned",
+      activeQuestionId: ACTIVE_QUESTION_ID,
+      abandonedAt: "2026-01-01T00:03:00.000Z",
+    } as const;
+    const abandoned = fakeRpc({
+      data: snapshot({ session: abandonedSession, activeQuestion }),
+      error: null,
+    });
+
+    await expect(
+      createSupabaseDiscoveryRepository(abandoned.client).getSnapshot(PROJECT_ID),
+    ).resolves.toMatchObject({
+      session: { status: "abandoned", activeQuestionId: ACTIVE_QUESTION_ID },
+      activeQuestion: { id: ACTIVE_QUESTION_ID, status: "active" },
+    });
+
+    const terminal = fakeRpc({
+      data: snapshot({
+        session: { ...abandonedSession, status: "sufficient", abandonedAt: null },
+        activeQuestion,
+      }),
+      error: null,
+    });
+    await expect(
+      createSupabaseDiscoveryRepository(terminal.client).getSnapshot(PROJECT_ID),
+    ).rejects.toMatchObject({ code: "persistence_failed" });
   });
 
   it("rejects duplicate fingerprints, broken answer lineage, and invalid suggestion membership", async () => {
