@@ -1,6 +1,6 @@
 # UnseenPrompt
 
-**Status:** Phase 5 implementation and generated types complete — isolated DB CI complete; live-provider operator verification pending
+**Status:** Phase 6 implementation and independent review corrections complete — isolated database/type-generation CI pending; live-provider operator verification pending
 
 **Primary domain:** `https://unseenprompt.com` (Cloudflare Worker Custom Domain)
 
@@ -21,6 +21,17 @@ only the coming-soon waitlist.
 Phase 5 adds a server-only, provider-neutral model gateway with nine versioned output schemas,
 Anthropic/OpenAI/Gemini adapters, runtime validation, one bounded repair, fallback/reviewer limits,
 and safe execution metadata. Production gating and waitlist behavior are unchanged.
+
+Phase 6 adds the canonical project-state engine, deterministic context compiler, replay-safe
+project-delta application service, Supabase repository, and additive state/replay migration. The
+implementation and review corrections are complete in source. Local non-DB validation passed; only
+the isolated `db:lint`, `test:db`, `test:db:concurrency`, and `db:types:check` gates remain pending.
+Generated database types were deliberately not hand-edited.
+
+Observed locally on 2026-08-03: unit 110 files/1031 tests, copy 1, e2e 44 passed/20 skipped,
+maintenance 4, production 32, build, Cloudflare types/dependency/build/preview all passed. Every
+command warned that Node 22.23.1 is below the required `>=24 <25`; preview assertions passed, but
+Wrangler logged a shutdown `ERROR` after completion. The Phase 5 live-provider probe remains operator-only.
 
 ## Prerequisites
 
@@ -84,16 +95,16 @@ Database gate (GitHub Actions only):
 
 ```bash
 # Do not run against local Docker on developer Macs.
-# The GitHub Actions `database` job supplies the isolated database.
-pnpm exec supabase db start
-pnpm exec supabase db reset --yes
+# The GitHub Actions `database` job supplies the isolated database. Do not start/reset a local
+# Docker or shared database for these gates.
 pnpm db:lint
 pnpm test:db
 pnpm test:db:concurrency
 pnpm db:types:check
 ```
 
-Committed types: `src/lib/supabase/database.types.ts` (regenerate with `pnpm db:types`).
+Generated types: `src/lib/supabase/database.types.ts` are deliberately not hand-edited; regenerate
+with `pnpm db:types` only in the isolated CI gate.
 
 Negative environment test:
 
@@ -116,28 +127,32 @@ not claimed by this repository until the command has been run with real credenti
 
 ## Phase status
 
-| Gate                                              | State                                          |
-| ------------------------------------------------- | ---------------------------------------------- |
-| Local Worker topology + Workflows binding         | Implemented                                    |
-| Public `/api/health`                              | Implemented                                    |
-| Token-protected Workflow probe                    | Implemented                                    |
-| PR validation                                     | Local Worker build + smoke in GitHub Actions   |
-| Product schema + RLS + pgTAP                      | Implemented (CI `database` job)                |
-| Atomic `create_project` / `commit_project_change` | Implemented                                    |
-| Private `project-artifacts` bucket                | Implemented (read-only client policies)        |
-| Non-production authentication + session guards    | Implemented; hosted staging setup pending      |
-| Profile, preferences, deletion request, export    | Implemented                                    |
-| Project preference overrides + RLS tests          | Implemented; database suite runs in CI         |
-| Phase 5 generation persistence + isolated DB CI   | Implemented; CI database gate complete         |
-| Phase 5 live provider contract verification       | Pending operator live probe                    |
-| Production product surface                        | Disabled behind the production gate            |
-| Staging deployment                                | DB migrate then Worker on push to `main`       |
-| Production deployment                             | Paused unless `PRODUCTION_DEPLOY_ENABLED=true` |
-| Production traffic                                | Live on `unseenprompt.com` and `www`           |
+| Gate                                              | State                                            |
+| ------------------------------------------------- | ------------------------------------------------ |
+| Local Worker topology + Workflows binding         | Implemented                                      |
+| Public `/api/health`                              | Implemented                                      |
+| Token-protected Workflow probe                    | Implemented                                      |
+| PR validation                                     | Local Worker build + smoke in GitHub Actions     |
+| Product schema + RLS + pgTAP                      | Implemented (CI `database` job)                  |
+| Atomic `create_project` / `commit_project_change` | Implemented                                      |
+| Private `project-artifacts` bucket                | Implemented (read-only client policies)          |
+| Non-production authentication + session guards    | Implemented; hosted staging setup pending        |
+| Profile, preferences, deletion request, export    | Implemented                                      |
+| Project preference overrides + RLS tests          | Implemented; database suite runs in CI           |
+| Phase 5 generation persistence + isolated DB CI   | Implemented; CI database gate complete           |
+| Phase 5 live provider contract verification       | Pending operator live probe                      |
+| Phase 6 project state + context compiler          | Implemented/reviewed in source; DB gates pending |
+| Phase 6 two-session concurrency + generated types | Harness implemented; type gate pending           |
+| Phase 6 independent security/architecture review  | Complete; corrections applied                    |
+| Production product surface                        | Disabled behind the production gate              |
+| Staging deployment                                | DB migrate then Worker on push to `main`         |
+| Production deployment                             | Paused unless `PRODUCTION_DEPLOY_ENABLED=true`   |
+| Production traffic                                | Live on `unseenprompt.com` and `www`             |
 
 Operator procedures: [docs/deployment/cloudflare-runbook.md](docs/deployment/cloudflare-runbook.md).
 Execution plans: [docs/architecture/phase-4-authentication-profile-memory-execution-plan.md](docs/architecture/phase-4-authentication-profile-memory-execution-plan.md) and
-[docs/architecture/phase-5-typed-model-gateway-execution-plan.md](docs/architecture/phase-5-typed-model-gateway-execution-plan.md).
+[docs/architecture/phase-5-typed-model-gateway-execution-plan.md](docs/architecture/phase-5-typed-model-gateway-execution-plan.md) and
+[docs/architecture/phase-6-project-state-engine-context-compiler-execution-plan.md](docs/architecture/phase-6-project-state-engine-context-compiler-execution-plan.md).
 
 ## Documentation
 

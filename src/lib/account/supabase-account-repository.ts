@@ -56,7 +56,7 @@ const PREFERENCE_COLUMNS =
   "skill_level, preferred_stack_behavior, preferred_stack, coding_style, deployment_preference";
 const PROJECT_PREFERENCE_OVERRIDE_COLUMNS = PREFERENCE_COLUMNS;
 const PROJECT_EXPORT_COLUMNS =
-  "id, owner_id, title, mode, stage, state_version, selected_tool, active_milestone_id, blocker_summary, archived_at, deleted_at, last_activity_at, created_at, updated_at";
+  "id, owner_id, title, mode, stage, state_version, selected_tool, active_milestone_id, blocker_summary, blocked_from_stage, archived_from_stage, archived_at, deleted_at, last_activity_at, created_at, updated_at";
 const REQUIREMENT_EXPORT_COLUMNS =
   "id, project_id, category, statement, status, rationale, source_event_id, supersedes_requirement_id, confirmed_at, created_at, updated_at";
 const DECISION_EXPORT_COLUMNS =
@@ -64,7 +64,7 @@ const DECISION_EXPORT_COLUMNS =
 const MILESTONE_EXPORT_COLUMNS =
   "id, project_id, position, title, description, suggested_status, confirmed_status, blocked_reason, confirmation_event_id, created_at, updated_at";
 const PROJECT_EVENT_EXPORT_COLUMNS =
-  "id, project_id, sequence_number, event_type, actor_type, actor_id, payload, correlation_id, idempotency_record_id, created_at";
+  "id, project_id, sequence_number, event_schema_version, event_type, actor_type, actor_id, payload, correlation_id, idempotency_record_id, created_at";
 const PROMPT_VERSION_EXPORT_COLUMNS =
   "id, project_id, generation_run_id, tool, version, source, project_state_version, action_specification, prompt_text, acceptance_criteria, supersedes_prompt_version_id, content_hash, created_at";
 const OVERRIDE_EXPORT_COLUMNS =
@@ -122,6 +122,8 @@ function toProjectExport(row: ProjectRow): ProjectExport {
     selectedTool: row.selected_tool,
     activeMilestoneId: row.active_milestone_id,
     blockerSummary: row.blocker_summary,
+    blockedFromStage: row.blocked_from_stage,
+    archivedFromStage: row.archived_from_stage,
     archivedAt: row.archived_at,
     deletedAt: row.deleted_at,
     lastActivityAt: row.last_activity_at,
@@ -183,6 +185,7 @@ function toProjectEventExport(row: ProjectEventRow): ProjectEventExport {
     id: row.id,
     projectId: row.project_id,
     sequenceNumber: row.sequence_number,
+    eventSchemaVersion: row.event_schema_version,
     eventType: row.event_type,
     actorType: row.actor_type,
     actorId: row.actor_id,

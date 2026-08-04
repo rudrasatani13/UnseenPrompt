@@ -10,6 +10,7 @@ import type {
 import { createModelGatewayError, type ModelGatewayError } from "@/lib/model/errors";
 import {
   GENERATION_RUN_INPUT_SCHEMA_VERSION,
+  MAX_VALIDATED_PROJECT_DELTA_BYTES,
   type GenerationRunClaim,
   type GenerationRunClaimInput,
   type GenerationRunCompletion,
@@ -25,11 +26,11 @@ import type { ProviderId } from "@/lib/model/provider";
  */
 export interface GenerationRunRpcClient {
   rpc(
-    functionName: "claim_generation_run",
+    functionName: "claim_generation_run_v2",
     args: ClaimGenerationRunRpcArgs,
   ): PromiseLike<GenerationRunRpcResult>;
   rpc(
-    functionName: "complete_generation_run",
+    functionName: "complete_generation_run_v2",
     args: CompleteGenerationRunRpcArgs,
   ): PromiseLike<GenerationRunRpcResult>;
 }
@@ -61,6 +62,7 @@ export interface CompleteGenerationRunRpcArgs {
   readonly p_estimated_cost_micros: number | null;
   readonly p_validation_result: RecordedModelValidationResult;
   readonly p_error_code: TerminalGenerationErrorCode | null;
+  readonly p_validated_project_delta_text: string | null;
 }
 
 export interface GenerationRunRpcResult {
@@ -117,6 +119,8 @@ const operationSchema = z.enum(MODEL_OPERATIONS);
 const providerSchema = z.enum(PROVIDERS);
 const validationResultSchema = z.enum(VALIDATION_RESULTS);
 const terminalStatusSchema = z.enum(TERMINAL_STATUSES);
+const claimStatusSchema = z.enum(["running", "replayed"] as const);
+const claimRowStatusSchema = z.enum(["running", ...TERMINAL_STATUSES] as const);
 const uuidSchema = z.string().uuid();
 const safeNonNegativeIntegerSchema = z.number().int().safe().nonnegative();
 const positiveSafeIntegerSchema = safeNonNegativeIntegerSchema.positive();
@@ -127,16 +131,36 @@ const boundedMetadataStringSchema = z
   .refine((value) => value.trim() === value)
   .refine((value) => new TextEncoder().encode(value).byteLength <= MAX_METADATA_BYTES);
 const nullableBoundedMetadataStringSchema = boundedMetadataStringSchema.nullable();
+const nullableSha256Schema = z.string().regex(SHA256_PATTERN).nullable();
+const validatedProjectDeltaTextSchema = z
+  .string()
+  .min(1)
+  .refine(
+    (value) => new TextEncoder().encode(value).byteLength <= MAX_VALIDATED_PROJECT_DELTA_BYTES,
+  );
+const nullableValidatedProjectDeltaTextSchema = validatedProjectDeltaTextSchema.nullable();
 
 const claimRowSchema = z
   .strictObject({
     run_id: uuidSchema,
     correlation_id: uuidSchema,
-    status: z.literal("running"),
+    claim_status: claimStatusSchema,
+    status: claimRowStatusSchema,
     project_state_version: positiveSafeIntegerSchema,
     operation_kind: operationSchema,
     input_schema_version: z.literal(GENERATION_RUN_INPUT_SCHEMA_VERSION),
     output_schema_version: boundedMetadataStringSchema,
+    provider: providerSchema.nullable(),
+    model: nullableBoundedMetadataStringSchema,
+    latency_ms: safeNonNegativeIntegerSchema.nullable(),
+    input_tokens: safeNonNegativeIntegerSchema.nullable(),
+    output_tokens: safeNonNegativeIntegerSchema.nullable(),
+    retry_count: safeNonNegativeIntegerSchema.nullable(),
+    estimated_cost_micros: safeNonNegativeIntegerSchema.nullable(),
+    validation_result: validationResultSchema,
+    error_code: z.enum(TERMINAL_ERROR_CODES).nullable(),
+    validated_project_delta_text: nullableValidatedProjectDeltaTextSchema,
+    validated_project_delta_hash: nullableSha256Schema,
   })
   .superRefine((value, context) => {
     const expected = `unseenprompt.model-output.${value.operation_kind}.v1`;
@@ -146,6 +170,38 @@ const claimRowSchema = z
         path: ["output_schema_version"],
         message: "schema mismatch",
       });
+    }
+    if (value.claim_status === "running") {
+      if (
+        value.status !== "running" ||
+        value.provider !== null ||
+        value.model !== null ||
+        value.latency_ms !== null ||
+        value.input_tokens !== null ||
+        value.output_tokens !== null ||
+        value.retry_count !== null ||
+        value.estimated_cost_micros !== null ||
+        value.validation_result !== "not_attempted" ||
+        value.error_code !== null ||
+        value.validated_project_delta_text !== null ||
+        value.validated_project_delta_hash !== null
+      ) {
+        context.addIssue({ code: "custom", message: "invalid running claim" });
+      }
+    } else if (
+      value.status !== "succeeded" ||
+      value.operation_kind !== "project_delta" ||
+      value.output_schema_version !== "unseenprompt.model-output.project_delta.v1" ||
+      value.provider === null ||
+      value.model === null ||
+      value.latency_ms === null ||
+      value.retry_count === null ||
+      !["passed", "repaired", "reviewed"].includes(value.validation_result) ||
+      value.error_code !== null ||
+      value.validated_project_delta_text === null ||
+      value.validated_project_delta_hash === null
+    ) {
+      context.addIssue({ code: "custom", message: "invalid replayed claim" });
     }
   });
 
@@ -167,6 +223,8 @@ const completionRowSchema = z
     estimated_cost_micros: safeNonNegativeIntegerSchema.nullable(),
     validation_result: validationResultSchema,
     error_code: z.enum(TERMINAL_ERROR_CODES).nullable(),
+    validated_project_delta_text: nullableValidatedProjectDeltaTextSchema,
+    validated_project_delta_hash: nullableSha256Schema,
   })
   .superRefine((value, context) => {
     const expected = `unseenprompt.model-output.${value.operation_kind}.v1`;
@@ -176,6 +234,20 @@ const completionRowSchema = z
         path: ["output_schema_version"],
         message: "schema mismatch",
       });
+    }
+    const hasText = value.validated_project_delta_text !== null;
+    const hasHash = value.validated_project_delta_hash !== null;
+    if (hasText !== hasHash) {
+      context.addIssue({ code: "custom", message: "validated delta pair mismatch" });
+    }
+    if (hasText) {
+      if (
+        value.operation_kind !== "project_delta" ||
+        value.status !== "succeeded" ||
+        !["passed", "repaired", "reviewed"].includes(value.validation_result)
+      ) {
+        context.addIssue({ code: "custom", message: "validated delta not allowed" });
+      }
     }
   });
 
@@ -193,6 +265,7 @@ const claimInputSchema = z
     operationKind: operationSchema,
     inputSchemaVersion: z.literal(GENERATION_RUN_INPUT_SCHEMA_VERSION),
     outputSchemaVersion: boundedMetadataStringSchema,
+    allowHistoricalReplay: z.boolean().default(false),
   })
   .superRefine((value, context) => {
     const expected = `unseenprompt.model-output.${value.operationKind}.v1`;
@@ -218,6 +291,7 @@ const completionInputSchema = z
     estimatedCostMicros: safeNonNegativeIntegerSchema.nullable(),
     validationResult: validationResultSchema,
     errorCode: z.enum(TERMINAL_ERROR_CODES).nullable(),
+    validatedProjectDeltaText: nullableValidatedProjectDeltaTextSchema.optional(),
   })
   .superRefine((value, context) => {
     if (value.status === "succeeded") {
@@ -289,8 +363,11 @@ function parseSingleRow<T extends z.ZodType>(schema: T, value: unknown): z.infer
 }
 
 function mapClaimRow(row: ClaimRow, input: GenerationRunClaimInput): GenerationRunClaim {
+  const versionMatches = row.project_state_version === input.projectStateVersion;
+  const historicalReplayAllowed =
+    input.allowHistoricalReplay === true && row.claim_status === "replayed";
   if (
-    row.project_state_version !== input.projectStateVersion ||
+    (!versionMatches && !historicalReplayAllowed) ||
     row.operation_kind !== input.operationKind ||
     row.input_schema_version !== GENERATION_RUN_INPUT_SCHEMA_VERSION ||
     row.output_schema_version !== input.outputSchemaVersion ||
@@ -298,14 +375,54 @@ function mapClaimRow(row: ClaimRow, input: GenerationRunClaimInput): GenerationR
   ) {
     throw persistenceFailure();
   }
+  if (row.claim_status === "running") {
+    return {
+      runId: row.run_id,
+      correlationId: row.correlation_id,
+      status: "running",
+      projectStateVersion: row.project_state_version,
+      operationKind: row.operation_kind,
+      inputSchemaVersion: row.input_schema_version,
+      outputSchemaVersion: row.output_schema_version,
+    };
+  }
+  if (
+    row.operation_kind !== "project_delta" ||
+    row.output_schema_version !== "unseenprompt.model-output.project_delta.v1" ||
+    row.provider === null ||
+    row.model === null ||
+    row.latency_ms === null ||
+    row.retry_count === null ||
+    row.validated_project_delta_text === null ||
+    row.validated_project_delta_hash === null ||
+    row.error_code !== null ||
+    !["passed", "repaired", "reviewed"].includes(row.validation_result)
+  ) {
+    throw persistenceFailure();
+  }
+  const validationResult = row.validation_result as Exclude<
+    RecordedModelValidationResult,
+    "not_attempted" | "failed"
+  >;
   return {
     runId: row.run_id,
     correlationId: row.correlation_id,
-    status: "running",
+    status: "replayed",
     projectStateVersion: row.project_state_version,
-    operationKind: row.operation_kind,
+    operationKind: "project_delta",
     inputSchemaVersion: row.input_schema_version,
-    outputSchemaVersion: row.output_schema_version,
+    outputSchemaVersion: "unseenprompt.model-output.project_delta.v1",
+    provider: row.provider,
+    model: row.model,
+    latencyMs: row.latency_ms,
+    inputTokens: row.input_tokens,
+    outputTokens: row.output_tokens,
+    retryCount: row.retry_count,
+    estimatedCostMicros: row.estimated_cost_micros,
+    validationResult,
+    errorCode: null,
+    validatedProjectDeltaText: row.validated_project_delta_text,
+    validatedProjectDeltaHash: row.validated_project_delta_hash,
   };
 }
 
@@ -324,8 +441,12 @@ function mapCompletionRow(
     row.retry_count !== input.retryCount ||
     row.estimated_cost_micros !== input.estimatedCostMicros ||
     row.validation_result !== input.validationResult ||
-    row.error_code !== input.errorCode
+    row.error_code !== input.errorCode ||
+    row.validated_project_delta_text !== (input.validatedProjectDeltaText ?? null)
   ) {
+    throw persistenceFailure();
+  }
+  if ((row.validated_project_delta_text === null) !== (row.validated_project_delta_hash === null)) {
     throw persistenceFailure();
   }
   return {
@@ -345,6 +466,8 @@ function mapCompletionRow(
     operationKind: row.operation_kind,
     inputSchemaVersion: row.input_schema_version,
     outputSchemaVersion: row.output_schema_version,
+    validatedProjectDeltaText: row.validated_project_delta_text,
+    validatedProjectDeltaHash: row.validated_project_delta_hash,
   };
 }
 
@@ -375,6 +498,7 @@ function completionRpcArgs(
     p_estimated_cost_micros: input.estimatedCostMicros,
     p_validation_result: input.validationResult,
     p_error_code: input.errorCode,
+    p_validated_project_delta_text: input.validatedProjectDeltaText ?? null,
   };
 }
 
@@ -389,7 +513,7 @@ export function createSupabaseGenerationRunStore(
 
       let response: unknown;
       try {
-        response = await client.rpc("claim_generation_run", claimRpcArgs(parsedInput.data));
+        response = await client.rpc("claim_generation_run_v2", claimRpcArgs(parsedInput.data));
       } catch {
         throw persistenceFailure();
       }
@@ -411,7 +535,10 @@ export function createSupabaseGenerationRunStore(
 
       let response: unknown;
       try {
-        response = await client.rpc("complete_generation_run", completionRpcArgs(parsedInput.data));
+        response = await client.rpc(
+          "complete_generation_run_v2",
+          completionRpcArgs(parsedInput.data),
+        );
       } catch {
         throw persistenceFailure();
       }
@@ -424,7 +551,10 @@ export function createSupabaseGenerationRunStore(
       }
       if (result.error !== null) throw persistenceFailure();
       const row = parseSingleRow(completionRowSchema, result.data);
-      return mapCompletionRow(row, parsedInput.data);
+      return mapCompletionRow(row, {
+        ...parsedInput.data,
+        validatedProjectDeltaText: parsedInput.data.validatedProjectDeltaText ?? null,
+      });
     },
   };
 }

@@ -43,6 +43,8 @@ function source(): AccountExportSource {
         selectedTool: null,
         activeMilestoneId: null,
         blockerSummary: null,
+        blockedFromStage: null,
+        archivedFromStage: null,
         archivedAt: null,
         deletedAt: null,
         lastActivityAt: GENERATED_AT,
@@ -59,6 +61,8 @@ function source(): AccountExportSource {
         selectedTool: null,
         activeMilestoneId: null,
         blockerSummary: null,
+        blockedFromStage: null,
+        archivedFromStage: null,
         archivedAt: null,
         deletedAt: null,
         lastActivityAt: GENERATED_AT,
@@ -96,7 +100,21 @@ function source(): AccountExportSource {
     ],
     decisions: [],
     milestones: [],
-    projectEvents: [],
+    projectEvents: [
+      {
+        id: "owned-event",
+        projectId: PROJECT_ID,
+        sequenceNumber: 1,
+        eventSchemaVersion: 1,
+        eventType: "project.created",
+        actorType: "user",
+        actorId: USER_ID,
+        payload: {},
+        correlationId: "owned",
+        idempotencyRecordId: null,
+        createdAt: GENERATED_AT,
+      },
+    ],
     promptVersions: [],
     projectPreferenceOverrides: [],
   };
@@ -112,6 +130,17 @@ describe("assembleAccountExportV1", () => {
     expect(result.preferences).toEqual(preferences);
     expect(result.projects.map((item) => item.id)).toEqual([PROJECT_ID]);
     expect(result.requirements.map((item) => item.id)).toEqual(["requirement-owned"]);
+    expect(result.projects[0]).toMatchObject({
+      blockedFromStage: null,
+      archivedFromStage: null,
+    });
+    expect(result.projectEvents).toEqual([
+      expect.objectContaining({ id: "owned-event", eventSchemaVersion: 1 }),
+    ]);
+    const serialized = JSON.stringify(result);
+    expect(serialized).toContain('"blockedFromStage":null');
+    expect(serialized).toContain('"archivedFromStage":null');
+    expect(serialized).toContain('"eventSchemaVersion":1');
     expect(JSON.stringify(result)).not.toContain(OTHER_ID);
     expect(JSON.stringify(result)).not.toContain("Other requirement");
   });
@@ -157,6 +186,7 @@ describe("assembleAccountExportV1", () => {
           id: "other-event",
           projectId: OTHER_PROJECT_ID,
           sequenceNumber: 1,
+          eventSchemaVersion: 1,
           eventType: "project.created",
           actorType: "user",
           actorId: OTHER_ID,

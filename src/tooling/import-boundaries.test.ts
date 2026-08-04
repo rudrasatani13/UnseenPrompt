@@ -66,6 +66,7 @@ function sourceText(filePath: string): string {
 
 const modelInfrastructureRoot = path.resolve(process.cwd(), "src/lib/model");
 const modelServerConfigModule = path.resolve(process.cwd(), "src/config/model/server");
+const projectServerInfrastructureRoot = path.resolve(process.cwd(), "src/lib/project");
 const moduleExtensions = /(?:\.d)?\.(?:ts|tsx|js|jsx|mjs|cjs)$/u;
 
 function moduleSpecifiersFromSource(filePath: string, source: string): readonly string[] {
@@ -147,6 +148,18 @@ function forbiddenServerModelSpecifiers(filePath: string, source: string): reado
   return moduleSpecifiersFromSource(absoluteFilePath, source).filter((specifier) =>
     isForbiddenServerModelSpecifier(absoluteFilePath, specifier),
   );
+}
+
+function forbiddenProjectServerSpecifiers(filePath: string, source: string): readonly string[] {
+  const absoluteFilePath = path.resolve(filePath);
+  return moduleSpecifiersFromSource(absoluteFilePath, source).filter((specifier) => {
+    const target = resolvedModuleTarget(absoluteFilePath, specifier);
+    if (target === null) return false;
+    return isWithinPath(
+      withoutModuleExtension(path.normalize(target)),
+      projectServerInfrastructureRoot,
+    );
+  });
 }
 
 function textFilesUnder(relativeRoot: string): readonly string[] {
@@ -274,6 +287,63 @@ describe("architectural import boundaries", () => {
       .filter((filePath) => forbiddenDomainImport.test(sourceText(filePath)));
 
     expect(offenders).toEqual([]);
+  });
+
+  it("keeps Phase 6 project state server-only and out of public/client modules", () => {
+    const projectServerFiles = sourceFilesUnder("src/lib/project").filter(
+      (filePath) => !filePath.endsWith(".test.ts"),
+    );
+    const missingServerOnly = projectServerFiles.filter(
+      (filePath) => !/^import ["']server-only["'];/u.test(sourceText(filePath)),
+    );
+    expect(missingServerOnly).toEqual([]);
+
+    const clientOffenders = ["src/app", "src/components", "src/features"]
+      .flatMap((root) => sourceFilesUnder(root))
+      .filter((filePath) => !filePath.includes(`${path.sep}api${path.sep}`))
+      .flatMap((filePath) =>
+        forbiddenProjectServerSpecifiers(filePath, sourceText(filePath)).map(
+          (specifier) => `${filePath}: ${specifier}`,
+        ),
+      );
+    expect(clientOffenders).toEqual([]);
+
+    const domainOffenders = sourceFilesUnder("src/domain/project")
+      .filter((filePath) => !filePath.endsWith(".test.ts"))
+      .filter((filePath) => {
+        const source = sourceText(filePath);
+        return (
+          source.includes("server-only") ||
+          forbiddenServerModelSpecifiers(filePath, source).length > 0 ||
+          forbiddenProjectServerSpecifiers(filePath, source).length > 0
+        );
+      });
+    expect(domainOffenders).toEqual([]);
+  });
+
+  it("keeps Phase 6 project-state modules free of content logs and provider secrets", () => {
+    const phase6Files = [
+      ...sourceFilesUnder("src/lib/project").filter((filePath) => !filePath.endsWith(".test.ts")),
+      ...sourceFilesUnder("src/domain/project").filter(
+        (filePath) => !filePath.endsWith(".test.ts"),
+      ),
+    ];
+    const logPattern = /\bconsole\.(?:log|warn|error|info|debug|trace)\s*\(/u;
+    const contentLogPattern =
+      /\b(?:prompt|systemInstruction|context|proposal|provider output|raw error)\b/iu;
+    const providerSecretPattern =
+      /(?:sk-ant-api\d{2}-[A-Za-z0-9_-]{20,}|sk-(?:proj|live|admin)-[A-Za-z0-9_-]{20,}|AIzaSy[A-Za-z0-9_-]{30,})/u;
+    const offenders = phase6Files.filter((filePath) => {
+      const source = sourceText(filePath);
+      return logPattern.test(source) || providerSecretPattern.test(source);
+    });
+    expect(offenders).toEqual([]);
+
+    const contentLogMentions = phase6Files.filter((filePath) => {
+      const source = sourceText(filePath);
+      return logPattern.test(source) && contentLogPattern.test(source);
+    });
+    expect(contentLogMentions).toEqual([]);
   });
 
   it("detects alias and relative server model imports in every supported module form", () => {

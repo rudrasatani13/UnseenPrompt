@@ -596,6 +596,8 @@ describe("buildAccountExport", () => {
     const projectBase = {
       active_milestone_id: null,
       archived_at: null,
+      archived_from_stage: null,
+      blocked_from_stage: null,
       blocker_summary: null,
       created_at: timestamp,
       deleted_at: null,
@@ -623,7 +625,15 @@ describe("buildAccountExport", () => {
       { data: preferencesRow, error: null },
       {
         data: [
-          { ...projectBase, id: ownedProjectId, owner_id: USER_ID },
+          {
+            ...projectBase,
+            id: ownedProjectId,
+            owner_id: USER_ID,
+            stage: "archived",
+            archived_at: timestamp,
+            archived_from_stage: "blocked",
+            blocked_from_stage: "ready_for_prompt",
+          },
           {
             ...projectBase,
             id: otherProjectId,
@@ -647,7 +657,24 @@ describe("buildAccountExport", () => {
       },
       { data: [], error: null },
       { data: [], error: null },
-      { data: [], error: null },
+      {
+        data: [
+          {
+            id: "owned-event",
+            project_id: ownedProjectId,
+            sequence_number: 1,
+            event_schema_version: 1,
+            event_type: "project.archived",
+            actor_type: "user",
+            actor_id: USER_ID,
+            payload: { schemaVersion: 1, from: "blocked", to: "archived" },
+            correlation_id: "owned-correlation",
+            idempotency_record_id: null,
+            created_at: timestamp,
+          },
+        ],
+        error: null,
+      },
       { data: [], error: null },
       { data: [], error: null },
     ]);
@@ -656,7 +683,30 @@ describe("buildAccountExport", () => {
 
     expect(result.profile.id).toBe(USER_ID);
     expect(result.projects.map((project) => project.id)).toEqual([ownedProjectId]);
+    expect(result.projects[0]).toMatchObject({
+      blockedFromStage: "ready_for_prompt",
+      archivedFromStage: "blocked",
+    });
     expect(result.requirements.map((requirement) => requirement.id)).toEqual(["owned-requirement"]);
+    expect(result.projectEvents).toEqual([
+      {
+        id: "owned-event",
+        projectId: ownedProjectId,
+        sequenceNumber: 1,
+        eventSchemaVersion: 1,
+        eventType: "project.archived",
+        actorType: "user",
+        actorId: USER_ID,
+        payload: { schemaVersion: 1, from: "blocked", to: "archived" },
+        correlationId: "owned-correlation",
+        idempotencyRecordId: null,
+        createdAt: timestamp,
+      },
+    ]);
+    const serialized = JSON.stringify(result);
+    expect(serialized).toContain('"blockedFromStage":"ready_for_prompt"');
+    expect(serialized).toContain('"archivedFromStage":"blocked"');
+    expect(serialized).toContain('"eventSchemaVersion":1');
     expect(JSON.stringify(result)).not.toContain(OTHER_ID);
     expect(JSON.stringify(result)).not.toContain("Other user's requirement");
     expect(fake.calls.find((call) => call.table === "projects")?.filters).toContainEqual([
@@ -664,6 +714,12 @@ describe("buildAccountExport", () => {
       "owner_id",
       USER_ID,
     ]);
+    expect(fake.calls.find((call) => call.table === "projects")?.columns).toBe(
+      "id, owner_id, title, mode, stage, state_version, selected_tool, active_milestone_id, blocker_summary, blocked_from_stage, archived_from_stage, archived_at, deleted_at, last_activity_at, created_at, updated_at",
+    );
+    expect(fake.calls.find((call) => call.table === "project_events")?.columns).toBe(
+      "id, project_id, sequence_number, event_schema_version, event_type, actor_type, actor_id, payload, correlation_id, idempotency_record_id, created_at",
+    );
     for (const call of fake.calls.filter((candidate) =>
       [
         "requirements",

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { ModelErrorCode, ModelOperation } from "@/domain/model/contracts";
+import { serializeCanonicalJsonV1 } from "@/domain/project/commands";
 import {
   GENERATION_RUN_INPUT_SCHEMA_VERSION,
   type GenerationRunClaimInput,
@@ -20,6 +21,18 @@ const CORRELATION_ID = "07000000-0000-4000-8000-000000000001";
 const OPERATION: ModelOperation = "intent_detection";
 const OUTPUT_SCHEMA_VERSION = "unseenprompt.model-output.intent_detection.v1";
 const SECRET = "secret-persistence-sentinel";
+const PROJECT_DELTA_TEXT = serializeCanonicalJsonV1({
+  summary: "A bounded proposal.",
+  requirementProposals: [],
+  decisionProposals: [],
+  milestoneProposals: [],
+  unresolvedConflicts: [],
+});
+
+async function sha256Hex(value: string): Promise<string> {
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return [...new Uint8Array(digest)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
 
 const claimInput: GenerationRunClaimInput = {
   projectId: PROJECT_ID,
@@ -32,8 +45,8 @@ const claimInput: GenerationRunClaimInput = {
 };
 
 type RpcCall =
-  | { readonly name: "claim_generation_run"; readonly args: ClaimGenerationRunRpcArgs }
-  | { readonly name: "complete_generation_run"; readonly args: CompleteGenerationRunRpcArgs };
+  | { readonly name: "claim_generation_run_v2"; readonly args: ClaimGenerationRunRpcArgs }
+  | { readonly name: "complete_generation_run_v2"; readonly args: CompleteGenerationRunRpcArgs };
 
 class FakeRpcClient implements GenerationRunRpcClient {
   readonly calls: RpcCall[] = [];
@@ -51,18 +64,18 @@ class FakeRpcClient implements GenerationRunRpcClient {
   }
 
   rpc(
-    functionName: "claim_generation_run",
+    functionName: "claim_generation_run_v2",
     args: ClaimGenerationRunRpcArgs,
   ): PromiseLike<GenerationRunRpcResult>;
   rpc(
-    functionName: "complete_generation_run",
+    functionName: "complete_generation_run_v2",
     args: CompleteGenerationRunRpcArgs,
   ): PromiseLike<GenerationRunRpcResult>;
   rpc(
-    functionName: "claim_generation_run" | "complete_generation_run",
+    functionName: "claim_generation_run_v2" | "complete_generation_run_v2",
     args: ClaimGenerationRunRpcArgs | CompleteGenerationRunRpcArgs,
   ): PromiseLike<GenerationRunRpcResult> {
-    if (functionName === "claim_generation_run") {
+    if (functionName === "claim_generation_run_v2") {
       this.calls.push({ name: functionName, args: args as ClaimGenerationRunRpcArgs });
     } else {
       this.calls.push({ name: functionName, args: args as CompleteGenerationRunRpcArgs });
@@ -76,13 +89,48 @@ function claimRow(overrides: Record<string, unknown> = {}): Record<string, unkno
   return {
     run_id: RUN_ID,
     correlation_id: CORRELATION_ID,
+    claim_status: "running",
     status: "running",
     project_state_version: claimInput.projectStateVersion,
     operation_kind: OPERATION,
     input_schema_version: GENERATION_RUN_INPUT_SCHEMA_VERSION,
     output_schema_version: OUTPUT_SCHEMA_VERSION,
+    provider: null,
+    model: null,
+    latency_ms: null,
+    input_tokens: null,
+    output_tokens: null,
+    retry_count: null,
+    estimated_cost_micros: null,
+    validation_result: "not_attempted",
+    error_code: null,
+    validated_project_delta_text: null,
+    validated_project_delta_hash: null,
     ...overrides,
   };
+}
+
+async function replayedClaimRow(
+  overrides: Record<string, unknown> = {},
+): Promise<Record<string, unknown>> {
+  return claimRow({
+    claim_status: "replayed",
+    status: "succeeded",
+    operation_kind: "project_delta",
+    output_schema_version: "unseenprompt.model-output.project_delta.v1",
+    provider: "openai",
+    model: "gpt-test",
+    latency_ms: 42,
+    input_tokens: 10,
+    output_tokens: 20,
+    retry_count: 1,
+    estimated_cost_micros: 30,
+    validation_result: "passed",
+    error_code: null,
+    validated_project_delta_text: PROJECT_DELTA_TEXT,
+    validated_project_delta_hash: await sha256Hex(PROJECT_DELTA_TEXT),
+    ...overrides,
+  });
 }
 
 const succeededInput: GenerationRunCompletionInput = {
@@ -97,6 +145,7 @@ const succeededInput: GenerationRunCompletionInput = {
   estimatedCostMicros: 30,
   validationResult: "passed",
   errorCode: null,
+  validatedProjectDeltaText: null,
 };
 
 function completionRow(
@@ -119,6 +168,8 @@ function completionRow(
     estimated_cost_micros: input.estimatedCostMicros,
     validation_result: input.validationResult,
     error_code: input.errorCode,
+    validated_project_delta_text: input.validatedProjectDeltaText ?? null,
+    validated_project_delta_hash: null,
   };
 }
 
@@ -150,8 +201,8 @@ describe("Supabase generation-run store", () => {
 
     expect(client.calls).toHaveLength(1);
     const call = client.calls[0];
-    expect(call).toMatchObject({ name: "claim_generation_run" });
-    if (call?.name !== "claim_generation_run") throw new Error("unexpected RPC call");
+    expect(call).toMatchObject({ name: "claim_generation_run_v2" });
+    if (call?.name !== "claim_generation_run_v2") throw new Error("unexpected RPC call");
     expect(call.args).toEqual({
       p_project_id: PROJECT_ID,
       p_project_state_version: 3,
@@ -193,6 +244,38 @@ describe("Supabase generation-run store", () => {
     expect(result).not.toHaveProperty("prompt");
     expect(result).not.toHaveProperty("output");
     expect(result).not.toHaveProperty("ownerId");
+  });
+
+  it("maps a strict replayed project-delta row with terminal aggregate metadata", async () => {
+    const client = new FakeRpcClient({
+      responses: [{ data: [await replayedClaimRow()], error: null }],
+    });
+    const result = await createSupabaseGenerationRunStore(client).claim({
+      ...claimInput,
+      operationKind: "project_delta",
+      outputSchemaVersion: "unseenprompt.model-output.project_delta.v1",
+    });
+
+    expect(result).toEqual({
+      runId: RUN_ID,
+      correlationId: CORRELATION_ID,
+      status: "replayed",
+      projectStateVersion: 3,
+      operationKind: "project_delta",
+      inputSchemaVersion: GENERATION_RUN_INPUT_SCHEMA_VERSION,
+      outputSchemaVersion: "unseenprompt.model-output.project_delta.v1",
+      provider: "openai",
+      model: "gpt-test",
+      latencyMs: 42,
+      inputTokens: 10,
+      outputTokens: 20,
+      retryCount: 1,
+      estimatedCostMicros: 30,
+      validationResult: "passed",
+      errorCode: null,
+      validatedProjectDeltaText: PROJECT_DELTA_TEXT,
+      validatedProjectDeltaHash: await sha256Hex(PROJECT_DELTA_TEXT),
+    });
   });
 
   it.each([
@@ -292,6 +375,23 @@ describe("Supabase generation-run store", () => {
   });
 
   it.each([
+    { unexpected: SECRET },
+    { claim_status: "replayed", status: "succeeded", validated_project_delta_hash: null },
+    { claim_status: "replayed", status: "succeeded", provider: null },
+  ])("rejects malformed replay claim rows without widening the RPC DTO", async (overrides) => {
+    const client = new FakeRpcClient({
+      responses: [{ data: [await replayedClaimRow(overrides)], error: null }],
+    });
+    await expect(
+      createSupabaseGenerationRunStore(client).claim({
+        ...claimInput,
+        operationKind: "project_delta",
+        outputSchemaVersion: "unseenprompt.model-output.project_delta.v1",
+      }),
+    ).rejects.toMatchObject({ code: "persistence_failed" });
+  });
+
+  it.each([
     { projectStateVersion: 4 },
     { operationKind: "risk_flags" as const },
     { inputSchemaVersion: "input.v2" as typeof GENERATION_RUN_INPUT_SCHEMA_VERSION },
@@ -299,6 +399,41 @@ describe("Supabase generation-run store", () => {
   ])("rejects forged claim echoes", async (overrides) => {
     const client = claimClient(overrides);
     const result = createSupabaseGenerationRunStore(client).claim(claimInput);
+    await expect(result).rejects.toMatchObject({ code: "persistence_failed" });
+  });
+
+  it("accepts a durable replay at its original state only with the non-persisted replay hint", async () => {
+    const client = new FakeRpcClient({
+      responses: [
+        {
+          data: [await replayedClaimRow({ project_state_version: 2 })],
+          error: null,
+        },
+      ],
+    });
+    const result = await createSupabaseGenerationRunStore(client).claim({
+      ...claimInput,
+      projectStateVersion: 3,
+      operationKind: "project_delta",
+      outputSchemaVersion: "unseenprompt.model-output.project_delta.v1",
+      allowHistoricalReplay: true,
+    });
+
+    expect(result.status).toBe("replayed");
+    expect(result.projectStateVersion).toBe(2);
+    const call = client.calls[0];
+    expect(call?.name).toBe("claim_generation_run_v2");
+    if (call?.name !== "claim_generation_run_v2") throw new Error("unexpected RPC call");
+    expect(call.args).not.toHaveProperty("allowHistoricalReplay");
+  });
+
+  it("never permits a running claim to bypass state-version binding", async () => {
+    const client = claimClient({ project_state_version: 2 });
+    const result = createSupabaseGenerationRunStore(client).claim({
+      ...claimInput,
+      projectStateVersion: 3,
+      allowHistoricalReplay: true,
+    });
     await expect(result).rejects.toMatchObject({ code: "persistence_failed" });
   });
 
@@ -322,11 +457,13 @@ describe("Supabase generation-run store", () => {
       operationKind: OPERATION,
       inputSchemaVersion: GENERATION_RUN_INPUT_SCHEMA_VERSION,
       outputSchemaVersion: OUTPUT_SCHEMA_VERSION,
+      validatedProjectDeltaText: null,
+      validatedProjectDeltaHash: null,
     });
     expect(client.calls).toHaveLength(1);
     const call = client.calls[0];
-    expect(call?.name).toBe("complete_generation_run");
-    if (call?.name !== "complete_generation_run") throw new Error("unexpected RPC call");
+    expect(call?.name).toBe("complete_generation_run_v2");
+    if (call?.name !== "complete_generation_run_v2") throw new Error("unexpected RPC call");
     expect(call.args).toEqual({
       p_run_id: RUN_ID,
       p_status: "succeeded",
@@ -339,6 +476,7 @@ describe("Supabase generation-run store", () => {
       p_estimated_cost_micros: 30,
       p_validation_result: "passed",
       p_error_code: null,
+      p_validated_project_delta_text: null,
     });
     for (const forbidden of [
       "owner_id",
@@ -354,6 +492,39 @@ describe("Supabase generation-run store", () => {
     ]) {
       expect(call.args).not.toHaveProperty(forbidden);
     }
+  });
+
+  it("sends the exact canonical project-delta text to v2 and accepts the database hash echo", async () => {
+    const input: GenerationRunCompletionInput = {
+      ...succeededInput,
+      validatedProjectDeltaText: PROJECT_DELTA_TEXT,
+    };
+    const hash = await sha256Hex(PROJECT_DELTA_TEXT);
+    const client = new FakeRpcClient({
+      responses: [
+        {
+          data: [
+            {
+              ...completionRow(input),
+              operation_kind: "project_delta",
+              output_schema_version: "unseenprompt.model-output.project_delta.v1",
+              validated_project_delta_text: PROJECT_DELTA_TEXT,
+              validated_project_delta_hash: hash,
+            },
+          ],
+          error: null,
+        },
+      ],
+    });
+
+    const result = await createSupabaseGenerationRunStore(client).complete(input);
+    expect(result.validatedProjectDeltaText).toBe(PROJECT_DELTA_TEXT);
+    expect(result.validatedProjectDeltaHash).toBe(hash);
+    const call = client.calls[0];
+    expect(call?.name).toBe("complete_generation_run_v2");
+    if (call?.name !== "complete_generation_run_v2") throw new Error("unexpected RPC call");
+    expect(call.args.p_validated_project_delta_text).toBe(PROJECT_DELTA_TEXT);
+    expect(JSON.stringify(call.args)).not.toContain("prompt");
   });
 
   it.each([
