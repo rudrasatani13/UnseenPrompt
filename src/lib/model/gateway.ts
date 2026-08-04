@@ -10,7 +10,8 @@ import type {
   RecordedModelValidationResult,
   ValidatedModelResponse,
 } from "@/domain/model/contracts";
-import { MODEL_OUTPUT_SCHEMA_REGISTRY } from "@/domain/model/schemas";
+import { MODEL_OUTPUT_SCHEMA_REGISTRY, projectDeltaV1Schema } from "@/domain/model/schemas";
+import { serializeCanonicalJsonV1 } from "@/domain/project/commands";
 import {
   MODEL_COST_MICROS_PER_MILLION_TOKENS_MAX,
   MODEL_EXECUTION_BUDGETS,
@@ -39,6 +40,7 @@ import {
   type GenerationRunCompletionInput,
   type GenerationRunStore,
   GENERATION_RUN_INPUT_SCHEMA_VERSION,
+  MAX_VALIDATED_PROJECT_DELTA_BYTES,
 } from "@/lib/model/generation-run-store";
 
 export const MAX_GATEWAY_INPUT_BYTES = 256 * 1024;
@@ -49,6 +51,7 @@ export const MAX_REPAIR_ISSUE_BYTES = 200;
 export const MAX_METADATA_TEXT_BYTES = 160;
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const SAFE_ERROR_CODES = new Set<ModelErrorCode>([
   "aborted",
   "deadline_exceeded",
@@ -164,6 +167,8 @@ interface ParsedCandidate<T> {
 
 interface GatewayRuntime<T> {
   readonly request: ModelGatewayRequest<T>;
+  readonly generationRunId: string;
+  readonly projectStateVersion: number;
   readonly correlationId: string;
   readonly startedAtMs: number;
   readonly deadlineAtMs: number;
@@ -342,22 +347,55 @@ async function defaultDigest(input: Uint8Array): Promise<ArrayBuffer> {
   return globalThis.crypto.subtle.digest("SHA-256", input as unknown as BufferSource);
 }
 
+function hexDigest(value: ArrayBuffer): string {
+  const bytes = new Uint8Array(value);
+  if (bytes.byteLength !== 32) throw new Error("invalid_digest");
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function digestUtf8(value: string, digest: Digest | undefined): Promise<string> {
+  return hexDigest(await (digest ?? defaultDigest)(new TextEncoder().encode(value)));
+}
+
+/** Serialize only the exact, registered project_delta.v1 shape for durable persistence. */
+function canonicalProjectDeltaText(value: unknown): string {
+  const parsed = projectDeltaV1Schema.safeParse(value);
+  if (!parsed.success) throw new Error("invalid_project_delta");
+  const text = serializeCanonicalJsonV1(parsed.data);
+  if (byteLength(text) > MAX_VALIDATED_PROJECT_DELTA_BYTES) {
+    throw new Error("project_delta_too_large");
+  }
+  return text;
+}
+
 async function requestFingerprint<T>(
   request: ModelGatewayRequest<T>,
   digest: Digest | undefined,
 ): Promise<string> {
-  const hash = await (digest ?? defaultDigest)(
-    canonicalLengthDelimited([
-      request.operation,
-      request.schema.id,
-      request.schema.versionedId,
-      request.projectId,
-      String(request.projectStateVersion),
-      request.reviewPolicy,
-      request.systemInstruction,
-      request.input,
-    ]),
-  );
+  const basis =
+    request.logicalIdempotencyFingerprint === undefined
+      ? [
+          request.operation,
+          request.schema.id,
+          request.schema.versionedId,
+          request.projectId,
+          String(request.projectStateVersion),
+          request.reviewPolicy,
+          request.systemInstruction,
+          request.input,
+        ]
+      : [
+          "unseenprompt.logical-idempotency-fingerprint.v1",
+          request.logicalIdempotencyFingerprint,
+          request.operation,
+          request.schema.id,
+          request.schema.versionedId,
+          request.schema.schemaVersion,
+          request.projectId,
+          request.reviewPolicy,
+          request.systemInstruction,
+        ];
+  const hash = await (digest ?? defaultDigest)(canonicalLengthDelimited(basis));
   const bytes = new Uint8Array(hash);
   if (bytes.byteLength !== 32) throw new Error("invalid_digest");
   return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
@@ -415,6 +453,8 @@ function aggregateExecutionMetadata<T>(
   Object.freeze(usage);
   Object.freeze(calls);
   return Object.freeze({
+    generationRunId: runtime.generationRunId,
+    projectStateVersion: runtime.projectStateVersion,
     correlationId: runtime.correlationId,
     provider: candidate.route.provider,
     model: candidate.route.model,
@@ -426,6 +466,7 @@ function aggregateExecutionMetadata<T>(
     validationResult: candidate.validationResult,
     calls,
     errorCode,
+    replayed: false,
   });
 }
 
@@ -505,6 +546,12 @@ function validateRequest<T>(
   )
     return false;
   if (!operationSchemaIsTrusted(request)) return false;
+  if (
+    request.logicalIdempotencyFingerprint !== undefined &&
+    (typeof request.logicalIdempotencyFingerprint !== "string" ||
+      !SHA256_PATTERN.test(request.logicalIdempotencyFingerprint))
+  )
+    return false;
   if (
     request.reviewPolicy !== "none" &&
     request.reviewPolicy !== "best_effort" &&
@@ -591,8 +638,24 @@ export function createModelGateway(dependencies: ModelGatewayDependencies): Mode
           completed.projectStateVersion !== identity.projectStateVersion ||
           completed.operationKind !== identity.operationKind ||
           completed.inputSchemaVersion !== identity.inputSchemaVersion ||
-          completed.outputSchemaVersion !== identity.outputSchemaVersion
+          completed.outputSchemaVersion !== identity.outputSchemaVersion ||
+          completed.validatedProjectDeltaText !== (input.validatedProjectDeltaText ?? null)
         ) {
+          throw new CompletionEchoMismatch();
+        }
+        if (
+          input.validatedProjectDeltaText !== undefined &&
+          input.validatedProjectDeltaText !== null
+        ) {
+          if (completed.validatedProjectDeltaHash === null) throw new CompletionEchoMismatch();
+          const expectedHash = await digestUtf8(
+            input.validatedProjectDeltaText,
+            dependencies.digest,
+          );
+          if (completed.validatedProjectDeltaHash !== expectedHash) {
+            throw new CompletionEchoMismatch();
+          }
+        } else if (completed.validatedProjectDeltaHash !== null) {
           throw new CompletionEchoMismatch();
         }
         return completed;
@@ -650,16 +713,20 @@ export function createModelGateway(dependencies: ModelGatewayDependencies): Mode
         operationKind: request.operation,
         inputSchemaVersion: GENERATION_RUN_INPUT_SCHEMA_VERSION,
         outputSchemaVersion: request.schema.schemaVersion,
+        allowHistoricalReplay: request.logicalIdempotencyFingerprint !== undefined,
       });
     } catch (error: unknown) {
       throw safeError(error, correlationId, "persistence_failed");
     }
 
+    const historicalReplayAllowed =
+      claim.status === "replayed" && request.logicalIdempotencyFingerprint !== undefined;
     if (
-      claim.status !== "running" ||
       !isUuid(claim.runId) ||
       !isUuid(claim.correlationId) ||
-      claim.projectStateVersion !== request.projectStateVersion ||
+      !isSafeNonNegativeInteger(claim.projectStateVersion) ||
+      claim.projectStateVersion <= 0 ||
+      (claim.projectStateVersion !== request.projectStateVersion && !historicalReplayAllowed) ||
       claim.operationKind !== request.operation ||
       claim.inputSchemaVersion !== GENERATION_RUN_INPUT_SCHEMA_VERSION ||
       claim.outputSchemaVersion !== request.schema.schemaVersion
@@ -669,8 +736,100 @@ export function createModelGateway(dependencies: ModelGatewayDependencies): Mode
       throw createModelGatewayError("persistence_failed", correlationId);
     }
 
+    if (claim.status === "replayed") {
+      if (
+        request.operation !== "project_delta" ||
+        claim.outputSchemaVersion !== "unseenprompt.model-output.project_delta.v1" ||
+        !PROVIDER_IDS.has(claim.provider) ||
+        typeof claim.model !== "string" ||
+        claim.model.trim() !== claim.model ||
+        claim.model.length === 0 ||
+        byteLength(claim.model) > MAX_METADATA_TEXT_BYTES ||
+        !isSafeNonNegativeInteger(claim.latencyMs) ||
+        (claim.inputTokens !== null && !isSafeNonNegativeInteger(claim.inputTokens)) ||
+        (claim.outputTokens !== null && !isSafeNonNegativeInteger(claim.outputTokens)) ||
+        !isSafeNonNegativeInteger(claim.retryCount) ||
+        (claim.estimatedCostMicros !== null &&
+          !isSafeNonNegativeInteger(claim.estimatedCostMicros)) ||
+        !["passed", "repaired", "reviewed"].includes(claim.validationResult) ||
+        claim.errorCode !== null ||
+        typeof claim.validatedProjectDeltaText !== "string" ||
+        byteLength(claim.validatedProjectDeltaText) > MAX_VALIDATED_PROJECT_DELTA_BYTES ||
+        typeof claim.validatedProjectDeltaHash !== "string" ||
+        !SHA256_PATTERN.test(claim.validatedProjectDeltaHash)
+      ) {
+        throw createModelGatewayError("persistence_failed", correlationId);
+      }
+
+      let storedHash: string;
+      try {
+        // Hash the exact UTF-8 bytes before attempting JSON.parse. This is the replay trust
+        // boundary: a tampered body never reaches the schema parser or a provider.
+        storedHash = await digestUtf8(claim.validatedProjectDeltaText, dependencies.digest);
+      } catch {
+        throw createModelGatewayError("persistence_failed", correlationId);
+      }
+      if (storedHash !== claim.validatedProjectDeltaHash) {
+        throw createModelGatewayError("persistence_failed", correlationId);
+      }
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(claim.validatedProjectDeltaText) as unknown;
+      } catch {
+        throw createModelGatewayError("persistence_failed", correlationId);
+      }
+      const validated = MODEL_OUTPUT_SCHEMA_REGISTRY.project_delta.schema.safeParse(parsed);
+      if (!validated.success) {
+        throw createModelGatewayError("persistence_failed", correlationId);
+      }
+      try {
+        // Completion stores canonical text. Requiring the same bytes rejects a forged but
+        // re-hashed alternate representation before any caller receives model-shaped data.
+        if (serializeCanonicalJsonV1(validated.data) !== claim.validatedProjectDeltaText) {
+          throw new Error("noncanonical_project_delta");
+        }
+      } catch {
+        throw createModelGatewayError("persistence_failed", correlationId);
+      }
+
+      const inputTokens = claim.inputTokens;
+      const outputTokens = claim.outputTokens;
+      const totalTokens =
+        inputTokens !== null &&
+        outputTokens !== null &&
+        Number.isSafeInteger(inputTokens + outputTokens)
+          ? inputTokens + outputTokens
+          : null;
+      const usage = Object.freeze({ inputTokens, outputTokens, totalTokens });
+      const calls = Object.freeze([]) as readonly [];
+      const metadata = Object.freeze({
+        generationRunId: claim.runId,
+        projectStateVersion: claim.projectStateVersion,
+        correlationId: claim.correlationId,
+        provider: claim.provider,
+        model: claim.model,
+        resolvedModel: null,
+        latencyMs: claim.latencyMs,
+        usage,
+        estimatedCostMicros: claim.estimatedCostMicros,
+        retryCount: claim.retryCount,
+        validationResult: claim.validationResult,
+        calls,
+        errorCode: null,
+        replayed: true,
+      });
+      return { data: validated.data as T, metadata };
+    }
+
+    if (claim.status !== "running") {
+      throw createModelGatewayError("persistence_failed", correlationId);
+    }
+
     const runtime: GatewayRuntime<T> = {
       request,
+      generationRunId: claim.runId,
+      projectStateVersion: claim.projectStateVersion,
       correlationId: claim.correlationId,
       startedAtMs,
       deadlineAtMs,
@@ -691,7 +850,7 @@ export function createModelGateway(dependencies: ModelGatewayDependencies): Mode
       try {
         await completeWithRetry({ ...completion, runId: claim.runId }, runtime.correlationId, {
           correlationId: runtime.correlationId,
-          projectStateVersion: request.projectStateVersion,
+          projectStateVersion: runtime.projectStateVersion,
           operationKind: request.operation,
           inputSchemaVersion: GENERATION_RUN_INPUT_SCHEMA_VERSION,
           outputSchemaVersion: request.schema.schemaVersion,
@@ -1069,6 +1228,21 @@ export function createModelGateway(dependencies: ModelGatewayDependencies): Mode
       return failAfterClaim(postReviewError, "failed", candidate.route);
     }
 
+    let validatedProjectDeltaText: string | null = null;
+    if (request.operation === "project_delta") {
+      try {
+        validatedProjectDeltaText = canonicalProjectDeltaText(candidate.data);
+      } catch {
+        // A valid provider candidate that cannot fit the bounded durable proposal contract is not
+        // returned to the caller and is recorded only as a safe terminal persistence failure.
+        return failAfterClaim(
+          createModelGatewayError("persistence_failed", runtime.correlationId),
+          "failed",
+          candidate.route,
+        );
+      }
+    }
+
     const metadata = aggregateExecutionMetadata(runtime, candidate, null);
     const completionInput: GenerationRunCompletionInput = {
       runId: claim.runId,
@@ -1082,10 +1256,11 @@ export function createModelGateway(dependencies: ModelGatewayDependencies): Mode
       estimatedCostMicros: metadata.estimatedCostMicros,
       validationResult: candidate.validationResult,
       errorCode: null,
+      validatedProjectDeltaText,
     };
     await completeWithRetry(completionInput, runtime.correlationId, {
       correlationId: runtime.correlationId,
-      projectStateVersion: request.projectStateVersion,
+      projectStateVersion: runtime.projectStateVersion,
       operationKind: request.operation,
       inputSchemaVersion: GENERATION_RUN_INPUT_SCHEMA_VERSION,
       outputSchemaVersion: request.schema.schemaVersion,

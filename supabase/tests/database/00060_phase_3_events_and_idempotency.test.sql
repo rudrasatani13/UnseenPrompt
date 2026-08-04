@@ -124,6 +124,11 @@ from public.projects
 where title = 'Atomic Project'
 limit 1;
 
+-- Phase 6 retires the unrestricted authenticated commit RPC. Historical behavior checks use the
+-- privileged test role while the owner-derived Phase 6 command RPC is exercised separately.
+reset role;
+set local role service_role;
+
 select is(
   (select count(*)::int from public.project_events pe
    join tmp_project tp on tp.id = pe.project_id
@@ -287,9 +292,9 @@ set resource_id = '99999999-9999-4999-8999-999999999999'
 where idempotency_key = 'commit-key-1';
 
 select set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
-select set_config('request.jwt.claim.role', 'authenticated', true);
-select set_config('request.jwt.claims', '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}', true);
-set local role authenticated;
+select set_config('request.jwt.claim.role', 'service_role', true);
+select set_config('request.jwt.claims', '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"service_role"}', true);
+set local role service_role;
 
 select throws_ok(
   $$select public.commit_project_change(
@@ -341,9 +346,9 @@ for each row
 execute function public.__test_fail_project_update();
 
 select set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
-select set_config('request.jwt.claim.role', 'authenticated', true);
-select set_config('request.jwt.claims', '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}', true);
-set local role authenticated;
+select set_config('request.jwt.claim.role', 'service_role', true);
+select set_config('request.jwt.claims', '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"service_role"}', true);
+set local role service_role;
 
 select throws_ok(
   $$select public.commit_project_change(

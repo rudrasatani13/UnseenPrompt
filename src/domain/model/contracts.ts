@@ -39,6 +39,8 @@ export interface ModelGatewayRequest<T, O extends ModelOperation = ModelOperatio
   readonly systemInstruction: string;
   readonly input: string;
   readonly reviewPolicy: ReviewPolicy;
+  /** Optional strict logical fingerprint used by project-state retries after a state advance. */
+  readonly logicalIdempotencyFingerprint?: string;
   readonly signal?: AbortSignal;
   readonly deadlineMs?: number;
 }
@@ -111,6 +113,10 @@ export interface ModelCallMetadata {
 
 /** Aggregate metadata returned only with a validated and durably completed response. */
 export interface ModelExecutionMetadata {
+  /** Durable generation-run identity returned by the claim boundary. */
+  readonly generationRunId: string;
+  /** Durable source project-state version used for this generation run. */
+  readonly projectStateVersion: number;
   readonly correlationId: string;
   readonly provider: string;
   readonly model: string;
@@ -122,6 +128,8 @@ export interface ModelExecutionMetadata {
   readonly validationResult: ModelValidationResult;
   readonly calls: readonly ModelCallMetadata[];
   readonly errorCode: ModelErrorCode | null;
+  /** True when the response was reconstructed from a durable validated project delta. */
+  readonly replayed: boolean;
 }
 
 /** A request-to-schema map used to keep registry lookups type-safe. */

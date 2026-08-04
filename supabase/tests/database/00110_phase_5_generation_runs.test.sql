@@ -69,12 +69,12 @@ select has_function(
   'complete_generation_run signature exists'
 );
 select ok(
-  has_function_privilege(
+  not has_function_privilege(
     'authenticated',
     'public.claim_generation_run(uuid,bigint,text,text,text,text,text)',
     'EXECUTE'
   ),
-  'authenticated can execute claim_generation_run'
+  'authenticated cannot execute retired claim_generation_run'
 );
 select ok(
   not has_function_privilege(
@@ -85,20 +85,20 @@ select ok(
   'anon cannot execute claim_generation_run'
 );
 select ok(
-  has_function_privilege(
+  not has_function_privilege(
     'service_role',
     'public.claim_generation_run(uuid,bigint,text,text,text,text,text)',
     'EXECUTE'
   ),
-  'service_role can execute claim_generation_run'
+  'service_role cannot execute retired claim_generation_run'
 );
 select ok(
-  has_function_privilege(
+  not has_function_privilege(
     'authenticated',
     'public.complete_generation_run(uuid,text,text,text,integer,integer,integer,integer,bigint,text,text)',
     'EXECUTE'
   ),
-  'authenticated can execute complete_generation_run'
+  'authenticated cannot execute retired complete_generation_run'
 );
 select ok(
   not has_function_privilege(
@@ -109,12 +109,12 @@ select ok(
   'anon cannot execute complete_generation_run'
 );
 select ok(
-  has_function_privilege(
+  not has_function_privilege(
     'service_role',
     'public.complete_generation_run(uuid,text,text,text,integer,integer,integer,integer,bigint,text,text)',
     'EXECUTE'
   ),
-  'service_role can execute complete_generation_run'
+  'service_role cannot execute retired complete_generation_run'
 );
 select ok(
   has_table_privilege('authenticated', 'public.generation_runs', 'SELECT')
@@ -166,7 +166,9 @@ reset role;
 select set_config('request.jwt.claim.sub', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claims', '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}', true);
-set local role authenticated;
+-- The historical v1 function bodies remain available only to the migration owner for compatibility
+-- checks. Production callers use the Phase 6 v2 RPCs.
+reset role;
 
 select throws_ok(
   $$select * from public.claim_generation_run(
@@ -326,7 +328,7 @@ select throws_ok(
 );
 
 -- Invalid terminal combinations and bounded numeric metadata fail closed.
-set local role authenticated;
+reset role;
 select throws_ok(
   $$select * from public.complete_generation_run(
       (select run_id from tmp_generation_claim), 'succeeded', 'openai', 'model-x',
