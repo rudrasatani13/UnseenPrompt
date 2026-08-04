@@ -108,9 +108,9 @@ select set_config('request.jwt.claim.sub','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb'
 select set_config('request.jwt.claim.role','authenticated',true);
 select set_config('request.jwt.claims','{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated"}',true);
 select throws_ok($$select public.execute_project_command_v1('02000000-0000-4000-8000-000000000001',5,'phase6-cross-user-key',repeat('2',64),'{"type":"change_mode","mode":"feature"}'::jsonb)$$,'P0001','project_not_found','cross-user project is not disclosed');
+reset role;
 select is((select count(*)::int from public.projects where owner_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),'1','cross-user project remains owned by A');
 
-reset role;
 create or replace function public.__phase6_fail_project_update() returns trigger language plpgsql as $$begin if new.state_version = 6 then raise exception 'phase6_forced_failure' using errcode='P0001'; end if; return new; end;$$;
 create trigger __phase6_fail_project_update before update on public.projects for each row execute function public.__phase6_fail_project_update();
 select set_config('request.jwt.claim.sub','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',true);
@@ -231,7 +231,9 @@ select is((select (result->>'state_version')::bigint from tmp_phase6_req_direct)
 select is((select status from public.requirements where project_id='02000000-0000-4000-8000-000000000001' and status='superseded' and supersedes_requirement_id is null limit 1),'superseded','requirement predecessor is superseded');
 select ok((select confirmed_at is null from public.requirements where project_id='02000000-0000-4000-8000-000000000001' and status='superseded' and supersedes_requirement_id is null limit 1),'superseded requirement clears confirmed timestamp');
 select ok((select r.status='confirmed' and r.confirmed_at is not null and r.supersedes_requirement_id is not null
-  from public.requirements r where r.source_event_id=(select (result->>'event_id')::uuid from tmp_phase6_req_direct)),'direct requirement successor is confirmed');
+  from public.requirements r
+  where r.id=(select (e.payload->>'entityId')::uuid from public.project_events e where e.id=(select (result->>'event_id')::uuid from tmp_phase6_req_direct))
+    and r.source_event_id=(select (result->>'event_id')::uuid from tmp_phase6_req_direct)),'direct requirement successor is confirmed');
 select ok((select e.event_type='requirement.superseded' and e.payload ?& array['schemaVersion','entityId','predecessorId','beforeStatus','afterStatus']
   and (select count(*) from jsonb_object_keys(e.payload))=5 and e.payload->>'beforeStatus'='confirmed' and e.payload->>'afterStatus'='superseded'
   from public.project_events e where e.project_id='02000000-0000-4000-8000-000000000001' and e.sequence_number=13),'requirement supersession event is exact and immutable');
@@ -252,7 +254,9 @@ select public.execute_project_command_v1(
 select is((select (result->>'state_version')::bigint from tmp_phase6_decision_direct),15::bigint,'direct decision supersession commits one version');
 select ok((select confirmed_at is null from public.decisions where project_id='02000000-0000-4000-8000-000000000001' and decision_key='architecture' and status='superseded'),'superseded decision clears confirmed timestamp');
 select ok((select d.status='confirmed' and d.confirmed_at is not null and d.supersedes_decision_id is not null
-  from public.decisions d where d.source_event_id=(select (result->>'event_id')::uuid from tmp_phase6_decision_direct)),'direct decision successor is confirmed');
+  from public.decisions d
+  where d.id=(select (e.payload->>'entityId')::uuid from public.project_events e where e.id=(select (result->>'event_id')::uuid from tmp_phase6_decision_direct))
+    and d.source_event_id=(select (result->>'event_id')::uuid from tmp_phase6_decision_direct)),'direct decision successor is confirmed');
 select ok((select e.event_type='decision.superseded' and e.payload ?& array['schemaVersion','entityId','predecessorId','beforeStatus','afterStatus']
   and (select count(*) from jsonb_object_keys(e.payload))=5 and e.payload->>'beforeStatus'='confirmed' and e.payload->>'afterStatus'='superseded'
   from public.project_events e where e.project_id='02000000-0000-4000-8000-000000000001' and e.sequence_number=15),'decision supersession event is exact and immutable');
