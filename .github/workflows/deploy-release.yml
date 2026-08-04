@@ -142,11 +142,11 @@ jobs:
             require_non_empty "$name"
           done
 
-          if [[ ! "$MODEL_PRIMARY_PROVIDER" =~ ^(anthropic|openai|gemini)$ ]]; then
+          if [[ ! "$MODEL_PRIMARY_PROVIDER" =~ ^(anthropic|openai|gemini|opencode)$ ]]; then
             echo "Invalid staging model variable: MODEL_PRIMARY_PROVIDER"
             exit 1
           fi
-          if [[ ! "$MODEL_FALLBACK_PROVIDER" =~ ^(anthropic|openai|gemini)$ ]]; then
+          if [[ ! "$MODEL_FALLBACK_PROVIDER" =~ ^(anthropic|openai|gemini|opencode)$ ]]; then
             echo "Invalid staging model variable: MODEL_FALLBACK_PROVIDER"
             exit 1
           fi
@@ -200,6 +200,7 @@ jobs:
             "ANTHROPIC_API_KEY",
             "OPENAI_API_KEY",
             "GEMINI_API_KEY",
+            "OPENCODE_API_KEY",
           ];
 
           if (

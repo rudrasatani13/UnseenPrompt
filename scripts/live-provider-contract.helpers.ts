@@ -24,7 +24,15 @@ export const LIVE_PROVIDER_KEY_NAMES = [
   "ANTHROPIC_API_KEY",
 ] as const;
 
+/**
+ * Subscription-gated keys probed only when an operator provides them. A missing optional key
+ * skips the probe instead of failing it, so CI and local environments without the subscription
+ * keep passing.
+ */
+export const OPTIONAL_LIVE_PROVIDER_KEY_NAMES = ["OPENCODE_API_KEY"] as const;
+
 export type LiveProviderKeyName = (typeof LIVE_PROVIDER_KEY_NAMES)[number];
+export type OptionalLiveProviderKeyName = (typeof OPTIONAL_LIVE_PROVIDER_KEY_NAMES)[number];
 
 /**
  * Return missing key names only. Values are intentionally never returned so this helper can be
@@ -37,6 +45,15 @@ export function missingLiveProviderKeys(
     const value = environment[name];
     return typeof value !== "string" || value.trim().length === 0;
   });
+}
+
+/** True when the named key holds a non-blank value; never exposes the value itself. */
+export function isLiveProviderKeyPresent(
+  environment: Readonly<Record<string, string | undefined>>,
+  name: LiveProviderKeyName | OptionalLiveProviderKeyName,
+): boolean {
+  const value = environment[name];
+  return typeof value === "string" && value.trim().length > 0;
 }
 
 /** Validate the exact closed `{ ok: boolean }` response expected from every live provider. */

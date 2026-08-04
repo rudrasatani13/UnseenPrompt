@@ -22,6 +22,7 @@ Operational procedures for UnseenPrompt Workers. Do **not** put real account IDs
 | `ANTHROPIC_API_KEY`            | Cloudflare Worker secret, staging only | Model operator | Rotate in Cloudflare; never place in GitHub or logs        |
 | `OPENAI_API_KEY`               | Cloudflare Worker secret, staging only | Model operator | Rotate in Cloudflare; never place in GitHub or logs        |
 | `GEMINI_API_KEY`               | Cloudflare Worker secret, staging only | Model operator | Rotate in Cloudflare; never place in GitHub or logs        |
+| `OPENCODE_API_KEY`             | Cloudflare Worker secret, staging only | Model operator | Rotate in Cloudflare; never place in GitHub or logs        |
 
 Generate a local token for Wrangler:
 
@@ -34,6 +35,7 @@ pnpm exec wrangler secret put HEALTHCHECK_TOKEN --env production
 pnpm exec wrangler secret put ANTHROPIC_API_KEY --env staging
 pnpm exec wrangler secret put OPENAI_API_KEY --env staging
 pnpm exec wrangler secret put GEMINI_API_KEY --env staging
+pnpm exec wrangler secret put OPENCODE_API_KEY --env staging
 ```
 
 ## Local commands
@@ -60,7 +62,8 @@ Automatic after **Continuous Integration succeeds** for a push to `main` (`workf
 2. Require all staging Supabase secrets (fail closed if any are missing)
 3. Require and validate all protected GitHub `staging` model route variables (fail closed)
 4. Query the staging Worker secret-name list and require `HEALTHCHECK_TOKEN`,
-   `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and `GEMINI_API_KEY` (names only; fail closed)
+   `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, and `OPENCODE_API_KEY` (names only;
+   fail closed)
 5. Staging database dry-run + apply pending migrations (`supabase db push`)
 6. `pnpm cf:build`
 7. `wrangler deploy --env staging` with `RELEASE_SHA`, Supabase, and validated `MODEL_*` values
@@ -71,21 +74,22 @@ Automatic after **Continuous Integration succeeds** for a push to `main` (`workf
 Database migration must succeed before the Worker deploy for the same commit. Never run `supabase/seed.sql` against staging.
 Staging secrets are mandatory; the job does not skip migration and deploy the Worker alone.
 
-The current staging route is Gemini `gemini-3.1-flash-lite` (250000 input / 1500000 output micros
-per million tokens), falling back to OpenAI `gpt-5-nano` (50000 input / 400000 output micros per
-million tokens), with no reviewer, a 30000 ms total deadline, a 12000 ms attempt timeout, and a
-4096-token output cap. The model operator owns these values in the GitHub Environment variables
-listed in [the environment contract](../development/environment-contract.md). Official references:
-[Gemini model](https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-lite),
-[Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing),
-[GPT-5 nano](https://developers.openai.com/api/docs/models/gpt-5-nano), and
-[OpenAI pricing](https://openai.com/api/pricing/).
+The current staging route is OpenCode Go `deepseek-v4-flash` (140000 input / 280000 output micros
+per million tokens), falling back to Gemini `gemini-3.5-flash-lite` (300000 input / 2500000 output
+micros per million tokens), with no reviewer, a 30000 ms total deadline, a 12000 ms attempt timeout,
+and a 4096-token output cap. The model operator owns these values in the GitHub Environment
+variables listed in [the environment contract](../development/environment-contract.md). Official
+references: [OpenCode Go](https://opencode.ai/go),
+[OpenCode Go docs](https://opencode.ai/docs/go),
+[Gemini model](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite), and
+[Gemini pricing](https://ai.google.dev/gemini-api/docs/pricing).
 
-This Gemini replacement is evidence-based, not an alias or preview migration. The former
+The OpenCode Go primary is staging-only and subscription-gated (`OPENCODE_API_KEY`); the Go
+catalog serves `deepseek-v4-flash`, while pay-as-you-go-only Zen models such as `gpt-5.6-luna`
+are not routed through it. The Gemini fallback remains the evidence-based stable model: the former
 `gemini-2.5-flash-lite` route returned HTTP 200 for metadata but HTTP 404 for `generateContent`
-with the operator key. An exact structured synthetic call to stable `gemini-3.1-flash-lite`
-returned HTTP 200 with a valid schema response (24 input tokens and 5 output tokens); the operator
-probe is pinned to that stable model.
+with the operator key, and an exact structured synthetic call to stable `gemini-3.5-flash-lite`
+returned HTTP 200 with a valid schema response; the operator probe is pinned to that stable model.
 
 Wrangler's default behavior (because `--keep-vars` is intentionally omitted) deletes previous
 dashboard variables before applying the config and this release's `--var MODEL_*` values. Dashboard

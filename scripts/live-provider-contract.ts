@@ -3,11 +3,13 @@ import { pathToFileURL } from "node:url";
 import { createAnthropicAdapter } from "../src/lib/model/providers/anthropic";
 import { createGeminiAdapter } from "../src/lib/model/providers/gemini";
 import { createOpenAIAdapter } from "../src/lib/model/providers/openai";
+import { createOpenCodeAdapter } from "../src/lib/model/providers/opencode";
 import { isModelGatewayError } from "../src/lib/model/errors";
 import type { ProviderAdapter, ProviderAdapterResult } from "../src/lib/model/provider";
 import {
   formatLiveProviderUsage,
   isExactLiveProviderCandidate,
+  isLiveProviderKeyPresent,
   LIVE_PROVIDER_CONTRACT_INPUT,
   LIVE_PROVIDER_CONTRACT_SCHEMA,
   LIVE_PROVIDER_CONTRACT_SCHEMA_NAME,
@@ -15,36 +17,51 @@ import {
   LIVE_PROVIDER_CONTRACT_TIMEOUT_MS,
   missingLiveProviderKeys,
   type LiveProviderKeyName,
+  type OptionalLiveProviderKeyName,
 } from "./live-provider-contract.helpers";
 
 interface LiveProviderSpec {
-  readonly name: "gemini" | "openai" | "anthropic";
-  readonly keyName: LiveProviderKeyName;
+  readonly name: "gemini" | "openai" | "anthropic" | "opencode";
+  readonly keyName: LiveProviderKeyName | OptionalLiveProviderKeyName;
   readonly model: string;
+  readonly optional: boolean;
   readonly createAdapter: (apiKey: string) => ProviderAdapter;
 }
 
 /** Stable Gemini model validated by the operator's exact structured probe. */
-export const GEMINI_LIVE_PROVIDER_MODEL = "gemini-3.1-flash-lite";
+export const GEMINI_LIVE_PROVIDER_MODEL = "gemini-3.5-flash-lite";
+
+/** OpenCode Go route validated when an operator supplies the subscription key. */
+export const OPENCODE_LIVE_PROVIDER_MODEL = "deepseek-v4-flash";
 
 const LIVE_PROVIDER_SPECS: readonly LiveProviderSpec[] = [
   {
     name: "gemini",
     keyName: "GEMINI_API_KEY",
     model: GEMINI_LIVE_PROVIDER_MODEL,
+    optional: false,
     createAdapter: (apiKey) => createGeminiAdapter({ apiKey }),
   },
   {
     name: "openai",
     keyName: "OPENAI_API_KEY",
-    model: "gpt-5-nano",
+    model: "gpt-5.6-luna",
+    optional: false,
     createAdapter: (apiKey) => createOpenAIAdapter({ apiKey }),
   },
   {
     name: "anthropic",
     keyName: "ANTHROPIC_API_KEY",
-    model: "claude-haiku-4-5-20251001",
+    model: "claude-sonnet-5",
+    optional: false,
     createAdapter: (apiKey) => createAnthropicAdapter({ apiKey }),
+  },
+  {
+    name: "opencode",
+    keyName: "OPENCODE_API_KEY",
+    model: OPENCODE_LIVE_PROVIDER_MODEL,
+    optional: true,
+    createAdapter: (apiKey) => createOpenCodeAdapter({ apiKey }),
   },
 ];
 
@@ -108,14 +125,21 @@ async function main(): Promise<void> {
   // Keep calls deliberately sequential and one-shot. This command is an operator check, not the
   // gateway: it must not retry or route around one provider's result.
   for (const spec of LIVE_PROVIDER_SPECS) {
-    const apiKey = process.env[spec.keyName];
-    if (typeof apiKey !== "string" || apiKey.trim().length === 0) {
+    if (!isLiveProviderKeyPresent(process.env, spec.keyName)) {
+      if (spec.optional) {
+        // Optional subscription providers are skipped, not failed, so environments without the
+        // key keep the probe green. Only the key name is printed, never a value.
+        process.stdout.write(`SKIP ${spec.name} ${spec.keyName} not provided\n`);
+        continue;
+      }
       // The complete key check above should make this unreachable. Keep the guard fail-closed
       // without ever printing a value if the environment changes between checks.
       failures.push(spec.name);
       process.stderr.write(`FAIL ${spec.name} configuration_error\n`);
       continue;
     }
+
+    const apiKey = process.env[spec.keyName] as string;
 
     try {
       await probeProvider(spec, apiKey);

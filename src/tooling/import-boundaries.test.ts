@@ -281,7 +281,7 @@ describe("architectural import boundaries", () => {
 
   it("keeps provider infrastructure out of the domain layer", () => {
     const forbiddenDomainImport =
-      /(?:@\/lib\/model|@\/config\/model\/server|server-only|api\.anthropic\.com|api\.openai\.com|generativelanguage\.googleapis\.com|\b(?:anthropic|openai|gemini)\b)/iu;
+      /(?:@\/lib\/model|@\/config\/model\/server|server-only|api\.anthropic\.com|api\.openai\.com|generativelanguage\.googleapis\.com|opencode\.ai|\b(?:anthropic|openai|gemini|opencode)\b)/iu;
     const offenders = sourceFilesUnder("src/domain")
       .filter((filePath) => !filePath.endsWith(".test.ts"))
       .filter((filePath) => forbiddenDomainImport.test(sourceText(filePath)));
@@ -384,9 +384,9 @@ describe("architectural import boundaries", () => {
   });
 
   it("keeps provider secrets out of public/client source, fixtures, and snapshots", () => {
-    const publicNamePattern = /\bNEXT_PUBLIC_(?:ANTHROPIC|OPENAI|GEMINI)[A-Z0-9_]*/u;
+    const publicNamePattern = /\bNEXT_PUBLIC_(?:ANTHROPIC|OPENAI|GEMINI|OPENCODE)[A-Z0-9_]*/u;
     const keyValuePattern =
-      /\b(?:ANTHROPIC|OPENAI|GEMINI)_API_KEY\s*=\s*(?!replace-with-local-secret\b)[^\s#]+/u;
+      /\b(?:ANTHROPIC|OPENAI|GEMINI|OPENCODE)_API_KEY\s*=\s*(?!replace-with-local-secret\b)[^\s#]+/u;
     const keyShapePattern =
       /(?:sk-ant-api\d{2}-[A-Za-z0-9_-]{20,}|sk-(?:proj|live|admin)-[A-Za-z0-9_-]{20,}|AIzaSy[A-Za-z0-9_-]{30,})/u;
     const offenders = textFilesUnder(".").filter((filePath) => {
@@ -415,6 +415,7 @@ describe("architectural import boundaries", () => {
       ["src/lib/model/providers/anthropic.ts", "https://api.anthropic.com/v1/messages"],
       ["src/lib/model/providers/openai.ts", "https://api.openai.com/v1/responses"],
       ["src/lib/model/providers/gemini.ts", "https://generativelanguage.googleapis.com"],
+      ["src/lib/model/providers/opencode.ts", "https://opencode.ai/zen/go/v1/chat/completions"],
     ] as const;
     const derivedUrlPattern = /https?:[^\n]*\$\{[^}]*\b(?:apiKey|input|systemInstruction)\b/u;
 

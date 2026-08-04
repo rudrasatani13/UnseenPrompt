@@ -8,6 +8,10 @@ import {
 } from "@/lib/model/providers/anthropic";
 import { createGeminiAdapter } from "@/lib/model/providers/gemini";
 import { createOpenAIAdapter } from "@/lib/model/providers/openai";
+import {
+  createOpenCodeAdapter,
+  OPENCODE_CHAT_COMPLETIONS_ENDPOINT,
+} from "@/lib/model/providers/opencode";
 import { MAX_RESPONSE_BYTES } from "@/lib/model/http";
 import { isModelGatewayError } from "@/lib/model/errors";
 import type { ProviderAdapter, ProviderAdapterRequest, ProviderFetch } from "@/lib/model/provider";
@@ -168,6 +172,45 @@ const harnesses: readonly ProviderHarness[] = [
         responseJsonSchema: outputSchema,
         maxOutputTokens: request.maxOutputTokens,
       });
+    },
+  },
+  {
+    name: "opencode",
+    expectedMalformedCode: "provider_error",
+    expectedOversizedCode: "provider_error",
+    expectedUsage: { inputTokens: 11, outputTokens: 7, totalTokens: 18 },
+    expectedRequestId: "opencode-contract-request",
+    apiKeyHeader: "authorization",
+    create: (fetch) => createOpenCodeAdapter({ apiKey, fetch }),
+    success: () =>
+      jsonResponse(
+        {
+          model: "opencode-contract-resolved",
+          choices: [
+            {
+              index: 0,
+              message: { role: "assistant", content: candidate },
+              finish_reason: "stop",
+            },
+          ],
+          usage: { prompt_tokens: 11, completion_tokens: 7, total_tokens: 18 },
+        },
+        200,
+        { "x-request-id": "opencode-contract-request" },
+      ),
+    endpoint: OPENCODE_CHAT_COMPLETIONS_ENDPOINT,
+    assertRequest(body) {
+      expect(body.model).toBe(model);
+      expect(body.messages).toEqual([
+        { role: "system", content: systemInstruction },
+        {
+          role: "user",
+          content: `${input}\n\nRespond with JSON only. Match this exact JSON schema (${outputSchemaName}) and include no extra keys:\n${JSON.stringify(outputSchema)}`,
+        },
+      ]);
+      expect(body.max_tokens).toBe(request.maxOutputTokens);
+      expect(body.store).toBe(false);
+      expect(body.response_format).toEqual({ type: "json_object" });
     },
   },
 ];

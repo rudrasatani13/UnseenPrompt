@@ -4,7 +4,7 @@ import { PROVIDER_IDS, type ProviderAdapter } from "@/lib/model/provider";
 
 describe("provider contracts", () => {
   it("keeps provider identifiers in the server infrastructure layer", () => {
-    expect(PROVIDER_IDS).toEqual(["anthropic", "openai", "gemini"]);
+    expect(PROVIDER_IDS).toEqual(["anthropic", "openai", "gemini", "opencode"]);
   });
 
   it("accepts an untrusted candidate and requires the supplied signal", async () => {

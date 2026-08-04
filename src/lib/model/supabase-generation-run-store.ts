@@ -159,7 +159,7 @@ const MODEL_OPERATIONS = [
   "risk_flags",
 ] as const satisfies readonly ModelOperation[];
 
-const PROVIDERS = ["anthropic", "openai", "gemini"] as const;
+const PROVIDERS = ["anthropic", "openai", "gemini", "opencode"] as const;
 const VALIDATION_RESULTS = ["not_attempted", "passed", "repaired", "reviewed", "failed"] as const;
 const TERMINAL_STATUSES = ["succeeded", "failed", "canceled"] as const;
 const TERMINAL_ERROR_CODES = [
