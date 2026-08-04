@@ -348,7 +348,7 @@ select is((select state_version from public.projects where id='02000000-0000-400
 select is((select count(*)::int from public.requirements where project_id='02000000-0000-4000-8000-000000000003'),0,'forced apply failure leaves no requirement');
 select is((select count(*)::int from public.decisions where project_id='02000000-0000-4000-8000-000000000003'),0,'forced apply failure leaves no decision');
 select is((select count(*)::int from public.milestones where project_id='02000000-0000-4000-8000-000000000003'),0,'forced apply failure leaves no milestone');
-select is((select count(*)::int from public.project_events where project_id='02000000-0000-4000-8000-000000000003'),0,'forced apply failure leaves no target event');
+select is((select count(*)::int from public.project_events where project_id='02000000-0000-4000-8000-000000000003' and sequence_number > 1),0,'forced apply failure leaves no additional event; project.created remains');
 select is((select count(*)::int from public.project_delta_applications where project_id='02000000-0000-4000-8000-000000000003'),0,'forced apply failure leaves no apply receipt');
 
 -- Source-version and current-projection mismatches fail before any proposal child/event mutation.
@@ -372,7 +372,7 @@ select is((select state_version from public.projects where id='02000000-0000-400
 select is((select count(*)::int from public.requirements where project_id='02000000-0000-4000-8000-000000000004'),0,'source mismatch leaves no requirement');
 select is((select count(*)::int from public.decisions where project_id='02000000-0000-4000-8000-000000000004'),0,'source mismatch leaves no decision');
 select is((select count(*)::int from public.milestones where project_id='02000000-0000-4000-8000-000000000004'),0,'source mismatch leaves no milestone');
-select is((select count(*)::int from public.project_events where project_id='02000000-0000-4000-8000-000000000004'),0,'source mismatch leaves no event');
+select is((select count(*)::int from public.project_events where project_id='02000000-0000-4000-8000-000000000004' and sequence_number > 1),0,'source mismatch leaves no additional event; project.created remains');
 select is((select count(*)::int from public.project_delta_applications where project_id='02000000-0000-4000-8000-000000000004'),0,'source mismatch leaves no apply receipt');
 select is((public.execute_project_command_v1('02000000-0000-4000-8000-000000000004',1,'phase6-version-advance-key',repeat('c',64),'{"type":"change_mode","mode":"feature"}'::jsonb)->>'state_version')::bigint,2::bigint,'version mismatch fixture advances project independently');
 select throws_ok($$select public.apply_validated_project_delta_v1('02000000-0000-4000-8000-000000000004',(select run_id from tmp_phase6_version_claim),1)$$,'P0001','stale_state_version','current project mismatch is rejected');
@@ -428,12 +428,12 @@ select set_config('request.jwt.claims','{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaa
 set local role authenticated;
 select throws_ok($$select public.execute_project_command_v1('02000000-0000-4000-8000-000000000006',1,'phase6-decision-conflict-confirm-key',repeat('1',64),jsonb_build_object('type','confirm_decision','decisionId','05000000-0000-4000-8000-000000000002','decisionKey','conflict-key'))$$,'P0001','decision_key_conflict','confirming a proposed decision rejects active key collision');
 select is((select state_version from public.projects where id='02000000-0000-4000-8000-000000000006'),1::bigint,'confirm key conflict leaves project version unchanged');
-select is((select count(*)::int from public.project_events where project_id='02000000-0000-4000-8000-000000000006'),0,'confirm key conflict leaves no event');
+select is((select count(*)::int from public.project_events where project_id='02000000-0000-4000-8000-000000000006' and sequence_number > 1),0,'confirm key conflict leaves no additional event; project.created remains');
 select ok((select d.status='confirmed' and d.decision_key='conflict-key' from public.decisions d where d.id='05000000-0000-4000-8000-000000000001'),'existing confirmed decision remains unchanged');
 select ok((select d.status='proposed' and d.decision_key='candidate-key' and d.confirmed_at is null from public.decisions d where d.id='05000000-0000-4000-8000-000000000002'),'proposed decision remains unchanged');
 select throws_ok($$select public.execute_project_command_v1('02000000-0000-4000-8000-000000000006',1,'phase6-decision-conflict-supersede-key',repeat('2',64),jsonb_build_object('type','supersede_decision','predecessorId','05000000-0000-4000-8000-000000000003','decisionKey','conflict-key','decision','Conflicting successor','rationale','Must fail closed.'))$$,'P0001','decision_key_conflict','superseding a decision rejects active key collision');
 select is((select state_version from public.projects where id='02000000-0000-4000-8000-000000000006'),1::bigint,'supersede key conflict leaves project version unchanged');
-select is((select count(*)::int from public.project_events where project_id='02000000-0000-4000-8000-000000000006'),0,'supersede key conflict leaves no event');
+select is((select count(*)::int from public.project_events where project_id='02000000-0000-4000-8000-000000000006' and sequence_number > 1),0,'supersede key conflict leaves no additional event; project.created remains');
 select is((select count(*)::int from public.decisions where project_id='02000000-0000-4000-8000-000000000006'),3,'supersede key conflict creates no successor');
 select ok((select d.status='confirmed' and d.decision_key='other-key' and d.confirmed_at is not null from public.decisions d where d.id='05000000-0000-4000-8000-000000000003'),'supersede predecessor remains unchanged');
 
