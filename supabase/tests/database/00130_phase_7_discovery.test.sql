@@ -90,6 +90,7 @@ grant execute on function public.create_composer_draft_v1(text,text,text) to ser
 grant execute on function public.execute_composer_draft_command_v1(uuid,bigint,text,text,jsonb) to service_role;
 grant execute on function public.get_discovery_snapshot_v1(uuid) to service_role;
 grant execute on function public.execute_discovery_command_v1(uuid,bigint,text,text,jsonb) to service_role;
+grant execute on function public.apply_validated_project_delta_v1(uuid,uuid,bigint) to service_role;
 set local role service_role;
 
 -- A failed intent moves the draft into an explicit retry state; retry returns it to routing.

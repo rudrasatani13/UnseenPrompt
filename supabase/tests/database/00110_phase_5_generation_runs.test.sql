@@ -297,7 +297,7 @@ select throws_ok(
   'P0001', 'generation_run_identity_immutable', 'project state version is immutable'
 );
 select throws_ok(
-  $$update public.generation_runs set operation_kind = 'risk_flags'
+  $$update public.generation_runs set operation_kind = 'project_delta'
     where id = (select run_id from tmp_generation_claim)$$,
   'P0001', 'generation_run_identity_immutable', 'operation kind is immutable'
 );

@@ -8,6 +8,7 @@ import {
   PHASE7_MOCK_QUESTION_ID,
   PHASE7_MOCK_SESSION_ID,
 } from "./phase7-fixtures";
+import { buildPhase7StorageState, type Phase7AuthSession } from "./phase7-storage-state";
 
 function requiredEnvironmentValue(name: string, value: string | undefined): string {
   if (!value) throw new Error(`Phase 7 E2E setup requires ${name}`);
@@ -33,15 +34,6 @@ const storageStatePath = resolve(
 
 interface AuthUser {
   readonly id: string;
-}
-
-interface AuthSession {
-  readonly access_token: string;
-  readonly refresh_token: string;
-  readonly expires_in: number;
-  readonly expires_at?: number;
-  readonly token_type: string;
-  readonly user: AuthUser;
 }
 
 interface GenerationRunReceipt {
@@ -220,7 +212,7 @@ async function main(): Promise<void> {
     { email, password, email_confirm: true },
     serviceRoleKey,
   );
-  const session = await authRequest<AuthSession>(
+  const session = await authRequest<Phase7AuthSession>(
     "sign in ephemeral E2E user",
     "token?grant_type=password",
     { email, password },
@@ -347,29 +339,10 @@ async function main(): Promise<void> {
     },
   );
 
-  const encoded = `base64-${Buffer.from(JSON.stringify(session), "utf8").toString("base64url")}`;
   await mkdir(dirname(storageStatePath), { recursive: true });
   await writeFile(
     storageStatePath,
-    JSON.stringify(
-      {
-        cookies: [
-          {
-            name: `sb-${new URL(supabaseUrl).hostname.split(".")[0]}-auth-token`,
-            value: encoded,
-            url: "http://127.0.0.1",
-            path: "/",
-            httpOnly: false,
-            secure: false,
-            sameSite: "Lax",
-            expires: Math.floor(Date.now() / 1000) + session.expires_in,
-          },
-        ],
-        origins: [],
-      },
-      null,
-      2,
-    ),
+    JSON.stringify(buildPhase7StorageState(supabaseUrl, session), null, 2),
     "utf8",
   );
   console.log(`Phase 7 E2E fixture ready: ${storageStatePath}`);
