@@ -1,16 +1,26 @@
 import { describe, expect, it } from "vitest";
 
-import type { ModelErrorCode, ModelOperation } from "@/domain/model/contracts";
+import type {
+  ModelErrorCode,
+  ModelExecutionSubject,
+  ModelOperation,
+  TypedModelOperation,
+} from "@/domain/model/contracts";
 import { serializeCanonicalJsonV1 } from "@/domain/project/commands";
 import {
   GENERATION_RUN_INPUT_SCHEMA_VERSION,
+  GENERATION_RUN_INPUT_SCHEMA_VERSION_V3,
   type GenerationRunClaimInput,
+  type GenerationRunClaimInputV3,
   type GenerationRunCompletionInput,
+  type GenerationRunCompletionInputV3,
 } from "@/lib/model/generation-run-store";
 import {
   createSupabaseGenerationRunStore,
   type ClaimGenerationRunRpcArgs,
+  type ClaimGenerationRunRpcArgsV3,
   type CompleteGenerationRunRpcArgs,
+  type CompleteGenerationRunRpcArgsV3,
   type GenerationRunRpcClient,
   type GenerationRunRpcResult,
 } from "@/lib/model/supabase-generation-run-store";
@@ -18,8 +28,12 @@ import {
 const PROJECT_ID = "01000000-0000-4000-8000-000000000001";
 const RUN_ID = "06000000-0000-4000-8000-000000000001";
 const CORRELATION_ID = "07000000-0000-4000-8000-000000000001";
+const DRAFT_ID = "02000000-0000-4000-8000-000000000001";
+const OWNER_ID = "09000000-0000-4000-8000-000000000001";
+const SUBJECT_VERSION = 7;
 const OPERATION: ModelOperation = "intent_detection";
 const OUTPUT_SCHEMA_VERSION = "unseenprompt.model-output.intent_detection.v1";
+const TYPED_OUTPUT_TEXT = '{"mode":"new_build"}';
 const SECRET = "secret-persistence-sentinel";
 const PROJECT_DELTA_TEXT = serializeCanonicalJsonV1({
   summary: "A bounded proposal.",
@@ -44,9 +58,54 @@ const claimInput: GenerationRunClaimInput = {
   outputSchemaVersion: OUTPUT_SCHEMA_VERSION,
 };
 
+const draftSubject: ModelExecutionSubject = {
+  kind: "composer_draft",
+  id: DRAFT_ID,
+  version: SUBJECT_VERSION,
+};
+
+const claimInputV3: GenerationRunClaimInputV3 = {
+  subject: draftSubject,
+  idempotencyKey: "generation-v3-key",
+  requestFingerprint: "b".repeat(64),
+  operationKind: "intent_detection",
+  inputSchemaVersion: GENERATION_RUN_INPUT_SCHEMA_VERSION_V3,
+  outputSchemaVersion: OUTPUT_SCHEMA_VERSION,
+};
+
+const succeededInputV3: GenerationRunCompletionInputV3 = {
+  runId: RUN_ID,
+  status: "succeeded",
+  subject: draftSubject,
+  provider: "openai",
+  model: "gpt-test",
+  latencyMs: 42,
+  inputTokens: 10,
+  outputTokens: 20,
+  retryCount: 1,
+  estimatedCostMicros: 30,
+  validationResult: "passed",
+  errorCode: null,
+  validatedOutputText: TYPED_OUTPUT_TEXT,
+};
+
 type RpcCall =
-  | { readonly name: "claim_generation_run_v2"; readonly args: ClaimGenerationRunRpcArgs }
-  | { readonly name: "complete_generation_run_v2"; readonly args: CompleteGenerationRunRpcArgs };
+  | {
+      readonly name: "claim_generation_run_v2_server";
+      readonly args: ClaimGenerationRunRpcArgs;
+    }
+  | {
+      readonly name: "complete_generation_run_v2_server";
+      readonly args: CompleteGenerationRunRpcArgs;
+    }
+  | {
+      readonly name: "claim_generation_run_v3_server";
+      readonly args: ClaimGenerationRunRpcArgsV3;
+    }
+  | {
+      readonly name: "complete_generation_run_v3_server";
+      readonly args: CompleteGenerationRunRpcArgsV3;
+    };
 
 class FakeRpcClient implements GenerationRunRpcClient {
   readonly calls: RpcCall[] = [];
@@ -64,21 +123,41 @@ class FakeRpcClient implements GenerationRunRpcClient {
   }
 
   rpc(
-    functionName: "claim_generation_run_v2",
+    functionName: "claim_generation_run_v2_server",
     args: ClaimGenerationRunRpcArgs,
   ): PromiseLike<GenerationRunRpcResult>;
   rpc(
-    functionName: "complete_generation_run_v2",
+    functionName: "complete_generation_run_v2_server",
     args: CompleteGenerationRunRpcArgs,
   ): PromiseLike<GenerationRunRpcResult>;
   rpc(
-    functionName: "claim_generation_run_v2" | "complete_generation_run_v2",
-    args: ClaimGenerationRunRpcArgs | CompleteGenerationRunRpcArgs,
+    functionName: "claim_generation_run_v3_server",
+    args: ClaimGenerationRunRpcArgsV3,
+  ): PromiseLike<GenerationRunRpcResult>;
+  rpc(
+    functionName: "complete_generation_run_v3_server",
+    args: CompleteGenerationRunRpcArgsV3,
+  ): PromiseLike<GenerationRunRpcResult>;
+  rpc(
+    functionName:
+      | "claim_generation_run_v2_server"
+      | "complete_generation_run_v2_server"
+      | "claim_generation_run_v3_server"
+      | "complete_generation_run_v3_server",
+    args:
+      | ClaimGenerationRunRpcArgs
+      | CompleteGenerationRunRpcArgs
+      | ClaimGenerationRunRpcArgsV3
+      | CompleteGenerationRunRpcArgsV3,
   ): PromiseLike<GenerationRunRpcResult> {
-    if (functionName === "claim_generation_run_v2") {
+    if (functionName === "claim_generation_run_v2_server") {
       this.calls.push({ name: functionName, args: args as ClaimGenerationRunRpcArgs });
-    } else {
+    } else if (functionName === "complete_generation_run_v2_server") {
       this.calls.push({ name: functionName, args: args as CompleteGenerationRunRpcArgs });
+    } else if (functionName === "claim_generation_run_v3_server") {
+      this.calls.push({ name: functionName, args: args as ClaimGenerationRunRpcArgsV3 });
+    } else {
+      this.calls.push({ name: functionName, args: args as CompleteGenerationRunRpcArgsV3 });
     }
     if (this.thrown !== undefined) return Promise.reject(this.thrown);
     return Promise.resolve(this.responses.shift() ?? { data: [], error: null });
@@ -186,24 +265,158 @@ function completionClient(
   });
 }
 
+function claimRowV3(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    run_id: RUN_ID,
+    correlation_id: CORRELATION_ID,
+    claim_status: "running",
+    status: "running",
+    subject_kind: draftSubject.kind,
+    subject_id: draftSubject.id,
+    subject_version: draftSubject.version,
+    project_state_version: draftSubject.version,
+    operation_kind: claimInputV3.operationKind,
+    input_schema_version: GENERATION_RUN_INPUT_SCHEMA_VERSION_V3,
+    output_schema_version: claimInputV3.outputSchemaVersion,
+    provider: null,
+    model: null,
+    latency_ms: null,
+    input_tokens: null,
+    output_tokens: null,
+    retry_count: null,
+    estimated_cost_micros: null,
+    validation_result: "not_attempted",
+    error_code: null,
+    validated_project_delta_text: null,
+    validated_project_delta_hash: null,
+    validated_output_text: null,
+    validated_output_hash: null,
+    ...overrides,
+  };
+}
+
+async function replayedClaimRowV3(
+  operation: TypedModelOperation = "intent_detection",
+  overrides: Record<string, unknown> = {},
+): Promise<Record<string, unknown>> {
+  const subject: ModelExecutionSubject =
+    operation === "intent_detection"
+      ? draftSubject
+      : { kind: "project", id: PROJECT_ID, version: SUBJECT_VERSION };
+  const outputText = TYPED_OUTPUT_TEXT;
+  return {
+    ...claimRowV3(),
+    claim_status: "replayed",
+    status: "succeeded",
+    subject_kind: subject.kind,
+    subject_id: subject.id,
+    subject_version: subject.version,
+    project_state_version: subject.version,
+    operation_kind: operation,
+    output_schema_version: `unseenprompt.model-output.${operation}.v1`,
+    provider: "openai",
+    model: "gpt-test",
+    latency_ms: 42,
+    input_tokens: 10,
+    output_tokens: 20,
+    retry_count: 1,
+    estimated_cost_micros: 30,
+    validation_result: "passed",
+    error_code: null,
+    validated_output_text: outputText,
+    validated_output_hash: await sha256Hex(outputText),
+    ...overrides,
+  };
+}
+
+async function completionRowV3(
+  input: GenerationRunCompletionInputV3 = succeededInputV3,
+  overrides: Record<string, unknown> = {},
+): Promise<Record<string, unknown>> {
+  const operation =
+    input.subject.kind === "composer_draft" ? "intent_detection" : "discovery_sufficiency";
+  const outputText = input.validatedOutputText ?? null;
+  return {
+    run_id: input.runId,
+    correlation_id: CORRELATION_ID,
+    status: input.status,
+    subject_kind: input.subject.kind,
+    subject_id: input.subject.id,
+    subject_version: input.subject.version,
+    project_state_version: input.subject.version,
+    operation_kind: operation,
+    input_schema_version: GENERATION_RUN_INPUT_SCHEMA_VERSION_V3,
+    output_schema_version: `unseenprompt.model-output.${operation}.v1`,
+    provider: input.provider,
+    model: input.model,
+    latency_ms: input.latencyMs,
+    input_tokens: input.inputTokens,
+    output_tokens: input.outputTokens,
+    retry_count: input.retryCount,
+    estimated_cost_micros: input.estimatedCostMicros,
+    validation_result: input.validationResult,
+    error_code: input.errorCode,
+    validated_project_delta_text: null,
+    validated_project_delta_hash: null,
+    validated_output_text: outputText,
+    validated_output_hash: outputText === null ? null : await sha256Hex(outputText),
+    ...overrides,
+  };
+}
+
 function expectPersistenceFailure(error: unknown): void {
   expect(error).toMatchObject({ code: "persistence_failed" });
   const serialized = JSON.stringify(error);
   expect(serialized).not.toContain(SECRET);
 }
 
+function v3Store(client: FakeRpcClient): {
+  readonly claimV3: NonNullable<ReturnType<typeof createSupabaseGenerationRunStore>["claimV3"]>;
+  readonly completeV3: NonNullable<
+    ReturnType<typeof createSupabaseGenerationRunStore>["completeV3"]
+  >;
+} {
+  const store = createSupabaseGenerationRunStore(client, {
+    serverClient: client,
+    ownerIdProvider: async () => OWNER_ID,
+  });
+  if (store.claimV3 === undefined || store.completeV3 === undefined) {
+    throw new Error("v3 adapter methods are missing");
+  }
+  return { claimV3: store.claimV3, completeV3: store.completeV3 };
+}
+
+function testStore(client: FakeRpcClient) {
+  return createSupabaseGenerationRunStore(client, {
+    serverClient: client,
+    ownerIdProvider: async () => OWNER_ID,
+  });
+}
+
 describe("Supabase generation-run store", () => {
+  it("requires an explicit owner-bound server client for every generation write", async () => {
+    const client = new FakeRpcClient();
+    const store = createSupabaseGenerationRunStore(client);
+
+    await expect(store.claim(claimInput)).rejects.toMatchObject({ code: "persistence_failed" });
+    await expect(store.claimV3?.(claimInputV3)).rejects.toMatchObject({
+      code: "persistence_failed",
+    });
+    expect(client.calls).toHaveLength(0);
+  });
+
   it("calls only the exact claim RPC with safe snake-case metadata", async () => {
     const client = claimClient();
-    const store = createSupabaseGenerationRunStore(client);
+    const store = testStore(client);
 
     await store.claim(claimInput);
 
     expect(client.calls).toHaveLength(1);
     const call = client.calls[0];
-    expect(call).toMatchObject({ name: "claim_generation_run_v2" });
-    if (call?.name !== "claim_generation_run_v2") throw new Error("unexpected RPC call");
+    expect(call).toMatchObject({ name: "claim_generation_run_v2_server" });
+    if (call?.name !== "claim_generation_run_v2_server") throw new Error("unexpected RPC call");
     expect(call.args).toEqual({
+      p_owner_id: OWNER_ID,
       p_project_id: PROJECT_ID,
       p_project_state_version: 3,
       p_idempotency_key: "generation-key",
@@ -213,7 +426,6 @@ describe("Supabase generation-run store", () => {
       p_output_schema_version: OUTPUT_SCHEMA_VERSION,
     });
     for (const forbidden of [
-      "owner_id",
       "user_id",
       "prompt",
       "input",
@@ -230,7 +442,7 @@ describe("Supabase generation-run store", () => {
 
   it("maps a valid claim row to the neutral camelCase DTO", async () => {
     const client = claimClient();
-    const result = await createSupabaseGenerationRunStore(client).claim(claimInput);
+    const result = await testStore(client).claim(claimInput);
 
     expect(result).toEqual({
       runId: RUN_ID,
@@ -250,7 +462,7 @@ describe("Supabase generation-run store", () => {
     const client = new FakeRpcClient({
       responses: [{ data: [await replayedClaimRow()], error: null }],
     });
-    const result = await createSupabaseGenerationRunStore(client).claim({
+    const result = await testStore(client).claim({
       ...claimInput,
       operationKind: "project_delta",
       outputSchemaVersion: "unseenprompt.model-output.project_delta.v1",
@@ -288,7 +500,7 @@ describe("Supabase generation-run store", () => {
     const client = new FakeRpcClient({
       responses: [{ data: [], error: { code: "P0001", message } }],
     });
-    const result = createSupabaseGenerationRunStore(client).claim(claimInput);
+    const result = testStore(client).claim(claimInput);
 
     await expect(result).rejects.toMatchObject({ code });
     expect(client.calls).toHaveLength(1);
@@ -315,7 +527,7 @@ describe("Supabase generation-run store", () => {
     const client = new FakeRpcClient({
       responses: [{ data: [], error: { code: "P0001", message: code } }],
     });
-    await expect(createSupabaseGenerationRunStore(client).claim(claimInput)).rejects.toMatchObject({
+    await expect(testStore(client).claim(claimInput)).rejects.toMatchObject({
       code,
     });
   });
@@ -324,14 +536,12 @@ describe("Supabase generation-run store", () => {
     const returned = new FakeRpcClient({
       responses: [{ data: [], error: { code: "P0001", message: "idempotency_conflict" } }],
     });
-    await expect(
-      createSupabaseGenerationRunStore(returned).claim(claimInput),
-    ).rejects.toMatchObject({
+    await expect(testStore(returned).claim(claimInput)).rejects.toMatchObject({
       code: "idempotency_conflict",
     });
 
     const thrown = new FakeRpcClient({ thrown: new Error("idempotency_in_progress") });
-    const result = createSupabaseGenerationRunStore(thrown).claim(claimInput);
+    const result = testStore(thrown).claim(claimInput);
     await expect(result).rejects.toSatisfy((error: unknown) => {
       expectPersistenceFailure(error);
       return true;
@@ -342,14 +552,14 @@ describe("Supabase generation-run store", () => {
     const unknown = new FakeRpcClient({
       responses: [{ data: [], error: { code: "P0001", message: `${SECRET} unknown` } }],
     });
-    const unknownResult = createSupabaseGenerationRunStore(unknown).claim(claimInput);
+    const unknownResult = testStore(unknown).claim(claimInput);
     await expect(unknownResult).rejects.toSatisfy((error: unknown) => {
       expectPersistenceFailure(error);
       return true;
     });
 
     const network = new FakeRpcClient({ thrown: new TypeError(`network ${SECRET}`) });
-    const networkResult = createSupabaseGenerationRunStore(network).claim(claimInput);
+    const networkResult = testStore(network).claim(claimInput);
     await expect(networkResult).rejects.toSatisfy((error: unknown) => {
       expectPersistenceFailure(error);
       return true;
@@ -367,7 +577,7 @@ describe("Supabase generation-run store", () => {
 
   it.each(malformedClaimRows)("fails closed for malformed claim rows", async (rows: unknown) => {
     const client = new FakeRpcClient({ responses: [{ data: rows, error: null }] });
-    const result = createSupabaseGenerationRunStore(client).claim(claimInput);
+    const result = testStore(client).claim(claimInput);
     await expect(result).rejects.toSatisfy((error: unknown) => {
       expectPersistenceFailure(error);
       return true;
@@ -383,7 +593,7 @@ describe("Supabase generation-run store", () => {
       responses: [{ data: [await replayedClaimRow(overrides)], error: null }],
     });
     await expect(
-      createSupabaseGenerationRunStore(client).claim({
+      testStore(client).claim({
         ...claimInput,
         operationKind: "project_delta",
         outputSchemaVersion: "unseenprompt.model-output.project_delta.v1",
@@ -398,7 +608,7 @@ describe("Supabase generation-run store", () => {
     { outputSchemaVersion: "unseenprompt.model-output.risk_flags.v1" },
   ])("rejects forged claim echoes", async (overrides) => {
     const client = claimClient(overrides);
-    const result = createSupabaseGenerationRunStore(client).claim(claimInput);
+    const result = testStore(client).claim(claimInput);
     await expect(result).rejects.toMatchObject({ code: "persistence_failed" });
   });
 
@@ -411,7 +621,7 @@ describe("Supabase generation-run store", () => {
         },
       ],
     });
-    const result = await createSupabaseGenerationRunStore(client).claim({
+    const result = await testStore(client).claim({
       ...claimInput,
       projectStateVersion: 3,
       operationKind: "project_delta",
@@ -422,14 +632,14 @@ describe("Supabase generation-run store", () => {
     expect(result.status).toBe("replayed");
     expect(result.projectStateVersion).toBe(2);
     const call = client.calls[0];
-    expect(call?.name).toBe("claim_generation_run_v2");
-    if (call?.name !== "claim_generation_run_v2") throw new Error("unexpected RPC call");
+    expect(call?.name).toBe("claim_generation_run_v2_server");
+    if (call?.name !== "claim_generation_run_v2_server") throw new Error("unexpected RPC call");
     expect(call.args).not.toHaveProperty("allowHistoricalReplay");
   });
 
   it("never permits a running claim to bypass state-version binding", async () => {
     const client = claimClient({ project_state_version: 2 });
-    const result = createSupabaseGenerationRunStore(client).claim({
+    const result = testStore(client).claim({
       ...claimInput,
       projectStateVersion: 3,
       allowHistoricalReplay: true,
@@ -440,7 +650,7 @@ describe("Supabase generation-run store", () => {
   it("rejects forged output schema versions before calling claim", async () => {
     const client = claimClient();
     const invalid = { ...claimInput, outputSchemaVersion: "wrong.v1" };
-    const result = createSupabaseGenerationRunStore(client).claim(invalid);
+    const result = testStore(client).claim(invalid);
 
     await expect(result).rejects.toMatchObject({ code: "persistence_failed" });
     expect(client.calls).toHaveLength(0);
@@ -448,7 +658,7 @@ describe("Supabase generation-run store", () => {
 
   it("uses only terminal metadata for succeeded completion and maps the echoed row", async () => {
     const client = completionClient();
-    const result = await createSupabaseGenerationRunStore(client).complete(succeededInput);
+    const result = await testStore(client).complete(succeededInput);
 
     expect(result).toEqual({
       ...succeededInput,
@@ -462,9 +672,10 @@ describe("Supabase generation-run store", () => {
     });
     expect(client.calls).toHaveLength(1);
     const call = client.calls[0];
-    expect(call?.name).toBe("complete_generation_run_v2");
-    if (call?.name !== "complete_generation_run_v2") throw new Error("unexpected RPC call");
+    expect(call?.name).toBe("complete_generation_run_v2_server");
+    if (call?.name !== "complete_generation_run_v2_server") throw new Error("unexpected RPC call");
     expect(call.args).toEqual({
+      p_owner_id: OWNER_ID,
       p_run_id: RUN_ID,
       p_status: "succeeded",
       p_provider: "openai",
@@ -479,7 +690,6 @@ describe("Supabase generation-run store", () => {
       p_validated_project_delta_text: null,
     });
     for (const forbidden of [
-      "owner_id",
       "user_id",
       "prompt",
       "input",
@@ -517,12 +727,12 @@ describe("Supabase generation-run store", () => {
       ],
     });
 
-    const result = await createSupabaseGenerationRunStore(client).complete(input);
+    const result = await testStore(client).complete(input);
     expect(result.validatedProjectDeltaText).toBe(PROJECT_DELTA_TEXT);
     expect(result.validatedProjectDeltaHash).toBe(hash);
     const call = client.calls[0];
-    expect(call?.name).toBe("complete_generation_run_v2");
-    if (call?.name !== "complete_generation_run_v2") throw new Error("unexpected RPC call");
+    expect(call?.name).toBe("complete_generation_run_v2_server");
+    if (call?.name !== "complete_generation_run_v2_server") throw new Error("unexpected RPC call");
     expect(call.args.p_validated_project_delta_text).toBe(PROJECT_DELTA_TEXT);
     expect(JSON.stringify(call.args)).not.toContain("prompt");
   });
@@ -554,7 +764,7 @@ describe("Supabase generation-run store", () => {
       estimatedCostMicros: null,
     };
     const client = completionClient(input);
-    await expect(createSupabaseGenerationRunStore(client).complete(input)).resolves.toMatchObject({
+    await expect(testStore(client).complete(input)).resolves.toMatchObject({
       status: metadata.status,
       errorCode: metadata.errorCode,
     });
@@ -575,7 +785,7 @@ describe("Supabase generation-run store", () => {
   ])("rejects invalid completion metadata before RPC (%j)", async (overrides) => {
     const client = completionClient();
     const input = { ...succeededInput, ...overrides } as GenerationRunCompletionInput;
-    const result = createSupabaseGenerationRunStore(client).complete(input);
+    const result = testStore(client).complete(input);
 
     await expect(result).rejects.toMatchObject({ code: "persistence_failed" });
     expect(client.calls).toHaveLength(0);
@@ -584,7 +794,7 @@ describe("Supabase generation-run store", () => {
   it("rejects multibyte idempotency keys over the database byte bound before RPC", async () => {
     const client = claimClient();
     const input = { ...claimInput, idempotencyKey: "é".repeat(128) };
-    const result = createSupabaseGenerationRunStore(client).claim(input);
+    const result = testStore(client).claim(input);
 
     await expect(result).rejects.toMatchObject({ code: "persistence_failed" });
     expect(client.calls).toHaveLength(0);
@@ -594,7 +804,7 @@ describe("Supabase generation-run store", () => {
     const client = new FakeRpcClient({
       responses: [{ data: [completionRow()], error: { code: "P0001", message: "database_down" } }],
     });
-    const result = createSupabaseGenerationRunStore(client).complete(succeededInput);
+    const result = testStore(client).complete(succeededInput);
 
     await expect(result).rejects.toMatchObject({ code: "persistence_failed" });
   });
@@ -609,7 +819,7 @@ describe("Supabase generation-run store", () => {
     { data: [{ ...completionRow(), error_code: "idempotency_conflict" }], error: null },
   ])("fails closed for malformed completion rows", async (rpcResponse) => {
     const client = new FakeRpcClient({ responses: [rpcResponse] });
-    const result = createSupabaseGenerationRunStore(client).complete(succeededInput);
+    const result = testStore(client).complete(succeededInput);
 
     await expect(result).rejects.toSatisfy((error: unknown) => {
       expectPersistenceFailure(error);
@@ -619,7 +829,7 @@ describe("Supabase generation-run store", () => {
 
   it("maps completion network/unknown errors to persistence_failed without retry", async () => {
     const client = new FakeRpcClient({ thrown: new Error(`completion ${SECRET}`) });
-    const result = createSupabaseGenerationRunStore(client).complete(succeededInput);
+    const result = testStore(client).complete(succeededInput);
 
     await expect(result).rejects.toSatisfy((error: unknown) => {
       expectPersistenceFailure(error);
@@ -641,17 +851,279 @@ describe("Supabase generation-run store", () => {
       ],
     });
 
-    const claimed = await createSupabaseGenerationRunStore(client).claim(claimInput);
+    const claimed = await testStore(client).claim(claimInput);
     expect(claimed).toMatchObject({ runId: RUN_ID, status: "running" });
     expect(claimed).not.toHaveProperty("statusText");
 
     const missingData = new FakeRpcClient({
       responses: [{ error: null } as GenerationRunRpcResult],
     });
-    await expect(
-      createSupabaseGenerationRunStore(missingData).claim(claimInput),
-    ).rejects.toMatchObject({
+    await expect(testStore(missingData).claim(claimInput)).rejects.toMatchObject({
       code: "persistence_failed",
     });
+  });
+
+  it("calls the exact v3 claim RPC and maps a running subject-aware claim", async () => {
+    const client = new FakeRpcClient({
+      responses: [{ data: [claimRowV3()], error: null }],
+    });
+    const result = await v3Store(client).claimV3(claimInputV3);
+
+    expect(result).toEqual({
+      runId: RUN_ID,
+      correlationId: CORRELATION_ID,
+      status: "running",
+      subject: draftSubject,
+      operationKind: "intent_detection",
+      inputSchemaVersion: GENERATION_RUN_INPUT_SCHEMA_VERSION_V3,
+      outputSchemaVersion: OUTPUT_SCHEMA_VERSION,
+    });
+    expect(client.calls).toHaveLength(1);
+    const call = client.calls[0];
+    expect(call?.name).toBe("claim_generation_run_v3_server");
+    if (call?.name !== "claim_generation_run_v3_server") throw new Error("unexpected RPC call");
+    expect(call.args).toEqual({
+      p_owner_id: OWNER_ID,
+      p_subject_kind: "composer_draft",
+      p_subject_id: DRAFT_ID,
+      p_subject_state_version: SUBJECT_VERSION,
+      p_idempotency_key: "generation-v3-key",
+      p_request_fingerprint: "b".repeat(64),
+      p_operation_kind: "intent_detection",
+      p_input_schema_version: GENERATION_RUN_INPUT_SCHEMA_VERSION_V3,
+      p_output_schema_version: OUTPUT_SCHEMA_VERSION,
+    });
+    expect(call.args).not.toHaveProperty("allowHistoricalReplay");
+    for (const forbidden of ["user_id", "payload", "headers", "secret", "api_key"]) {
+      expect(call.args).not.toHaveProperty(forbidden);
+    }
+  });
+
+  it.each(["intent_detection", "discovery_sufficiency", "clarification_question"] as const)(
+    "maps a strict v3 %s replay with its typed output pair",
+    async (operation) => {
+      const subject: ModelExecutionSubject =
+        operation === "intent_detection"
+          ? draftSubject
+          : { kind: "project", id: PROJECT_ID, version: SUBJECT_VERSION };
+      const input: GenerationRunClaimInputV3 = {
+        subject,
+        idempotencyKey: `replay-${operation}`,
+        requestFingerprint: "c".repeat(64),
+        operationKind: operation,
+        inputSchemaVersion: GENERATION_RUN_INPUT_SCHEMA_VERSION_V3,
+        outputSchemaVersion: `unseenprompt.model-output.${operation}.v1`,
+      };
+      const client = new FakeRpcClient({
+        responses: [{ data: [await replayedClaimRowV3(operation)], error: null }],
+      });
+
+      const result = await v3Store(client).claimV3(input);
+      expect(result).toMatchObject({
+        runId: RUN_ID,
+        correlationId: CORRELATION_ID,
+        status: "replayed",
+        subject,
+        operationKind: operation,
+        inputSchemaVersion: GENERATION_RUN_INPUT_SCHEMA_VERSION_V3,
+        outputSchemaVersion: `unseenprompt.model-output.${operation}.v1`,
+        provider: "openai",
+        model: "gpt-test",
+        validatedOutputText: TYPED_OUTPUT_TEXT,
+        validatedOutputHash: await sha256Hex(TYPED_OUTPUT_TEXT),
+      });
+    },
+  );
+
+  it("calls the frozen 13-argument v3 completion RPC and verifies the output hash", async () => {
+    const client = new FakeRpcClient({
+      responses: [{ data: [await completionRowV3()], error: null }],
+    });
+    const result = await v3Store(client).completeV3(succeededInputV3);
+
+    expect(result).toEqual({
+      ...succeededInputV3,
+      correlationId: CORRELATION_ID,
+      operationKind: "intent_detection",
+      inputSchemaVersion: GENERATION_RUN_INPUT_SCHEMA_VERSION_V3,
+      outputSchemaVersion: OUTPUT_SCHEMA_VERSION,
+      validatedOutputText: TYPED_OUTPUT_TEXT,
+      validatedOutputHash: await sha256Hex(TYPED_OUTPUT_TEXT),
+    });
+    const call = client.calls[0];
+    expect(call?.name).toBe("complete_generation_run_v3_server");
+    if (call?.name !== "complete_generation_run_v3_server") throw new Error("unexpected RPC call");
+    expect(call.args).toEqual({
+      p_owner_id: OWNER_ID,
+      p_run_id: RUN_ID,
+      p_status: "succeeded",
+      p_provider: "openai",
+      p_model: "gpt-test",
+      p_latency_ms: 42,
+      p_input_tokens: 10,
+      p_output_tokens: 20,
+      p_retry_count: 1,
+      p_estimated_cost_micros: 30,
+      p_validation_result: "passed",
+      p_error_code: null,
+      p_validated_project_delta_text: null,
+      p_validated_output_text: TYPED_OUTPUT_TEXT,
+    });
+    expect(Object.keys(call.args)).toHaveLength(14);
+  });
+
+  it("accepts a valid v3 failed completion without a replay output", async () => {
+    const input: GenerationRunCompletionInputV3 = {
+      ...succeededInputV3,
+      status: "failed",
+      provider: null,
+      model: null,
+      latencyMs: null,
+      inputTokens: null,
+      outputTokens: null,
+      retryCount: 0,
+      estimatedCostMicros: null,
+      validationResult: "failed",
+      errorCode: "provider_error",
+      validatedOutputText: null,
+    };
+    const client = new FakeRpcClient({
+      responses: [{ data: [await completionRowV3(input)], error: null }],
+    });
+    await expect(v3Store(client).completeV3(input)).resolves.toMatchObject({
+      status: "failed",
+      errorCode: "provider_error",
+      validatedOutputText: null,
+      validatedOutputHash: null,
+    });
+  });
+
+  it.each([
+    { subject: { kind: "project", id: PROJECT_ID, version: SUBJECT_VERSION } },
+    { operationKind: "project_delta" as never },
+    { outputSchemaVersion: "wrong.v1" },
+    { inputSchemaVersion: "unseenprompt.model-gateway-request.v2" as never },
+    { allowHistoricalReplay: true as never },
+  ])("rejects forged v3 claim input before RPC (%j)", async (overrides) => {
+    const client = new FakeRpcClient();
+    const input = { ...claimInputV3, ...overrides } as GenerationRunClaimInputV3;
+    await expect(v3Store(client).claimV3(input)).rejects.toMatchObject({
+      code: "persistence_failed",
+    });
+    expect(client.calls).toHaveLength(0);
+  });
+
+  it.each([
+    { subject_id: PROJECT_ID },
+    { subject_version: SUBJECT_VERSION + 1, project_state_version: SUBJECT_VERSION + 1 },
+    { operation_kind: "project_delta" },
+    { output_schema_version: "wrong.v1" },
+    { validated_output_text: "tampered" },
+    { validated_output_hash: "0".repeat(32) },
+    { provider: null },
+    { unexpected: SECRET },
+  ])("rejects forged v3 claim rows safely (%j)", async (overrides) => {
+    const client = new FakeRpcClient({
+      responses: [{ data: [await replayedClaimRowV3("intent_detection", overrides)], error: null }],
+    });
+    await expect(
+      v3Store(client).claimV3({
+        ...claimInputV3,
+        operationKind: "intent_detection",
+        outputSchemaVersion: OUTPUT_SCHEMA_VERSION,
+      }),
+    ).rejects.toSatisfy((error: unknown) => {
+      expectPersistenceFailure(error);
+      return true;
+    });
+  });
+
+  it.each([
+    { data: [], error: null },
+    { data: [claimRowV3(), claimRowV3()], error: null },
+    { data: [{ ...claimRowV3(), claim_status: "unknown" }], error: null },
+    { data: [{ ...claimRowV3(), unexpected: SECRET }], error: null },
+  ])("rejects duplicate or unknown v3 claim outcomes", async (rpcResponse) => {
+    const client = new FakeRpcClient({ responses: [rpcResponse] });
+    await expect(v3Store(client).claimV3(claimInputV3)).rejects.toSatisfy((error: unknown) => {
+      expectPersistenceFailure(error);
+      return true;
+    });
+  });
+
+  it.each([
+    { subject_id: PROJECT_ID },
+    { subject_version: SUBJECT_VERSION + 1, project_state_version: SUBJECT_VERSION + 1 },
+    { operation_kind: "project_delta" },
+    { output_schema_version: "wrong.v1" },
+    { validated_output_text: "tampered" },
+    { validated_output_hash: "0".repeat(32) },
+    { provider: null },
+    { unexpected: SECRET },
+  ])("rejects forged v3 completion rows safely (%j)", async (overrides) => {
+    const client = new FakeRpcClient({
+      responses: [{ data: [await completionRowV3(succeededInputV3, overrides)], error: null }],
+    });
+    await expect(v3Store(client).completeV3(succeededInputV3)).rejects.toSatisfy(
+      (error: unknown) => {
+        expectPersistenceFailure(error);
+        return true;
+      },
+    );
+  });
+
+  it("rejects a re-hashed but noncanonical v3 output", async () => {
+    const noncanonical = '{"z":1,"a":2}';
+    const client = new FakeRpcClient({
+      responses: [
+        {
+          data: [
+            await replayedClaimRowV3("intent_detection", {
+              validated_output_text: noncanonical,
+              validated_output_hash: await sha256Hex(noncanonical),
+            }),
+          ],
+          error: null,
+        },
+      ],
+    });
+    await expect(v3Store(client).claimV3(claimInputV3)).rejects.toMatchObject({
+      code: "persistence_failed",
+    });
+  });
+
+  it("redacts v3 RPC throws and maps only allowlisted claim errors", async () => {
+    const thrown = new FakeRpcClient({ thrown: new Error(`v3 ${SECRET}`) });
+    await expect(v3Store(thrown).claimV3(claimInputV3)).rejects.toSatisfy((error: unknown) => {
+      expectPersistenceFailure(error);
+      return true;
+    });
+
+    const mapped = new FakeRpcClient({
+      responses: [{ data: [], error: { code: "P0001", message: "draft_not_found" } }],
+    });
+    await expect(v3Store(mapped).claimV3(claimInputV3)).rejects.toMatchObject({
+      code: "permission_denied",
+    });
+
+    const unknown = new FakeRpcClient({
+      responses: [{ data: [], error: { code: "P0001", message: SECRET } }],
+    });
+    await expect(v3Store(unknown).claimV3(claimInputV3)).rejects.toSatisfy((error: unknown) => {
+      expectPersistenceFailure(error);
+      return true;
+    });
+  });
+
+  it("redacts v3 completion RPC errors and never trusts SQL content", async () => {
+    const client = new FakeRpcClient({
+      responses: [{ data: [await completionRowV3()], error: { code: "P0001", message: SECRET } }],
+    });
+    await expect(v3Store(client).completeV3(succeededInputV3)).rejects.toSatisfy(
+      (error: unknown) => {
+        expectPersistenceFailure(error);
+        return true;
+      },
+    );
   });
 });

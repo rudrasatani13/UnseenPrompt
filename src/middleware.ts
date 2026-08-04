@@ -53,7 +53,7 @@ function redirectPreservingSession(destination: URL, session: NextResponse): Nex
 export async function middleware(request: NextRequest): Promise<NextResponse> {
   const environment = getServerEnvironment();
 
-  if (!isProductSurfaceEnabled(environment)) {
+  if (!isProductSurfaceEnabled(environment) || environment.MAINTENANCE_MODE === "on") {
     return NextResponse.next();
   }
 
@@ -79,5 +79,13 @@ export async function middleware(request: NextRequest): Promise<NextResponse> {
 }
 
 export const config = {
-  matcher: ["/sign-in", "/onboarding", "/profile", "/api/account/:path*", "/auth/sign-out"],
+  matcher: [
+    "/",
+    "/sign-in",
+    "/onboarding",
+    "/profile",
+    "/projects/:path*",
+    "/api/account/:path*",
+    "/auth/sign-out",
+  ],
 };

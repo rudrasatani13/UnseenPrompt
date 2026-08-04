@@ -1,0 +1,8 @@
+{
+  "id": "improve-beginner",
+  "mode": "improve",
+  "skillLevel": "beginner",
+  "language": "en",
+  "initialRequestText": "Make my weekly planning less confusing.",
+  "tags": ["ambiguous", "sparse"]
+}

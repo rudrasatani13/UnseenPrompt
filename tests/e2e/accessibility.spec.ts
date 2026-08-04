@@ -1,7 +1,12 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
-import { waitForGalleryReady, waitForProductReady } from "./helpers";
+import {
+  hasAuthenticatedE2EState,
+  waitForAnonymousHomeReady,
+  waitForGalleryReady,
+  waitForProductReady,
+} from "./helpers";
 
 async function assertNoSeriousAxeViolations(page: Page): Promise<void> {
   const results = await new AxeBuilder({ page })
@@ -56,9 +61,9 @@ function hasVisibleBorderOrOutline(styles: {
 }
 
 test.describe("accessibility", () => {
-  test("homepage and design-system have no serious axe violations", async ({ page }) => {
+  test("signed-out homepage and design-system have no serious axe violations", async ({ page }) => {
     await page.goto("/");
-    await waitForProductReady(page);
+    await waitForAnonymousHomeReady(page);
     await assertNoSeriousAxeViolations(page);
 
     await page.goto("/design-system");
@@ -132,6 +137,10 @@ test.describe("accessibility", () => {
   });
 
   test("forced colors keep control borders and selection visible", async ({ page }, testInfo) => {
+    test.skip(
+      !hasAuthenticatedE2EState(),
+      "requires a disposable authenticated E2E storage state for application-shell controls",
+    );
     await page.emulateMedia({ forcedColors: "active" });
     await page.goto("/");
     await waitForProductReady(page);

@@ -1,0 +1,8 @@
+{
+  "id": "expert-long",
+  "mode": "feature",
+  "skillLevel": "expert",
+  "language": "en",
+  "initialRequestText": "Extend an existing multi-tenant service with an idempotent asynchronous import pipeline, bounded retries, resumable progress, deterministic validation, and an operator-visible audit trail while preserving current authorization boundaries.",
+  "tags": ["expert", "long-flow", "idempotency"]
+}

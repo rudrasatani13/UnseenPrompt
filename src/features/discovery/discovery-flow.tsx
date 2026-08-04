@@ -1,0 +1,692 @@
+"use client";
+
+import { RotateCcw, ShieldAlert } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { z } from "zod";
+
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import {
+  DISCOVERY_COMMAND_SCHEMA,
+  DISCOVERY_SCHEMA_VERSION,
+  type DiscoveryAnswerSource,
+  type DiscoveryCommandV1,
+  type DiscoveryCommandEnvelopeV1,
+  type DiscoveryQuestionV1,
+  type DiscoverySnapshotV1,
+} from "@/domain/discovery/contracts";
+import {
+  discoveryCommandEnvelopeSchema,
+  discoverySnapshotSchema,
+  MAX_DISCOVERY_TURNS,
+} from "@/domain/discovery/schemas";
+
+import { DiscoveryQuestion } from "./discovery-question";
+import { DiscoveryStatus } from "./discovery-status";
+
+type FlowErrorVariant = "provider-error" | "stale";
+
+interface FlowError {
+  readonly variant: FlowErrorVariant;
+  readonly title: string;
+  readonly description: string;
+}
+
+const receiptSchema = z.strictObject({
+  projectId: z.uuid(),
+  stateVersion: z.number().int().safe().positive(),
+  eventId: z.union([z.uuid(), z.null()]),
+  replayed: z.boolean(),
+  answerId: z.uuid().optional(),
+});
+
+const advanceResponseSchema = z.union([
+  z.strictObject({
+    status: z.enum(["question", "sufficient", "blocked"]),
+    snapshot: discoverySnapshotSchema,
+  }),
+  z.strictObject({
+    status: z.literal("completed"),
+    projectId: z.uuid(),
+    stateVersion: z.number().int().safe().positive(),
+    eventId: z.uuid(),
+    replayed: z.boolean(),
+    nextPath: z.string().refine((value) => value.startsWith("/") && !value.startsWith("//")),
+  }),
+]);
+
+const ERROR_COPY: Record<
+  string,
+  { readonly variant: FlowErrorVariant; readonly description: string }
+> = {
+  provider_unavailable: {
+    variant: "provider-error",
+    description:
+      "The discovery service is unavailable right now. Your saved answers are still here; try again in a moment.",
+  },
+  provider_error: {
+    variant: "provider-error",
+    description:
+      "We couldn’t continue discovery. Your saved answers are still here; try again in a moment.",
+  },
+  rate_limited: {
+    variant: "provider-error",
+    description: "Discovery is temporarily busy. Wait a moment, then try again.",
+  },
+};
+
+const GENERIC_ERROR: FlowError = {
+  variant: "provider-error",
+  title: "We couldn’t continue discovery",
+  description: "Your saved answers are still here. Try again in a moment.",
+};
+
+const STALE_ERROR: FlowError = {
+  variant: "stale",
+  title: "This project changed in another tab",
+  description:
+    "The latest saved state is loaded below. Any unsent text for the current question was kept.",
+};
+
+const CANCELLATION_UNKNOWN_ERROR: FlowError = {
+  variant: "provider-error",
+  title: "Request status is unknown",
+  description:
+    "The request may have been saved, but the latest project state could not be loaded. Your unsent answer remains on screen; reload before trying again.",
+};
+
+function createIdempotencyKey(): string {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+  return `discovery-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
+}
+
+function isAbortError(error: unknown): boolean {
+  return error instanceof DOMException && error.name === "AbortError";
+}
+
+function responseCode(body: unknown): string | undefined {
+  if (typeof body !== "object" || body === null || !("error" in body)) return undefined;
+  const nested = (body as { readonly error?: unknown }).error;
+  if (typeof nested !== "object" || nested === null || !("code" in nested)) return undefined;
+  const code = (nested as { readonly code?: unknown }).code;
+  return typeof code === "string" ? code : undefined;
+}
+
+class DiscoveryRequestError extends Error {
+  readonly status: number;
+  readonly code: string | undefined;
+
+  constructor(status: number, code: string | undefined) {
+    super(code ?? "request_failed");
+    this.name = "DiscoveryRequestError";
+    this.status = status;
+    this.code = code;
+  }
+}
+
+async function parseResponse<T>(response: Response, schema: z.ZodType<T>): Promise<T> {
+  let body: unknown;
+  try {
+    body = await response.json();
+  } catch {
+    throw new DiscoveryRequestError(response.status, undefined);
+  }
+
+  if (!response.ok) throw new DiscoveryRequestError(response.status, responseCode(body));
+
+  const parsed = schema.safeParse(body);
+  if (!parsed.success) throw new DiscoveryRequestError(response.status, "invalid_response");
+  return parsed.data;
+}
+
+function errorForRequest(error: unknown): FlowError {
+  if (error instanceof DiscoveryRequestError) {
+    const mapped = error.code === undefined ? undefined : ERROR_COPY[error.code];
+    if (mapped !== undefined) {
+      return {
+        variant: mapped.variant,
+        title:
+          mapped.variant === "provider-error"
+            ? "Discovery needs a retry"
+            : "Discovery needs attention",
+        description: mapped.description,
+      };
+    }
+  }
+  return GENERIC_ERROR;
+}
+
+function safeNextPath(value: string): string | null {
+  return value.startsWith("/") && !value.startsWith("//") ? value : null;
+}
+
+function currentAnswerFor(
+  snapshot: DiscoverySnapshotV1,
+  questionId: string,
+): DiscoverySnapshotV1["confirmedAnswers"][number] | null {
+  return (
+    snapshot.confirmedAnswers.find(
+      (answer) => answer.questionId === questionId && answer.status === "confirmed",
+    ) ?? null
+  );
+}
+
+function questionFor(
+  snapshot: DiscoverySnapshotV1,
+  questionId: string,
+): DiscoveryQuestionV1 | null {
+  return snapshot.confirmedQuestions.find((question) => question.id === questionId) ?? null;
+}
+
+function initialAnnouncement(snapshot: DiscoverySnapshotV1): string {
+  if (snapshot.session.status === "completed") return "Discovery is complete.";
+  if (snapshot.session.status === "abandoned")
+    return "Discovery is paused. You can resume when ready.";
+  if (snapshot.session.status === "blocked")
+    return "Discovery is blocked because its question limit was reached.";
+  if (snapshot.activeQuestion !== null)
+    return "A saved discovery question is ready for your answer.";
+  return "Discovery is ready for the next step.";
+}
+
+function statusLabel(status: DiscoverySnapshotV1["session"]["status"]): string {
+  switch (status) {
+    case "active":
+      return "In progress";
+    case "sufficient":
+      return "Ready to build";
+    case "completed":
+      return "Completed";
+    case "abandoned":
+      return "Paused";
+    case "blocked":
+      return "Blocked";
+    default:
+      return status;
+  }
+}
+
+export interface DiscoveryFlowProps {
+  readonly initialSnapshot: DiscoverySnapshotV1;
+}
+
+/**
+ * Owner-facing adaptive discovery. The browser owns only drafts and navigation; every durable
+ * answer, version, question, and lifecycle transition is sent through the authenticated API.
+ */
+export function DiscoveryFlow({ initialSnapshot }: DiscoveryFlowProps) {
+  const router = useRouter();
+  const [snapshot, setSnapshot] = useState(initialSnapshot);
+  const [pendingAction, setPendingAction] = useState<
+    "advance" | "answer" | "abandon" | "resume" | null
+  >(null);
+  const [error, setError] = useState<FlowError | null>(null);
+  const [announcement, setAnnouncement] = useState(() => initialAnnouncement(initialSnapshot));
+  const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
+  const [answerDrafts, setAnswerDrafts] = useState<Record<string, string>>({});
+  const [answerSources, setAnswerSources] = useState<
+    Record<string, DiscoveryAnswerSource | undefined>
+  >({});
+  const [completedPath, setCompletedPath] = useState<string | null>(
+    initialSnapshot.session.status === "completed"
+      ? `/projects/${initialSnapshot.projectId}/brief`
+      : null,
+  );
+  const controllerRef = useRef<AbortController | null>(null);
+  const retryRef = useRef<(() => void) | null>(null);
+  const focusAfterPendingRef = useRef<HTMLElement | null>(null);
+  const headingRef = useRef<HTMLHeadingElement | null>(null);
+
+  useEffect(() => {
+    return () => controllerRef.current?.abort();
+  }, []);
+
+  const pending = pendingAction !== null;
+  const editingQuestion =
+    editingQuestionId === null ? null : questionFor(snapshot, editingQuestionId);
+  const activeQuestion = editingQuestion ?? snapshot.activeQuestion;
+  const editingAnswer =
+    editingQuestion === null ? null : currentAnswerFor(snapshot, editingQuestion.id);
+  const displayedAnswerText =
+    activeQuestion === null ? "" : (answerDrafts[activeQuestion.id] ?? "");
+  const displayedAnswerSource =
+    activeQuestion === null ? null : (answerSources[activeQuestion.id] ?? null);
+
+  const confirmedHistory = useMemo(
+    () =>
+      snapshot.confirmedQuestions.flatMap((question) => {
+        const answer = currentAnswerFor(snapshot, question.id);
+        return answer === null || question.status === "superseded" ? [] : [{ question, answer }];
+      }),
+    [snapshot],
+  );
+
+  function rememberFocus(): void {
+    if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement) {
+      focusAfterPendingRef.current = document.activeElement;
+    }
+  }
+
+  useEffect(() => {
+    if (pending || focusAfterPendingRef.current === null) return;
+    const element = focusAfterPendingRef.current;
+    focusAfterPendingRef.current = null;
+    if (document.contains(element) && !element.hasAttribute("disabled")) {
+      element.focus();
+    } else {
+      headingRef.current?.focus();
+    }
+  }, [pending]);
+
+  function setDraft(questionId: string, answerText: string, source: DiscoveryAnswerSource): void {
+    setAnswerDrafts((current) => ({ ...current, [questionId]: answerText }));
+    setAnswerSources((current) => ({ ...current, [questionId]: source }));
+    setError(null);
+  }
+
+  function beginCorrection(questionId: string): void {
+    if (pending) return;
+    const answer = currentAnswerFor(snapshot, questionId);
+    if (answer === null) return;
+    setAnswerDrafts((current) => ({ ...current, [questionId]: answer.answerText }));
+    setAnswerSources((current) => ({ ...current, [questionId]: answer.source }));
+    setEditingQuestionId(questionId);
+    setError(null);
+    setAnnouncement("Correction mode. Update the saved answer, then confirm the correction.");
+  }
+
+  function cancelCorrection(): void {
+    if (pending) return;
+    setEditingQuestionId(null);
+    setError(null);
+    setAnnouncement(initialAnnouncement(snapshot));
+  }
+
+  function commandEnvelope(command: DiscoveryCommandV1): DiscoveryCommandEnvelopeV1 {
+    const envelope = {
+      schema: DISCOVERY_COMMAND_SCHEMA,
+      schemaVersion: DISCOVERY_SCHEMA_VERSION,
+      projectId: snapshot.projectId,
+      expectedStateVersion: snapshot.stateVersion,
+      idempotencyKey: createIdempotencyKey(),
+      command,
+    } as const;
+    if (!discoveryCommandEnvelopeSchema.safeParse(envelope).success) {
+      throw new DiscoveryRequestError(422, "validation_failed");
+    }
+    return envelope;
+  }
+
+  async function reloadSnapshot(signal?: AbortSignal): Promise<DiscoverySnapshotV1> {
+    const response = await fetch(`/api/projects/${snapshot.projectId}/discovery`, {
+      method: "GET",
+      cache: "no-store",
+      ...(signal === undefined ? {} : { signal }),
+    });
+    return parseResponse(response, discoverySnapshotSchema);
+  }
+
+  function applySnapshot(
+    nextSnapshot: DiscoverySnapshotV1,
+    nextAnnouncement?: string,
+    preserveEditing = false,
+  ): void {
+    setSnapshot(nextSnapshot);
+    setEditingQuestionId((currentQuestionId) => {
+      if (!preserveEditing || currentQuestionId === null) return null;
+      return questionFor(nextSnapshot, currentQuestionId) === null ? null : currentQuestionId;
+    });
+    setAnnouncement(nextAnnouncement ?? initialAnnouncement(nextSnapshot));
+  }
+
+  async function refreshAfterConflict(): Promise<void> {
+    try {
+      const latest = await reloadSnapshot();
+      applySnapshot(
+        latest,
+        "The latest project state is loaded. Your unsent answer text was kept.",
+      );
+    } catch {
+      setError(GENERIC_ERROR);
+    }
+  }
+
+  async function sendCommand(
+    action: "advance" | "answer" | "abandon" | "resume",
+    command: DiscoveryCommandV1,
+    options: { readonly clearQuestionId?: string } = {},
+    existingEnvelope?: DiscoveryCommandEnvelopeV1,
+  ): Promise<void> {
+    if (pending) return;
+    retryRef.current = null;
+    rememberFocus();
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    setPendingAction(action);
+    setError(null);
+    let sentEnvelope: DiscoveryCommandEnvelopeV1 | undefined;
+
+    try {
+      sentEnvelope = existingEnvelope ?? commandEnvelope(command);
+      const response = await fetch(`/api/projects/${snapshot.projectId}/discovery/commands`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(sentEnvelope),
+        signal: controller.signal,
+      });
+
+      if (action === "advance") {
+        const result = await parseResponse(response, advanceResponseSchema);
+        if (result.status === "completed") {
+          const nextPath = safeNextPath(result.nextPath);
+          setCompletedPath(nextPath);
+          setAnnouncement("Discovery is complete. Moving to the project brief.");
+          if (nextPath !== null) router.push(nextPath);
+        } else {
+          applySnapshot(result.snapshot);
+        }
+        retryRef.current = null;
+        return;
+      }
+
+      await parseResponse(response, receiptSchema);
+      if (options.clearQuestionId !== undefined) {
+        setAnswerDrafts((current) => {
+          const next = { ...current };
+          delete next[options.clearQuestionId!];
+          return next;
+        });
+        setAnswerSources((current) => {
+          const next = { ...current };
+          delete next[options.clearQuestionId!];
+          return next;
+        });
+      }
+      // Once the receipt is durable, finish the authoritative reload even if the user cancelled
+      // the provider-bound POST while its response was in flight.
+      const latest = await reloadSnapshot();
+      applySnapshot(latest);
+      retryRef.current = null;
+    } catch (caught) {
+      if (isAbortError(caught)) {
+        if (action !== "advance") {
+          try {
+            const latest = await reloadSnapshot();
+            applySnapshot(
+              latest,
+              "Request cancelled. The latest saved discovery state is loaded; the request may have completed before cancellation.",
+              true,
+            );
+            retryRef.current = null;
+          } catch {
+            if (sentEnvelope !== undefined) {
+              const retryEnvelope = sentEnvelope;
+              retryRef.current = () => void sendCommand(action, command, options, retryEnvelope);
+            }
+            setError(CANCELLATION_UNKNOWN_ERROR);
+            setAnnouncement(
+              "Request status is unknown. The request may have been saved, but the latest project state could not be loaded.",
+            );
+          }
+        } else {
+          setAnnouncement("Request cancelled. Its outcome could not be confirmed.");
+        }
+        return;
+      }
+      if (caught instanceof DiscoveryRequestError && caught.status === 409) {
+        setError(STALE_ERROR);
+        await refreshAfterConflict();
+        return;
+      }
+      if (sentEnvelope !== undefined) {
+        const retryEnvelope = sentEnvelope;
+        retryRef.current = () => void sendCommand(action, command, options, retryEnvelope);
+      }
+      setError(errorForRequest(caught));
+      setAnnouncement("Discovery needs another attempt.");
+    } finally {
+      if (controllerRef.current === controller) controllerRef.current = null;
+      setPendingAction(null);
+    }
+  }
+
+  function cancelPending(): void {
+    if (pendingAction !== null) {
+      setAnnouncement(
+        "Cancellation requested. The request may have completed; checking the latest saved discovery state.",
+      );
+    }
+    controllerRef.current?.abort();
+  }
+
+  function advance(): void {
+    void sendCommand("advance", { type: "advance_discovery" });
+  }
+
+  function submitAnswer(answerText: string, source: DiscoveryAnswerSource): void {
+    if (activeQuestion === null) return;
+    const predecessor = editingAnswer;
+    const command: DiscoveryCommandV1 =
+      editingQuestionId === null || predecessor === null
+        ? { type: "confirm_answer", questionId: activeQuestion.id, source, answerText }
+        : {
+            type: "revise_answer",
+            questionId: activeQuestion.id,
+            predecessorAnswerId: predecessor.id,
+            source,
+            answerText,
+          };
+    void sendCommand("answer", command, { clearQuestionId: activeQuestion.id });
+  }
+
+  function abandon(): void {
+    void sendCommand("abandon", { type: "abandon_discovery" });
+  }
+
+  function resume(): void {
+    void sendCommand("resume", { type: "resume_discovery" });
+  }
+
+  const status = snapshot.session.status;
+  const heading =
+    status === "abandoned" ? "Discovery is paused" : "Shape the project before it is built";
+
+  return (
+    <section
+      data-slot="discovery-flow"
+      className="grid w-full max-w-3xl gap-8"
+      aria-busy={pending}
+      aria-labelledby="discovery-flow-heading"
+    >
+      <header className="grid gap-4">
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="text-sm font-medium tracking-wide text-brand uppercase">
+            Project discovery
+          </p>
+          <Badge variant="secondary">{statusLabel(status)}</Badge>
+        </div>
+        <h1
+          id="discovery-flow-heading"
+          ref={headingRef}
+          tabIndex={-1}
+          className="text-3xl font-semibold tracking-tight text-balance text-ink md:text-5xl"
+        >
+          {heading}
+        </h1>
+        <p className="max-w-prose text-base leading-7 text-ink-muted">
+          We will ask one focused question at a time, keep your answers with the project, and stop
+          when there is enough context for a useful brief.
+        </p>
+        <p className="text-sm text-ink-muted">
+          {`${snapshot.session.confirmedTurnCount} of ${MAX_DISCOVERY_TURNS} discovery turns saved`}
+        </p>
+      </header>
+
+      {error === null ? null : (
+        <DiscoveryStatus
+          variant={error.variant}
+          title={error.title}
+          description={error.description}
+          action={
+            error.variant === "stale"
+              ? { label: "Reload latest state", onClick: () => void refreshAfterConflict() }
+              : {
+                  label: "Try again",
+                  onClick: () => {
+                    const retry = retryRef.current;
+                    setError(null);
+                    retry?.();
+                  },
+                }
+          }
+        />
+      )}
+
+      {status === "abandoned" ? (
+        <DiscoveryStatus
+          variant="abandoned"
+          title="Your answers are saved"
+          description="Resume when you are ready. The saved active question will be shown without generating a new one."
+          action={{ label: "Resume discovery", onClick: resume, disabled: pending }}
+          secondaryAction={{
+            label: "Reload",
+            onClick: () => void refreshAfterConflict(),
+            disabled: pending,
+          }}
+        />
+      ) : null}
+
+      {status === "blocked" ? (
+        <DiscoveryStatus
+          variant="blocked"
+          title="Discovery needs a manual reset"
+          description="The question limit was reached before the required context was complete. You can leave this project paused without losing its history."
+          action={{
+            label: "Abandon discovery",
+            onClick: abandon,
+            disabled: pending,
+            variant: "destructive",
+          }}
+        />
+      ) : null}
+
+      {completedPath === null && status !== "abandoned" && status !== "blocked" ? (
+        <>
+          {activeQuestion === null ? (
+            <DiscoveryStatus
+              variant="ready"
+              title={
+                status === "sufficient"
+                  ? "The project has enough context"
+                  : "Ready for the next question"
+              }
+              description={
+                status === "sufficient"
+                  ? "Confirm the next step to prepare the project brief."
+                  : "Start the next discovery turn when you are ready."
+              }
+              action={{
+                label: status === "sufficient" ? "Prepare project brief" : "Start discovery",
+                onClick: advance,
+                disabled: pending,
+              }}
+              secondaryAction={{
+                label: "Abandon discovery",
+                onClick: abandon,
+                disabled: pending,
+                variant: "outline",
+              }}
+            />
+          ) : (
+            <>
+              <DiscoveryQuestion
+                question={activeQuestion}
+                answerText={displayedAnswerText}
+                answerSource={displayedAnswerSource}
+                pending={pending}
+                submitLabel={editingQuestionId === null ? "Confirm answer" : "Confirm correction"}
+                onAnswerChange={(answerText, source) =>
+                  setDraft(activeQuestion.id, answerText, source)
+                }
+                onSubmit={submitAnswer}
+                {...(editingQuestionId === null ? {} : { onCancel: cancelCorrection })}
+              />
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-fit justify-self-start px-0"
+                onClick={abandon}
+                disabled={pending}
+              >
+                Pause discovery
+              </Button>
+            </>
+          )}
+        </>
+      ) : null}
+
+      {completedPath !== null ? (
+        <DiscoveryStatus
+          variant="completed"
+          title="Discovery complete"
+          description="Your project brief is ready."
+          action={{ label: "Open project brief", onClick: () => router.push(completedPath) }}
+        />
+      ) : null}
+
+      {confirmedHistory.length === 0 ? null : (
+        <Card aria-labelledby="confirmed-answers-heading">
+          <CardHeader>
+            <CardTitle id="confirmed-answers-heading">Saved answers</CardTitle>
+            <p className="text-sm text-ink-muted">
+              These answers are part of the project history. Correct one explicitly if it changed.
+            </p>
+          </CardHeader>
+          <CardContent>
+            <ol className="grid gap-4">
+              {confirmedHistory.map(({ question, answer }, index) => (
+                <li
+                  key={question.id}
+                  className="grid gap-2 border-b border-subtle pb-4 last:border-0 last:pb-0"
+                >
+                  <p className="text-sm font-medium text-ink">{`${index + 1}. ${question.questionText}`}</p>
+                  <p className="text-sm leading-6 break-words whitespace-pre-wrap text-ink-muted">
+                    {answer.answerText}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-fit justify-self-start px-0"
+                    onClick={() => beginCorrection(question.id)}
+                    disabled={pending || editingQuestionId !== null}
+                  >
+                    <RotateCcw aria-hidden="true" />
+                    Correct this answer
+                  </Button>
+                </li>
+              ))}
+            </ol>
+          </CardContent>
+        </Card>
+      )}
+
+      <p className="sr-only" role="status" aria-live="polite">
+        {announcement}
+      </p>
+
+      {pending ? (
+        <div className="flex flex-wrap items-center gap-3" role="status" aria-live="polite">
+          <ShieldAlert aria-hidden="true" className="size-4" />
+          <span className="text-sm text-ink-muted">Saving this step…</span>
+          <Button type="button" variant="outline" onClick={cancelPending}>
+            Cancel
+          </Button>
+        </div>
+      ) : null}
+    </section>
+  );
+}

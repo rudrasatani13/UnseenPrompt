@@ -1,0 +1,8 @@
+{
+  "id": "review-expert-french",
+  "mode": "review",
+  "skillLevel": "expert",
+  "language": "fr",
+  "initialRequestText": "Examinez cette proposition d'architecture et signalez les risques de confidentialité et de concurrence.",
+  "tags": ["multilingual", "expert"]
+}

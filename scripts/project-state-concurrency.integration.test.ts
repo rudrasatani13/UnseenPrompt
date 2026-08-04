@@ -133,6 +133,20 @@ async function setAuth(client: pg.Client): Promise<void> {
   await client.query(`set local role authenticated`);
 }
 
+/**
+ * Generation writes cross the Phase 7 service-only boundary. The wrapper receives the validated
+ * owner subject explicitly, while the transaction still carries a service-role JWT claim so the
+ * wrapper cannot be reached from an authenticated browser session.
+ */
+async function setServiceAuth(client: pg.Client): Promise<void> {
+  await client.query(`select set_config('request.jwt.claim.sub', $1, true)`, [ownerId]);
+  await client.query(`select set_config('request.jwt.claim.role', 'service_role', true)`);
+  await client.query(`select set_config('request.jwt.claims', $1, true)`, [
+    JSON.stringify({ sub: ownerId, role: "service_role" }),
+  ]);
+  await client.query(`set local role service_role`);
+}
+
 async function withAuth<T>(client: pg.Client, callback: () => Promise<T>): Promise<T> {
   await client.query("begin");
   await setAuth(client);
@@ -157,9 +171,17 @@ async function waitUntilBackendIsLockWaiting(
   observer: pg.Client,
   pid: number,
   timeoutMs = 8_000,
+  getPendingError?: () => unknown,
 ): Promise<void> {
   const deadline = Date.now() + timeoutMs;
   while (Date.now() < deadline) {
+    const pendingError = getPendingError?.();
+    if (pendingError !== undefined) {
+      throw new Error(
+        `backend ${pid} operation failed before lock wait: ${describeDatabaseError(pendingError)}`,
+      );
+    }
+
     const locks = await observer.query<{ waiting: boolean }>(
       `
       select exists (
@@ -195,10 +217,52 @@ async function waitUntilBackendIsLockWaiting(
     `,
     [pid],
   );
+  const pendingError = getPendingError?.();
+  if (pendingError !== undefined) {
+    throw new Error(
+      `backend ${pid} operation failed before lock wait: ${describeDatabaseError(pendingError)}`,
+    );
+  }
   throw new Error(
     `backend ${pid} did not enter a lock wait within ${timeoutMs}ms; ` +
       `last activity=${JSON.stringify(snapshot.rows[0] ?? null)}`,
   );
+}
+
+function describeDatabaseError(error: unknown): string {
+  if (error instanceof Error) {
+    const databaseError = error as Error & {
+      readonly code?: string;
+      readonly detail?: string;
+      readonly hint?: string;
+      readonly routine?: string;
+    };
+    return JSON.stringify({
+      name: databaseError.name,
+      code: databaseError.code ?? null,
+      message: databaseError.message,
+      detail: databaseError.detail ?? null,
+      hint: databaseError.hint ?? null,
+      routine: databaseError.routine ?? null,
+    });
+  }
+  return String(error);
+}
+
+type PendingOperation<T> = {
+  readonly promise: Promise<T>;
+  readonly getError: () => unknown;
+};
+
+function observePendingOperation<T>(promise: Promise<T>): PendingOperation<T> {
+  let rejection: unknown;
+  const observed = promise.catch((error: unknown) => {
+    rejection = error;
+    throw error;
+  });
+  // Keep the rejected promise observed until the test reaches its eventual await.
+  void observed.catch(() => undefined);
+  return { promise: observed, getError: () => rejection };
 }
 
 async function createProject(client: pg.Client): Promise<CommandResult> {
@@ -232,12 +296,14 @@ async function claimGenerationRun(
   idempotencyKey: string,
   fingerprint: string,
 ): Promise<GenerationClaimResult> {
+  await setServiceAuth(client);
   const result = await client.query<GenerationClaimResult>(
     `
     select *
-    from public.claim_generation_run_v2($1, $2, $3, $4, $5, $6, $7)
+    from public.claim_generation_run_v2_server($1, $2, $3, $4, $5, $6, $7, $8)
     `,
     [
+      ownerId,
       projectId,
       expectedStateVersion,
       idempotencyKey,
@@ -257,14 +323,16 @@ async function completeGenerationRun(
   runId: string,
   validatedProjectDeltaText: string,
 ): Promise<GenerationCompletionResult> {
+  await setServiceAuth(client);
   const result = await client.query<GenerationCompletionResult>(
     `
     select *
-    from public.complete_generation_run_v2(
-      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12
+    from public.complete_generation_run_v2_server(
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
     )
     `,
     [
+      ownerId,
       runId,
       "succeeded",
       "openai",
@@ -432,17 +500,18 @@ describe("Phase 6 project-state concurrency (two database sessions)", () => {
       await clientB.query("begin");
       await setAuth(clientB);
       const clientBPid = await backendPid(clientB);
-      const waitingCommand = executeCommand(
-        clientB,
-        project.project_id,
-        project.state_version,
-        `phase6-stale-${randomUUID()}`,
-        "a".repeat(64),
-        { type: "transition_stage", to: "brief_confirmation" },
+      const waitingCommand = observePendingOperation(
+        executeCommand(
+          clientB,
+          project.project_id,
+          project.state_version,
+          `phase6-stale-${randomUUID()}`,
+          "a".repeat(64),
+          { type: "transition_stage", to: "brief_confirmation" },
+        ),
       );
-      void waitingCommand.catch(() => undefined);
 
-      await waitUntilBackendIsLockWaiting(database(), clientBPid);
+      await waitUntilBackendIsLockWaiting(database(), clientBPid, 8_000, waitingCommand.getError);
       const winner = await executeCommand(
         clientA,
         project.project_id,
@@ -455,7 +524,7 @@ describe("Phase 6 project-state concurrency (two database sessions)", () => {
 
       let staleError: unknown;
       try {
-        await waitingCommand;
+        await waitingCommand.promise;
       } catch (error) {
         staleError = error;
       }
@@ -493,16 +562,17 @@ describe("Phase 6 project-state concurrency (two database sessions)", () => {
       await clientB.query("begin");
       await setAuth(clientB);
       const clientBPid = await backendPid(clientB);
-      const waitingCommand = executeCommand(
-        clientB,
-        project.project_id,
-        project.state_version,
-        idempotencyKey,
-        fingerprint,
-        { type: "change_mode", mode: "bug" },
+      const waitingCommand = observePendingOperation(
+        executeCommand(
+          clientB,
+          project.project_id,
+          project.state_version,
+          idempotencyKey,
+          fingerprint,
+          { type: "change_mode", mode: "bug" },
+        ),
       );
-      void waitingCommand.catch(() => undefined);
-      await waitUntilBackendIsLockWaiting(database(), clientBPid);
+      await waitUntilBackendIsLockWaiting(database(), clientBPid, 8_000, waitingCommand.getError);
 
       const first = await executeCommand(
         clientA,
@@ -513,7 +583,7 @@ describe("Phase 6 project-state concurrency (two database sessions)", () => {
         { type: "change_mode", mode: "bug" },
       );
       await clientA.query("commit");
-      const second = await waitingCommand;
+      const second = await waitingCommand.promise;
       await clientB.query("commit");
 
       expect(first.replayed).toBe(false);
@@ -537,23 +607,29 @@ describe("Phase 6 project-state concurrency (two database sessions)", () => {
     const clientB = await connect();
     const idempotencyKey = `phase6-delta-${randomUUID()}`;
     const fingerprint = "d".repeat(64);
-    let waitingClaim: Promise<GenerationClaimResult> | undefined;
-    let waitingApply: Promise<ApplyResult> | undefined;
+    let waitingClaim: PendingOperation<GenerationClaimResult> | undefined;
+    let waitingApply: PendingOperation<ApplyResult> | undefined;
 
     try {
       await lockProject(clientA, project.project_id);
       await clientB.query("begin");
       await setAuth(clientB);
       const claimWaitingPid = await backendPid(clientB);
-      waitingClaim = claimGenerationRun(
-        clientB,
-        project.project_id,
-        project.state_version,
-        idempotencyKey,
-        fingerprint,
+      waitingClaim = observePendingOperation(
+        claimGenerationRun(
+          clientB,
+          project.project_id,
+          project.state_version,
+          idempotencyKey,
+          fingerprint,
+        ),
       );
-      void waitingClaim.catch(() => undefined);
-      await waitUntilBackendIsLockWaiting(database(), claimWaitingPid);
+      await waitUntilBackendIsLockWaiting(
+        database(),
+        claimWaitingPid,
+        8_000,
+        waitingClaim.getError,
+      );
 
       const winnerClaim = await claimGenerationRun(
         clientA,
@@ -574,7 +650,7 @@ describe("Phase 6 project-state concurrency (two database sessions)", () => {
       await clientA.query("commit");
 
       if (!waitingClaim) throw new Error("generation replay session was not started");
-      const replayClaim = await waitingClaim;
+      const replayClaim = await waitingClaim.promise;
       await clientB.query("commit");
       expect(replayClaim.claim_status).toBe("replayed");
       expect(replayClaim.run_id).toBe(winnerClaim.run_id);
@@ -585,14 +661,20 @@ describe("Phase 6 project-state concurrency (two database sessions)", () => {
       await clientB.query("begin");
       await setAuth(clientB);
       const applyWaitingPid = await backendPid(clientB);
-      waitingApply = applyValidatedProjectDelta(
-        clientB,
-        project.project_id,
-        winnerClaim.run_id,
-        project.state_version,
+      waitingApply = observePendingOperation(
+        applyValidatedProjectDelta(
+          clientB,
+          project.project_id,
+          winnerClaim.run_id,
+          project.state_version,
+        ),
       );
-      void waitingApply.catch(() => undefined);
-      await waitUntilBackendIsLockWaiting(database(), applyWaitingPid);
+      await waitUntilBackendIsLockWaiting(
+        database(),
+        applyWaitingPid,
+        8_000,
+        waitingApply.getError,
+      );
 
       const freshApply = await applyValidatedProjectDelta(
         clientA,
@@ -603,7 +685,7 @@ describe("Phase 6 project-state concurrency (two database sessions)", () => {
       await clientA.query("commit");
 
       if (!waitingApply) throw new Error("apply replay session was not started");
-      const replayApply = await waitingApply;
+      const replayApply = await waitingApply.promise;
       await clientB.query("commit");
 
       expect(freshApply.replayed).toBe(false);

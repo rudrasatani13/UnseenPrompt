@@ -16,6 +16,28 @@ export type ModelOperation =
 
 export type ReviewPolicy = "none" | "best_effort" | "required";
 
+/**
+ * The durable subject a model execution is bound to.  Projects are the legacy subject; composer
+ * drafts are deliberately limited to the pre-project intent-routing operation.
+ */
+export interface ComposerDraftExecutionSubject {
+  readonly kind: "composer_draft";
+  readonly id: string;
+  readonly version: number;
+}
+
+export interface ProjectExecutionSubject {
+  readonly kind: "project";
+  readonly id: string;
+  readonly version: number;
+}
+
+export type ModelExecutionSubject = ComposerDraftExecutionSubject | ProjectExecutionSubject;
+
+/** Operations that use the Phase 7 subject-aware v3 generation-run port. */
+export type TypedModelOperation =
+  "intent_detection" | "discovery_sufficiency" | "clarification_question";
+
 /** A runtime-validated, provider-neutral model output schema. */
 export interface ModelOutputSchema<T, O extends ModelOperation = ModelOperation> {
   /** Unversioned namespace, for example `unseenprompt.model-output.intent_detection`. */
@@ -44,6 +66,42 @@ export interface ModelGatewayRequest<T, O extends ModelOperation = ModelOperatio
   readonly signal?: AbortSignal;
   readonly deadlineMs?: number;
 }
+
+/**
+ * Subject-aware request used by Phase 7 pre-project execution.  It intentionally has no
+ * `projectId` or `projectStateVersion` fields; callers cannot smuggle a second identity into a
+ * draft-bound request.
+ */
+interface TypedModelGatewayRequestBase<T, O extends TypedModelOperation> {
+  readonly idempotencyKey: string;
+  readonly operation: O;
+  readonly schema: ModelOutputSchema<T, O>;
+  readonly systemInstruction: string;
+  readonly input: string;
+  readonly reviewPolicy: ReviewPolicy;
+  readonly logicalIdempotencyFingerprint?: string;
+  readonly signal?: AbortSignal;
+  readonly deadlineMs?: number;
+}
+
+/** Subject-aware requests are restricted to the durable Phase 7 operation pairs. */
+export type TypedModelGatewayRequest<
+  T,
+  O extends TypedModelOperation = TypedModelOperation,
+> = O extends "intent_detection"
+  ? TypedModelGatewayRequestBase<T, O> & {
+      readonly subject: ComposerDraftExecutionSubject;
+    }
+  : TypedModelGatewayRequestBase<T, O> & {
+      readonly subject: ProjectExecutionSubject;
+    };
+
+/** Union accepted by the gateway while retaining the stable Phase 5 request type above. */
+export type ModelGatewayRequestInput<T, O extends ModelOperation = ModelOperation> =
+  | ModelGatewayRequest<T, O>
+  | (Extract<O, TypedModelOperation> extends never
+      ? never
+      : TypedModelGatewayRequest<T, Extract<O, TypedModelOperation>>);
 
 export interface ValidatedModelResponse<T> {
   readonly data: T;

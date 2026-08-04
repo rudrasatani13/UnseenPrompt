@@ -4,6 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const runtimeState = vi.hoisted(() => ({
   appEnvironment: "local" as "local" | "production",
+  maintenanceMode: "off" as "off" | "on",
   user: null as User | null,
   refreshedCookie: null as string | null,
 }));
@@ -31,7 +32,7 @@ vi.mock("@/config/env/server", () => ({
     APP_ENV: runtimeState.appEnvironment,
     NEXT_PUBLIC_APP_URL: "https://unseenprompt.com",
     RELEASE_SHA: "test-release",
-    MAINTENANCE_MODE: "off",
+    MAINTENANCE_MODE: runtimeState.maintenanceMode,
   }),
 }));
 
@@ -48,6 +49,7 @@ describe("middleware", () => {
     vi.resetModules();
     createProxySession.mockClear();
     runtimeState.appEnvironment = "local";
+    runtimeState.maintenanceMode = "off";
     runtimeState.user = null;
     runtimeState.refreshedCookie = null;
   });
@@ -59,6 +61,18 @@ describe("middleware", () => {
     expect(response.status).toBe(307);
     expect(response.headers.get("location")).toBe(
       "https://unseenprompt.com/sign-in?next=%2Fprofile",
+    );
+  });
+
+  it("protects the home composer and project pages while APIs keep JSON auth semantics", async () => {
+    const { middleware } = await import("./middleware");
+
+    const homeResponse = await middleware(requestFor("/"));
+    const projectResponse = await middleware(requestFor("/projects/project-1/discovery"));
+
+    expect(homeResponse.headers.get("location")).toBe("https://unseenprompt.com/sign-in?next=%2F");
+    expect(projectResponse.headers.get("location")).toBe(
+      "https://unseenprompt.com/sign-in?next=%2Fprojects%2Fproject-1%2Fdiscovery",
     );
   });
 
@@ -103,6 +117,17 @@ describe("middleware", () => {
     expect(createProxySession).not.toHaveBeenCalled();
   });
 
+  it("lets the maintenance presentation reach product layouts without session routing", async () => {
+    runtimeState.maintenanceMode = "on";
+
+    const { middleware } = await import("./middleware");
+    const response = await middleware(requestFor("/"));
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+    expect(createProxySession).not.toHaveBeenCalled();
+  });
+
   it("carries refreshed session cookies and cache suppression onto the redirect", async () => {
     runtimeState.user = signedInUser;
     runtimeState.refreshedCookie = "rotated-token";
@@ -122,9 +147,11 @@ describe("middleware", () => {
     const { config } = await import("./middleware");
 
     expect(config.matcher).toEqual([
+      "/",
       "/sign-in",
       "/onboarding",
       "/profile",
+      "/projects/:path*",
       "/api/account/:path*",
       "/auth/sign-out",
     ]);

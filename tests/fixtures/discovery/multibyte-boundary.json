@@ -1,0 +1,11 @@
+{
+  "id": "multibyte-boundary",
+  "mode": "new_build",
+  "skillLevel": "intermediate",
+  "language": "ja",
+  "initialRequestText": "Generate the boundary input from boundaryCharacter repeated boundaryRepeat times before submitting.",
+  "boundaryCharacter": "界",
+  "boundaryRepeat": 5461,
+  "boundaryBytes": 16383,
+  "tags": ["multibyte", "utf8-boundary"]
+}

@@ -1,6 +1,6 @@
 # UnseenPrompt
 
-**Status:** Phase 6 implementation and independent review corrections complete — isolated database/type-generation CI pending; live-provider operator verification pending
+**Status:** Phase 7 implementation is in source — consolidated security/architecture review and corrections are complete; isolated database/type-generation, authenticated browser, and live-provider gates remain pending or environment-dependent
 
 **Primary domain:** `https://unseenprompt.com` (Cloudflare Worker Custom Domain)
 
@@ -27,6 +27,12 @@ project-delta application service, Supabase repository, and additive state/repla
 implementation and review corrections are complete in source. Local non-DB validation passed; only
 the isolated `db:lint`, `test:db`, `test:db:concurrency`, and `db:types:check` gates remain pending.
 Generated database types were deliberately not hand-edited.
+
+Phase 7 adds the authenticated home composer, explicit intent confirmation, adaptive discovery
+questions, bounded retries, and the English requirements-only handoff to Phase 8. Service, model, and
+repository contracts are covered locally; consolidated security/architecture review and corrections
+are complete, while authenticated browser journeys and isolated database validation still require
+their dedicated gates.
 
 Observed locally on 2026-08-03: unit 110 files/1031 tests, copy 1, e2e 44 passed/20 skipped,
 maintenance 4, production 32, build, Cloudflare types/dependency/build/preview all passed. Every
@@ -127,47 +133,50 @@ not claimed by this repository until the command has been run with real credenti
 
 ## Phase status
 
-| Gate                                              | State                                            |
-| ------------------------------------------------- | ------------------------------------------------ |
-| Local Worker topology + Workflows binding         | Implemented                                      |
-| Public `/api/health`                              | Implemented                                      |
-| Token-protected Workflow probe                    | Implemented                                      |
-| PR validation                                     | Local Worker build + smoke in GitHub Actions     |
-| Product schema + RLS + pgTAP                      | Implemented (CI `database` job)                  |
-| Atomic `create_project` / `commit_project_change` | Implemented                                      |
-| Private `project-artifacts` bucket                | Implemented (read-only client policies)          |
-| Non-production authentication + session guards    | Implemented; hosted staging setup pending        |
-| Profile, preferences, deletion request, export    | Implemented                                      |
-| Project preference overrides + RLS tests          | Implemented; database suite runs in CI           |
-| Phase 5 generation persistence + isolated DB CI   | Implemented; CI database gate complete           |
-| Phase 5 live provider contract verification       | Pending operator live probe                      |
-| Phase 6 project state + context compiler          | Implemented/reviewed in source; DB gates pending |
-| Phase 6 two-session concurrency + generated types | Harness implemented; type gate pending           |
-| Phase 6 independent security/architecture review  | Complete; corrections applied                    |
-| Production product surface                        | Disabled behind the production gate              |
-| Staging deployment                                | DB migrate then Worker on push to `main`         |
-| Production deployment                             | Paused unless `PRODUCTION_DEPLOY_ENABLED=true`   |
-| Production traffic                                | Live on `unseenprompt.com` and `www`             |
+| Gate                                              | State                                                                                    |
+| ------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| Local Worker topology + Workflows binding         | Implemented                                                                              |
+| Public `/api/health`                              | Implemented                                                                              |
+| Token-protected Workflow probe                    | Implemented                                                                              |
+| PR validation                                     | Local Worker build + smoke in GitHub Actions                                             |
+| Product schema + RLS + pgTAP                      | Implemented (CI `database` job)                                                          |
+| Atomic `create_project` / `commit_project_change` | Implemented                                                                              |
+| Private `project-artifacts` bucket                | Implemented (read-only client policies)                                                  |
+| Non-production authentication + session guards    | Implemented; hosted staging setup pending                                                |
+| Profile, preferences, deletion request, export    | Implemented                                                                              |
+| Project preference overrides + RLS tests          | Implemented; database suite runs in CI                                                   |
+| Phase 5 generation persistence + isolated DB CI   | Implemented; CI database gate complete                                                   |
+| Phase 5 live provider contract verification       | Pending operator live probe                                                              |
+| Phase 6 project state + context compiler          | Implemented/reviewed in source; DB gates pending                                         |
+| Phase 6 two-session concurrency + generated types | Harness implemented; type gate pending                                                   |
+| Phase 6 independent security/architecture review  | Complete; corrections applied                                                            |
+| Phase 7 composer + adaptive discovery             | Implemented/reviewed in source; corrections complete; authenticated E2E/DB gates pending |
+| Production product surface                        | Disabled behind the production gate                                                      |
+| Staging deployment                                | DB migrate then Worker on push to `main`                                                 |
+| Production deployment                             | Paused unless `PRODUCTION_DEPLOY_ENABLED=true`                                           |
+| Production traffic                                | Live on `unseenprompt.com` and `www`                                                     |
 
 Operator procedures: [docs/deployment/cloudflare-runbook.md](docs/deployment/cloudflare-runbook.md).
 Execution plans: [docs/architecture/phase-4-authentication-profile-memory-execution-plan.md](docs/architecture/phase-4-authentication-profile-memory-execution-plan.md) and
 [docs/architecture/phase-5-typed-model-gateway-execution-plan.md](docs/architecture/phase-5-typed-model-gateway-execution-plan.md) and
-[docs/architecture/phase-6-project-state-engine-context-compiler-execution-plan.md](docs/architecture/phase-6-project-state-engine-context-compiler-execution-plan.md).
+[docs/architecture/phase-6-project-state-engine-context-compiler-execution-plan.md](docs/architecture/phase-6-project-state-engine-context-compiler-execution-plan.md) and
+[docs/architecture/phase-7-home-composer-intent-routing-adaptive-discovery-execution-plan.md](docs/architecture/phase-7-home-composer-intent-routing-adaptive-discovery-execution-plan.md).
 
 ## Documentation
 
-| Document                                                                                                                                               | Purpose                         |
-| ------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------- |
-| [docs/UnseenPrompt – PRODUCT_PLAN.md](docs/UnseenPrompt%20%E2%80%93%20PRODUCT_PLAN.md)                                                                 | Product master plan             |
-| [docs/UnseenPrompt – DEVELOPMENT_PLAN.md](docs/UnseenPrompt%20%E2%80%93%20DEVELOPMENT_PLAN.md)                                                         | Development roadmap             |
-| [docs/architecture/phase-0-foundations.md](docs/architecture/phase-0-foundations.md)                                                                   | Phase 0 architecture decisions  |
-| [docs/architecture/phase-1-cloudflare-topology.md](docs/architecture/phase-1-cloudflare-topology.md)                                                   | Phase 1 Workers topology        |
-| [docs/architecture/phase-3-supabase-data-platform-execution-plan.md](docs/architecture/phase-3-supabase-data-platform-execution-plan.md)               | Phase 3 agent execution plan    |
-| [docs/architecture/phase-4-authentication-profile-memory-execution-plan.md](docs/architecture/phase-4-authentication-profile-memory-execution-plan.md) | Phase 4 agent execution plan    |
-| [docs/architecture/phase-5-typed-model-gateway-execution-plan.md](docs/architecture/phase-5-typed-model-gateway-execution-plan.md)                     | Phase 5 execution plan          |
-| [docs/deployment/cloudflare-runbook.md](docs/deployment/cloudflare-runbook.md)                                                                         | Deploy, smoke, rollback         |
-| [docs/conventions/naming.md](docs/conventions/naming.md)                                                                                               | Naming conventions              |
-| [docs/development/environment-contract.md](docs/development/environment-contract.md)                                                                   | Environment variable contract   |
-| [docs/development/workers-dependencies.md](docs/development/workers-dependencies.md)                                                                   | Workers dependency policy       |
-| [CONTRIBUTING.md](CONTRIBUTING.md)                                                                                                                     | Contribution workflow           |
-| [SECURITY.md](SECURITY.md)                                                                                                                             | Vulnerability and secret policy |
+| Document                                                                                                                                                                                   | Purpose                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------- |
+| [docs/UnseenPrompt – PRODUCT_PLAN.md](docs/UnseenPrompt%20%E2%80%93%20PRODUCT_PLAN.md)                                                                                                     | Product master plan             |
+| [docs/UnseenPrompt – DEVELOPMENT_PLAN.md](docs/UnseenPrompt%20%E2%80%93%20DEVELOPMENT_PLAN.md)                                                                                             | Development roadmap             |
+| [docs/architecture/phase-0-foundations.md](docs/architecture/phase-0-foundations.md)                                                                                                       | Phase 0 architecture decisions  |
+| [docs/architecture/phase-1-cloudflare-topology.md](docs/architecture/phase-1-cloudflare-topology.md)                                                                                       | Phase 1 Workers topology        |
+| [docs/architecture/phase-3-supabase-data-platform-execution-plan.md](docs/architecture/phase-3-supabase-data-platform-execution-plan.md)                                                   | Phase 3 agent execution plan    |
+| [docs/architecture/phase-4-authentication-profile-memory-execution-plan.md](docs/architecture/phase-4-authentication-profile-memory-execution-plan.md)                                     | Phase 4 agent execution plan    |
+| [docs/architecture/phase-5-typed-model-gateway-execution-plan.md](docs/architecture/phase-5-typed-model-gateway-execution-plan.md)                                                         | Phase 5 execution plan          |
+| [docs/architecture/phase-7-home-composer-intent-routing-adaptive-discovery-execution-plan.md](docs/architecture/phase-7-home-composer-intent-routing-adaptive-discovery-execution-plan.md) | Phase 7 execution plan          |
+| [docs/deployment/cloudflare-runbook.md](docs/deployment/cloudflare-runbook.md)                                                                                                             | Deploy, smoke, rollback         |
+| [docs/conventions/naming.md](docs/conventions/naming.md)                                                                                                                                   | Naming conventions              |
+| [docs/development/environment-contract.md](docs/development/environment-contract.md)                                                                                                       | Environment variable contract   |
+| [docs/development/workers-dependencies.md](docs/development/workers-dependencies.md)                                                                                                       | Workers dependency policy       |
+| [CONTRIBUTING.md](CONTRIBUTING.md)                                                                                                                                                         | Contribution workflow           |
+| [SECURITY.md](SECURITY.md)                                                                                                                                                                 | Vulnerability and secret policy |

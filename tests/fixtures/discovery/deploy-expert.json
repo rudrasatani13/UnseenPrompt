@@ -1,0 +1,8 @@
+{
+  "id": "deploy-expert",
+  "mode": "deploy",
+  "skillLevel": "expert",
+  "language": "en",
+  "initialRequestText": "Plan a reversible canary deployment with verification, rollback, and an explicit database migration guard.",
+  "tags": ["long-flow", "rollback"]
+}

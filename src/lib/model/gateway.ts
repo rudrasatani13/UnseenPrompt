@@ -3,11 +3,15 @@ import "server-only";
 import type {
   ModelCallKind,
   ModelErrorCode,
+  ModelExecutionSubject,
   ModelExecutionMetadata,
-  ModelGatewayRequest,
+  ModelGatewayRequestInput,
+  ModelOperation,
   ModelOutputSchema,
   ModelUsage,
   RecordedModelValidationResult,
+  TypedModelOperation,
+  TypedModelGatewayRequest,
   ValidatedModelResponse,
 } from "@/domain/model/contracts";
 import { MODEL_OUTPUT_SCHEMA_REGISTRY, projectDeltaV1Schema } from "@/domain/model/schemas";
@@ -36,10 +40,16 @@ import { emitDiagnostic, type ModelDiagnosticLogger } from "@/lib/model/diagnost
 import type { ProviderAdapter, ProviderAdapterResult, ProviderId } from "@/lib/model/provider";
 import {
   type GenerationRunClaim,
+  type GenerationRunClaimV3,
   type GenerationRunCompletion,
   type GenerationRunCompletionInput,
+  type GenerationRunCompletionV3,
+  type GenerationRunCompletionInputV3,
   type GenerationRunStore,
   GENERATION_RUN_INPUT_SCHEMA_VERSION,
+  GENERATION_RUN_INPUT_SCHEMA_VERSION_V3,
+  MODEL_REQUEST_FINGERPRINT_VERSION,
+  MAX_VALIDATED_OUTPUT_BYTES,
   MAX_VALIDATED_PROJECT_DELTA_BYTES,
 } from "@/lib/model/generation-run-store";
 
@@ -165,8 +175,31 @@ interface ParsedCandidate<T> {
   readonly issuePaths: readonly string[];
 }
 
+type GatewayRequest<T> = ModelGatewayRequestInput<T>;
+type GatewayClaim = GenerationRunClaim | GenerationRunClaimV3;
+type GatewayCompletionInput = GenerationRunCompletionInput | GenerationRunCompletionInputV3;
+type GatewayCompletion = GenerationRunCompletion | GenerationRunCompletionV3;
+
+function isTypedRequest<T>(request: GatewayRequest<T>): request is TypedModelGatewayRequest<T> {
+  return typeof request === "object" && request !== null && "subject" in request;
+}
+
+function isReplayableTypedOperation(operation: ModelOperation): operation is TypedModelOperation {
+  return (
+    operation === "intent_detection" ||
+    operation === "discovery_sufficiency" ||
+    operation === "clarification_question"
+  );
+}
+
+function isProjectTypedOperation(
+  operation: ModelOperation,
+): operation is "discovery_sufficiency" | "clarification_question" {
+  return operation === "discovery_sufficiency" || operation === "clarification_question";
+}
+
 interface GatewayRuntime<T> {
-  readonly request: ModelGatewayRequest<T>;
+  readonly request: GatewayRequest<T>;
   readonly generationRunId: string;
   readonly projectStateVersion: number;
   readonly correlationId: string;
@@ -322,7 +355,7 @@ function parseCandidate<T>(value: unknown, schema: ModelOutputSchema<T>): Parsed
   return { data: result.data, issuePaths: [] };
 }
 
-function operationSchemaIsTrusted<T>(request: ModelGatewayRequest<T>): boolean {
+function operationSchemaIsTrusted<T>(request: GatewayRequest<T>): boolean {
   const registered = MODEL_OUTPUT_SCHEMA_REGISTRY[request.operation];
   return (
     registered === request.schema &&
@@ -333,7 +366,7 @@ function operationSchemaIsTrusted<T>(request: ModelGatewayRequest<T>): boolean {
   );
 }
 
-function providerOutputSchemaName<T>(request: ModelGatewayRequest<T>): string {
+function providerOutputSchemaName<T>(request: GatewayRequest<T>): string {
   return `${request.operation}_v${request.schema.version}`;
 }
 
@@ -368,12 +401,54 @@ function canonicalProjectDeltaText(value: unknown): string {
   return text;
 }
 
+/** Serialize a validated subject-aware output for the bounded v3 replay contract. */
+function canonicalValidatedOutputText<T>(
+  request: GatewayRequest<T>,
+  value: unknown,
+): string | null {
+  if (!isTypedRequest(request) || !isReplayableTypedOperation(request.operation)) return null;
+  const parsed = request.schema.schema.safeParse(value);
+  if (!parsed.success) throw new Error("invalid_validated_output");
+  const text = serializeCanonicalJsonV1(parsed.data);
+  if (byteLength(text) > MAX_VALIDATED_OUTPUT_BYTES) {
+    throw new Error("validated_output_too_large");
+  }
+  return text;
+}
+
 async function requestFingerprint<T>(
-  request: ModelGatewayRequest<T>,
+  request: GatewayRequest<T>,
   digest: Digest | undefined,
 ): Promise<string> {
-  const basis =
-    request.logicalIdempotencyFingerprint === undefined
+  const basis = isTypedRequest(request)
+    ? request.logicalIdempotencyFingerprint === undefined
+      ? [
+          MODEL_REQUEST_FINGERPRINT_VERSION,
+          request.subject.kind,
+          request.subject.id,
+          String(request.subject.version),
+          request.operation,
+          request.schema.id,
+          request.schema.versionedId,
+          request.schema.schemaVersion,
+          request.reviewPolicy,
+          request.systemInstruction,
+          request.input,
+        ]
+      : [
+          MODEL_REQUEST_FINGERPRINT_VERSION,
+          request.logicalIdempotencyFingerprint,
+          request.operation,
+          request.schema.id,
+          request.schema.versionedId,
+          request.schema.schemaVersion,
+          request.subject.kind,
+          request.subject.id,
+          String(request.subject.version),
+          request.reviewPolicy,
+          request.systemInstruction,
+        ]
+    : request.logicalIdempotencyFingerprint === undefined
       ? [
           request.operation,
           request.schema.id,
@@ -526,13 +601,40 @@ function validateEnvironment(
   return true;
 }
 
-function validateRequest<T>(
-  request: ModelGatewayRequest<T>,
-  environment: ModelEnvironment,
-): boolean {
-  if (!isUuid(request.projectId)) return false;
-  if (!Number.isSafeInteger(request.projectStateVersion) || request.projectStateVersion <= 0)
+function isValidSubject(value: unknown): value is ModelExecutionSubject {
+  if (typeof value !== "object" || value === null) return false;
+  const subject = value as Partial<ModelExecutionSubject>;
+  if (subject.kind !== "composer_draft" && subject.kind !== "project") return false;
+  if (!isUuid(subject.id)) return false;
+  if (!isSafeNonNegativeInteger(subject.version) || subject.version <= 0) return false;
+  try {
+    return (
+      Object.getPrototypeOf(value) === Object.prototype &&
+      Object.keys(value).sort().join(",") === "id,kind,version"
+    );
+  } catch {
     return false;
+  }
+}
+
+function validateRequest<T>(request: GatewayRequest<T>, environment: ModelEnvironment): boolean {
+  if (typeof request !== "object" || request === null) return false;
+  if (isTypedRequest(request)) {
+    if (!isValidSubject(request.subject)) return false;
+    if (
+      (request.subject.kind === "composer_draft" && request.operation !== "intent_detection") ||
+      (request.subject.kind === "project" && !isProjectTypedOperation(request.operation))
+    ) {
+      return false;
+    }
+    // The typed request must not carry a second, legacy identity even if a caller uses a cast.
+    if (Object.prototype.hasOwnProperty.call(request, "projectId")) return false;
+    if (Object.prototype.hasOwnProperty.call(request, "projectStateVersion")) return false;
+  } else {
+    if (!isUuid(request.projectId)) return false;
+    if (!Number.isSafeInteger(request.projectStateVersion) || request.projectStateVersion <= 0)
+      return false;
+  }
   if (typeof request.idempotencyKey !== "string") return false;
   const keyBytes = byteLength(request.idempotencyKey);
   if (keyBytes <= 0 || keyBytes > 255 || request.idempotencyKey.trim() !== request.idempotencyKey)
@@ -600,7 +702,7 @@ function canFallback(error: ModelGatewayError): boolean {
 
 /** Provider-neutral bounded gateway state machine. */
 export interface ModelGateway {
-  execute<T>(request: ModelGatewayRequest<T>): Promise<ValidatedModelResponse<T>>;
+  execute<T>(request: GatewayRequest<T>): Promise<ValidatedModelResponse<T>>;
 }
 
 export function createModelGateway(dependencies: ModelGatewayDependencies): ModelGateway {
@@ -609,18 +711,58 @@ export function createModelGateway(dependencies: ModelGatewayDependencies): Mode
   const sleep = dependencies.sleep ?? ((delayMs, signal) => abortableDelay(delayMs, signal, timer));
 
   const completeWithRetry = async (
-    input: GenerationRunCompletionInput,
+    input: GatewayCompletionInput,
     correlationId: string,
     identity: {
       readonly correlationId: string;
-      readonly projectStateVersion: number;
+      readonly projectStateVersion?: number;
+      readonly subject?: ModelExecutionSubject;
       readonly operationKind: string;
       readonly inputSchemaVersion: string;
       readonly outputSchemaVersion: string;
     },
-  ): Promise<GenerationRunCompletion> => {
+  ): Promise<GatewayCompletion> => {
     for (let attempt = 0; attempt < 2; attempt += 1) {
       try {
+        if ("subject" in input) {
+          const completeV3 = dependencies.store.completeV3;
+          if (completeV3 === undefined) throw new CompletionEchoMismatch();
+          const completed = await completeV3(input);
+          if (
+            completed.runId !== input.runId ||
+            completed.status !== input.status ||
+            completed.subject.kind !== input.subject.kind ||
+            completed.subject.id !== input.subject.id ||
+            completed.subject.version !== input.subject.version ||
+            completed.provider !== input.provider ||
+            completed.model !== input.model ||
+            completed.latencyMs !== input.latencyMs ||
+            completed.inputTokens !== input.inputTokens ||
+            completed.outputTokens !== input.outputTokens ||
+            completed.retryCount !== input.retryCount ||
+            completed.estimatedCostMicros !== input.estimatedCostMicros ||
+            completed.validationResult !== input.validationResult ||
+            completed.errorCode !== input.errorCode ||
+            completed.correlationId !== identity.correlationId ||
+            completed.operationKind !== identity.operationKind ||
+            completed.inputSchemaVersion !== identity.inputSchemaVersion ||
+            completed.outputSchemaVersion !== identity.outputSchemaVersion ||
+            completed.validatedOutputText !== (input.validatedOutputText ?? null)
+          ) {
+            throw new CompletionEchoMismatch();
+          }
+          if (input.validatedOutputText !== undefined && input.validatedOutputText !== null) {
+            if (completed.validatedOutputHash === null) throw new CompletionEchoMismatch();
+            const expectedHash = await digestUtf8(input.validatedOutputText, dependencies.digest);
+            if (completed.validatedOutputHash !== expectedHash) {
+              throw new CompletionEchoMismatch();
+            }
+          } else if (completed.validatedOutputHash !== null) {
+            throw new CompletionEchoMismatch();
+          }
+          return completed;
+        }
+
         const completed = await dependencies.store.complete(input);
         if (
           completed.runId !== input.runId ||
@@ -673,9 +815,7 @@ export function createModelGateway(dependencies: ModelGatewayDependencies): Mode
     throw createModelGatewayError("persistence_failed", correlationId);
   };
 
-  const execute = async <T>(
-    request: ModelGatewayRequest<T>,
-  ): Promise<ValidatedModelResponse<T>> => {
+  const execute = async <T>(request: GatewayRequest<T>): Promise<ValidatedModelResponse<T>> => {
     const correlationId = safeCorrelationId(dependencies.createCorrelationId);
     const startedAtMs = safeNow(now);
     const configuredTotal = effectiveDeadlineMs(
@@ -687,6 +827,9 @@ export function createModelGateway(dependencies: ModelGatewayDependencies): Mode
     if (
       !validateEnvironment(dependencies.environment, dependencies.adapters) ||
       !validateRequest(request, dependencies.environment) ||
+      (isTypedRequest(request) &&
+        (dependencies.store.claimV3 === undefined ||
+          dependencies.store.completeV3 === undefined)) ||
       configuredTotal <= 0
     ) {
       throw createModelGatewayError("configuration_error", correlationId);
@@ -703,60 +846,185 @@ export function createModelGateway(dependencies: ModelGatewayDependencies): Mode
       throw createModelGatewayError("configuration_error", correlationId);
     }
 
-    let claim: GenerationRunClaim;
+    let claim: GatewayClaim;
     try {
-      claim = await dependencies.store.claim({
-        projectId: request.projectId,
-        projectStateVersion: request.projectStateVersion,
-        idempotencyKey: request.idempotencyKey,
-        requestFingerprint: fingerprint,
-        operationKind: request.operation,
-        inputSchemaVersion: GENERATION_RUN_INPUT_SCHEMA_VERSION,
-        outputSchemaVersion: request.schema.schemaVersion,
-        allowHistoricalReplay: request.logicalIdempotencyFingerprint !== undefined,
-      });
+      if (isTypedRequest(request)) {
+        if (dependencies.store.claimV3 === undefined) {
+          throw createModelGatewayError("configuration_error", correlationId);
+        }
+        claim = await dependencies.store.claimV3({
+          subject: request.subject,
+          idempotencyKey: request.idempotencyKey,
+          requestFingerprint: fingerprint,
+          operationKind: request.operation,
+          inputSchemaVersion: GENERATION_RUN_INPUT_SCHEMA_VERSION_V3,
+          outputSchemaVersion: request.schema.schemaVersion,
+        });
+      } else {
+        claim = await dependencies.store.claim({
+          projectId: request.projectId,
+          projectStateVersion: request.projectStateVersion,
+          idempotencyKey: request.idempotencyKey,
+          requestFingerprint: fingerprint,
+          operationKind: request.operation,
+          inputSchemaVersion: GENERATION_RUN_INPUT_SCHEMA_VERSION,
+          outputSchemaVersion: request.schema.schemaVersion,
+          allowHistoricalReplay: request.logicalIdempotencyFingerprint !== undefined,
+        });
+      }
     } catch (error: unknown) {
       throw safeError(error, correlationId, "persistence_failed");
     }
 
     const historicalReplayAllowed =
-      claim.status === "replayed" && request.logicalIdempotencyFingerprint !== undefined;
-    if (
-      !isUuid(claim.runId) ||
-      !isUuid(claim.correlationId) ||
-      !isSafeNonNegativeInteger(claim.projectStateVersion) ||
-      claim.projectStateVersion <= 0 ||
-      (claim.projectStateVersion !== request.projectStateVersion && !historicalReplayAllowed) ||
-      claim.operationKind !== request.operation ||
-      claim.inputSchemaVersion !== GENERATION_RUN_INPUT_SCHEMA_VERSION ||
-      claim.outputSchemaVersion !== request.schema.schemaVersion
-    ) {
-      // A real store owns correlation identity. The locally-generated value is used only for
-      // pre-claim errors; once claimed, metadata follows the durable correlation UUID.
-      throw createModelGatewayError("persistence_failed", correlationId);
+      !isTypedRequest(request) &&
+      claim.status === "replayed" &&
+      request.logicalIdempotencyFingerprint !== undefined;
+    if (isTypedRequest(request)) {
+      const typedClaim = claim as GenerationRunClaimV3;
+      if (
+        !isUuid(typedClaim.runId) ||
+        !isUuid(typedClaim.correlationId) ||
+        !isValidSubject(typedClaim.subject) ||
+        typedClaim.subject.kind !== request.subject.kind ||
+        typedClaim.subject.id !== request.subject.id ||
+        typedClaim.subject.version !== request.subject.version ||
+        typedClaim.operationKind !== request.operation ||
+        typedClaim.inputSchemaVersion !== GENERATION_RUN_INPUT_SCHEMA_VERSION_V3 ||
+        typedClaim.outputSchemaVersion !== request.schema.schemaVersion
+      ) {
+        throw createModelGatewayError("persistence_failed", correlationId);
+      }
+    } else {
+      const legacyClaim = claim as GenerationRunClaim;
+      if (
+        !isUuid(claim.runId) ||
+        !isUuid(claim.correlationId) ||
+        !isSafeNonNegativeInteger(legacyClaim.projectStateVersion) ||
+        legacyClaim.projectStateVersion <= 0 ||
+        (legacyClaim.projectStateVersion !== request.projectStateVersion &&
+          !historicalReplayAllowed) ||
+        legacyClaim.operationKind !== request.operation ||
+        legacyClaim.inputSchemaVersion !== GENERATION_RUN_INPUT_SCHEMA_VERSION ||
+        legacyClaim.outputSchemaVersion !== request.schema.schemaVersion
+      ) {
+        // A real store owns correlation identity. The locally-generated value is used only for
+        // pre-claim errors; once claimed, metadata follows the durable correlation UUID.
+        throw createModelGatewayError("persistence_failed", correlationId);
+      }
     }
 
-    if (claim.status === "replayed") {
+    if (claim.status === "replayed" && isTypedRequest(request)) {
+      const typedClaim = claim as Extract<GenerationRunClaimV3, { status: "replayed" }>;
+      if (
+        !isReplayableTypedOperation(request.operation) ||
+        typedClaim.operationKind !== request.operation ||
+        typedClaim.outputSchemaVersion !== request.schema.schemaVersion ||
+        !PROVIDER_IDS.has(typedClaim.provider) ||
+        typeof typedClaim.model !== "string" ||
+        typedClaim.model.trim() !== typedClaim.model ||
+        typedClaim.model.length === 0 ||
+        byteLength(typedClaim.model) > MAX_METADATA_TEXT_BYTES ||
+        !isSafeNonNegativeInteger(typedClaim.latencyMs) ||
+        (typedClaim.inputTokens !== null && !isSafeNonNegativeInteger(typedClaim.inputTokens)) ||
+        (typedClaim.outputTokens !== null && !isSafeNonNegativeInteger(typedClaim.outputTokens)) ||
+        !isSafeNonNegativeInteger(typedClaim.retryCount) ||
+        (typedClaim.estimatedCostMicros !== null &&
+          !isSafeNonNegativeInteger(typedClaim.estimatedCostMicros)) ||
+        !["passed", "repaired", "reviewed"].includes(typedClaim.validationResult) ||
+        typedClaim.errorCode !== null ||
+        typeof typedClaim.validatedOutputText !== "string" ||
+        byteLength(typedClaim.validatedOutputText) > MAX_VALIDATED_OUTPUT_BYTES ||
+        typeof typedClaim.validatedOutputHash !== "string" ||
+        !SHA256_PATTERN.test(typedClaim.validatedOutputHash)
+      ) {
+        throw createModelGatewayError("persistence_failed", correlationId);
+      }
+
+      let storedHash: string;
+      try {
+        storedHash = await digestUtf8(typedClaim.validatedOutputText, dependencies.digest);
+      } catch {
+        throw createModelGatewayError("persistence_failed", correlationId);
+      }
+      if (storedHash !== typedClaim.validatedOutputHash) {
+        throw createModelGatewayError("persistence_failed", correlationId);
+      }
+
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(typedClaim.validatedOutputText) as unknown;
+      } catch {
+        throw createModelGatewayError("persistence_failed", correlationId);
+      }
+      const validated = request.schema.schema.safeParse(parsed);
+      if (!validated.success) {
+        throw createModelGatewayError("persistence_failed", correlationId);
+      }
+      try {
+        if (serializeCanonicalJsonV1(validated.data) !== typedClaim.validatedOutputText) {
+          throw new Error("noncanonical_validated_output");
+        }
+      } catch {
+        throw createModelGatewayError("persistence_failed", correlationId);
+      }
+
+      const inputTokens = typedClaim.inputTokens;
+      const outputTokens = typedClaim.outputTokens;
+      const totalTokens =
+        inputTokens !== null &&
+        outputTokens !== null &&
+        Number.isSafeInteger(inputTokens + outputTokens)
+          ? inputTokens + outputTokens
+          : null;
+      const usage = Object.freeze({ inputTokens, outputTokens, totalTokens });
+      const calls = Object.freeze([]) as readonly [];
+      const metadata = Object.freeze({
+        generationRunId: typedClaim.runId,
+        // ModelExecutionMetadata intentionally remains the Phase 5 shape. For a typed subject the
+        // subject version is the only compatible version field available to callers.
+        projectStateVersion: typedClaim.subject.version,
+        correlationId: typedClaim.correlationId,
+        provider: typedClaim.provider,
+        model: typedClaim.model,
+        resolvedModel: null,
+        latencyMs: typedClaim.latencyMs,
+        usage,
+        estimatedCostMicros: typedClaim.estimatedCostMicros,
+        retryCount: typedClaim.retryCount,
+        validationResult: typedClaim.validationResult,
+        calls,
+        errorCode: null,
+        replayed: true,
+      });
+      return { data: validated.data as T, metadata };
+    }
+
+    if (claim.status === "replayed" && !isTypedRequest(request)) {
+      const legacyReplayClaim = claim as Extract<GenerationRunClaim, { status: "replayed" }>;
       if (
         request.operation !== "project_delta" ||
-        claim.outputSchemaVersion !== "unseenprompt.model-output.project_delta.v1" ||
-        !PROVIDER_IDS.has(claim.provider) ||
-        typeof claim.model !== "string" ||
-        claim.model.trim() !== claim.model ||
-        claim.model.length === 0 ||
-        byteLength(claim.model) > MAX_METADATA_TEXT_BYTES ||
-        !isSafeNonNegativeInteger(claim.latencyMs) ||
-        (claim.inputTokens !== null && !isSafeNonNegativeInteger(claim.inputTokens)) ||
-        (claim.outputTokens !== null && !isSafeNonNegativeInteger(claim.outputTokens)) ||
-        !isSafeNonNegativeInteger(claim.retryCount) ||
-        (claim.estimatedCostMicros !== null &&
-          !isSafeNonNegativeInteger(claim.estimatedCostMicros)) ||
-        !["passed", "repaired", "reviewed"].includes(claim.validationResult) ||
-        claim.errorCode !== null ||
-        typeof claim.validatedProjectDeltaText !== "string" ||
-        byteLength(claim.validatedProjectDeltaText) > MAX_VALIDATED_PROJECT_DELTA_BYTES ||
-        typeof claim.validatedProjectDeltaHash !== "string" ||
-        !SHA256_PATTERN.test(claim.validatedProjectDeltaHash)
+        legacyReplayClaim.outputSchemaVersion !== "unseenprompt.model-output.project_delta.v1" ||
+        !PROVIDER_IDS.has(legacyReplayClaim.provider) ||
+        typeof legacyReplayClaim.model !== "string" ||
+        legacyReplayClaim.model.trim() !== legacyReplayClaim.model ||
+        legacyReplayClaim.model.length === 0 ||
+        byteLength(legacyReplayClaim.model) > MAX_METADATA_TEXT_BYTES ||
+        !isSafeNonNegativeInteger(legacyReplayClaim.latencyMs) ||
+        (legacyReplayClaim.inputTokens !== null &&
+          !isSafeNonNegativeInteger(legacyReplayClaim.inputTokens)) ||
+        (legacyReplayClaim.outputTokens !== null &&
+          !isSafeNonNegativeInteger(legacyReplayClaim.outputTokens)) ||
+        !isSafeNonNegativeInteger(legacyReplayClaim.retryCount) ||
+        (legacyReplayClaim.estimatedCostMicros !== null &&
+          !isSafeNonNegativeInteger(legacyReplayClaim.estimatedCostMicros)) ||
+        !["passed", "repaired", "reviewed"].includes(legacyReplayClaim.validationResult) ||
+        legacyReplayClaim.errorCode !== null ||
+        typeof legacyReplayClaim.validatedProjectDeltaText !== "string" ||
+        byteLength(legacyReplayClaim.validatedProjectDeltaText) >
+          MAX_VALIDATED_PROJECT_DELTA_BYTES ||
+        typeof legacyReplayClaim.validatedProjectDeltaHash !== "string" ||
+        !SHA256_PATTERN.test(legacyReplayClaim.validatedProjectDeltaHash)
       ) {
         throw createModelGatewayError("persistence_failed", correlationId);
       }
@@ -765,17 +1033,20 @@ export function createModelGateway(dependencies: ModelGatewayDependencies): Mode
       try {
         // Hash the exact UTF-8 bytes before attempting JSON.parse. This is the replay trust
         // boundary: a tampered body never reaches the schema parser or a provider.
-        storedHash = await digestUtf8(claim.validatedProjectDeltaText, dependencies.digest);
+        storedHash = await digestUtf8(
+          legacyReplayClaim.validatedProjectDeltaText,
+          dependencies.digest,
+        );
       } catch {
         throw createModelGatewayError("persistence_failed", correlationId);
       }
-      if (storedHash !== claim.validatedProjectDeltaHash) {
+      if (storedHash !== legacyReplayClaim.validatedProjectDeltaHash) {
         throw createModelGatewayError("persistence_failed", correlationId);
       }
 
       let parsed: unknown;
       try {
-        parsed = JSON.parse(claim.validatedProjectDeltaText) as unknown;
+        parsed = JSON.parse(legacyReplayClaim.validatedProjectDeltaText) as unknown;
       } catch {
         throw createModelGatewayError("persistence_failed", correlationId);
       }
@@ -786,15 +1057,17 @@ export function createModelGateway(dependencies: ModelGatewayDependencies): Mode
       try {
         // Completion stores canonical text. Requiring the same bytes rejects a forged but
         // re-hashed alternate representation before any caller receives model-shaped data.
-        if (serializeCanonicalJsonV1(validated.data) !== claim.validatedProjectDeltaText) {
+        if (
+          serializeCanonicalJsonV1(validated.data) !== legacyReplayClaim.validatedProjectDeltaText
+        ) {
           throw new Error("noncanonical_project_delta");
         }
       } catch {
         throw createModelGatewayError("persistence_failed", correlationId);
       }
 
-      const inputTokens = claim.inputTokens;
-      const outputTokens = claim.outputTokens;
+      const inputTokens = legacyReplayClaim.inputTokens;
+      const outputTokens = legacyReplayClaim.outputTokens;
       const totalTokens =
         inputTokens !== null &&
         outputTokens !== null &&
@@ -804,17 +1077,17 @@ export function createModelGateway(dependencies: ModelGatewayDependencies): Mode
       const usage = Object.freeze({ inputTokens, outputTokens, totalTokens });
       const calls = Object.freeze([]) as readonly [];
       const metadata = Object.freeze({
-        generationRunId: claim.runId,
-        projectStateVersion: claim.projectStateVersion,
-        correlationId: claim.correlationId,
-        provider: claim.provider,
-        model: claim.model,
+        generationRunId: legacyReplayClaim.runId,
+        projectStateVersion: legacyReplayClaim.projectStateVersion,
+        correlationId: legacyReplayClaim.correlationId,
+        provider: legacyReplayClaim.provider,
+        model: legacyReplayClaim.model,
         resolvedModel: null,
-        latencyMs: claim.latencyMs,
+        latencyMs: legacyReplayClaim.latencyMs,
         usage,
-        estimatedCostMicros: claim.estimatedCostMicros,
-        retryCount: claim.retryCount,
-        validationResult: claim.validationResult,
+        estimatedCostMicros: legacyReplayClaim.estimatedCostMicros,
+        retryCount: legacyReplayClaim.retryCount,
+        validationResult: legacyReplayClaim.validationResult,
         calls,
         errorCode: null,
         replayed: true,
@@ -826,11 +1099,16 @@ export function createModelGateway(dependencies: ModelGatewayDependencies): Mode
       throw createModelGatewayError("persistence_failed", correlationId);
     }
 
+    const runningClaim = claim as
+      | Extract<GenerationRunClaim, { status: "running" }>
+      | Extract<GenerationRunClaimV3, { status: "running" }>;
     const runtime: GatewayRuntime<T> = {
       request,
-      generationRunId: claim.runId,
-      projectStateVersion: claim.projectStateVersion,
-      correlationId: claim.correlationId,
+      generationRunId: runningClaim.runId,
+      projectStateVersion: isTypedRequest(request)
+        ? request.subject.version
+        : (runningClaim as Extract<GenerationRunClaim, { status: "running" }>).projectStateVersion,
+      correlationId: runningClaim.correlationId,
       startedAtMs,
       deadlineAtMs,
       calls: [],
@@ -848,13 +1126,32 @@ export function createModelGateway(dependencies: ModelGatewayDependencies): Mode
     ): Promise<never> => {
       const completion = completionMetadata(runtime, error.code, validationResult, route);
       try {
-        await completeWithRetry({ ...completion, runId: claim.runId }, runtime.correlationId, {
-          correlationId: runtime.correlationId,
-          projectStateVersion: runtime.projectStateVersion,
-          operationKind: request.operation,
-          inputSchemaVersion: GENERATION_RUN_INPUT_SCHEMA_VERSION,
-          outputSchemaVersion: request.schema.schemaVersion,
-        });
+        if (isTypedRequest(request)) {
+          await completeWithRetry(
+            {
+              ...completion,
+              runId: claim.runId,
+              subject: request.subject,
+              validatedOutputText: null,
+            },
+            runtime.correlationId,
+            {
+              correlationId: runtime.correlationId,
+              subject: request.subject,
+              operationKind: request.operation,
+              inputSchemaVersion: GENERATION_RUN_INPUT_SCHEMA_VERSION_V3,
+              outputSchemaVersion: request.schema.schemaVersion,
+            },
+          );
+        } else {
+          await completeWithRetry({ ...completion, runId: claim.runId }, runtime.correlationId, {
+            correlationId: runtime.correlationId,
+            projectStateVersion: runtime.projectStateVersion,
+            operationKind: request.operation,
+            inputSchemaVersion: GENERATION_RUN_INPUT_SCHEMA_VERSION,
+            outputSchemaVersion: request.schema.schemaVersion,
+          });
+        }
       } catch {
         // The original provider/gateway failure is safe to return after best-effort terminal
         // persistence. Successful output paths remain fail-closed on persistence errors.
@@ -1229,7 +1526,8 @@ export function createModelGateway(dependencies: ModelGatewayDependencies): Mode
     }
 
     let validatedProjectDeltaText: string | null = null;
-    if (request.operation === "project_delta") {
+    let validatedOutputText: string | null = null;
+    if (!isTypedRequest(request) && request.operation === "project_delta") {
       try {
         validatedProjectDeltaText = canonicalProjectDeltaText(candidate.data);
       } catch {
@@ -1242,29 +1540,65 @@ export function createModelGateway(dependencies: ModelGatewayDependencies): Mode
         );
       }
     }
+    if (isTypedRequest(request)) {
+      try {
+        validatedOutputText = canonicalValidatedOutputText(request, candidate.data);
+      } catch {
+        return failAfterClaim(
+          createModelGatewayError("persistence_failed", runtime.correlationId),
+          "failed",
+          candidate.route,
+        );
+      }
+    }
 
     const metadata = aggregateExecutionMetadata(runtime, candidate, null);
-    const completionInput: GenerationRunCompletionInput = {
-      runId: claim.runId,
-      status: "succeeded",
-      provider: candidate.route.provider,
-      model: candidate.route.model,
-      latencyMs: metadata.latencyMs,
-      inputTokens: metadata.usage.inputTokens,
-      outputTokens: metadata.usage.outputTokens,
-      retryCount: metadata.retryCount,
-      estimatedCostMicros: metadata.estimatedCostMicros,
-      validationResult: candidate.validationResult,
-      errorCode: null,
-      validatedProjectDeltaText,
-    };
-    await completeWithRetry(completionInput, runtime.correlationId, {
-      correlationId: runtime.correlationId,
-      projectStateVersion: runtime.projectStateVersion,
-      operationKind: request.operation,
-      inputSchemaVersion: GENERATION_RUN_INPUT_SCHEMA_VERSION,
-      outputSchemaVersion: request.schema.schemaVersion,
-    });
+    if (isTypedRequest(request)) {
+      const completionInput: GenerationRunCompletionInputV3 = {
+        runId: claim.runId,
+        status: "succeeded",
+        subject: request.subject,
+        provider: candidate.route.provider,
+        model: candidate.route.model,
+        latencyMs: metadata.latencyMs,
+        inputTokens: metadata.usage.inputTokens,
+        outputTokens: metadata.usage.outputTokens,
+        retryCount: metadata.retryCount,
+        estimatedCostMicros: metadata.estimatedCostMicros,
+        validationResult: candidate.validationResult,
+        errorCode: null,
+        validatedOutputText,
+      };
+      await completeWithRetry(completionInput, runtime.correlationId, {
+        correlationId: runtime.correlationId,
+        subject: request.subject,
+        operationKind: request.operation,
+        inputSchemaVersion: GENERATION_RUN_INPUT_SCHEMA_VERSION_V3,
+        outputSchemaVersion: request.schema.schemaVersion,
+      });
+    } else {
+      const completionInput: GenerationRunCompletionInput = {
+        runId: claim.runId,
+        status: "succeeded",
+        provider: candidate.route.provider,
+        model: candidate.route.model,
+        latencyMs: metadata.latencyMs,
+        inputTokens: metadata.usage.inputTokens,
+        outputTokens: metadata.usage.outputTokens,
+        retryCount: metadata.retryCount,
+        estimatedCostMicros: metadata.estimatedCostMicros,
+        validationResult: candidate.validationResult,
+        errorCode: null,
+        validatedProjectDeltaText,
+      };
+      await completeWithRetry(completionInput, runtime.correlationId, {
+        correlationId: runtime.correlationId,
+        projectStateVersion: runtime.projectStateVersion,
+        operationKind: request.operation,
+        inputSchemaVersion: GENERATION_RUN_INPUT_SCHEMA_VERSION,
+        outputSchemaVersion: request.schema.schemaVersion,
+      });
+    }
     return { data: candidate.data, metadata };
   };
 

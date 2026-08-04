@@ -4,15 +4,29 @@ import { parseModelEnvironment, type ModelEnvironment } from "@/config/model/sch
 import { getModelOutputSchema } from "@/domain/model/schemas";
 import { serializeCanonicalJsonV1 } from "@/domain/project/commands";
 import type { ModelGatewayRequest } from "@/domain/model/contracts";
+import type {
+  ComposerDraftExecutionSubject,
+  ModelExecutionSubject,
+  ProjectExecutionSubject,
+  TypedModelGatewayRequest,
+  TypedModelOperation,
+} from "@/domain/model/contracts";
 import { createModelGatewayError } from "@/lib/model/errors";
 import { createModelGateway, type ModelGatewayDependencies } from "@/lib/model/gateway";
 import type { DeadlineTimer } from "@/lib/model/deadline";
-import { GENERATION_RUN_INPUT_SCHEMA_VERSION } from "@/lib/model/generation-run-store";
+import {
+  GENERATION_RUN_INPUT_SCHEMA_VERSION,
+  MAX_VALIDATED_OUTPUT_BYTES,
+} from "@/lib/model/generation-run-store";
 import type {
   GenerationRunClaim,
   GenerationRunClaimInput,
+  GenerationRunClaimInputV3,
+  GenerationRunClaimV3,
   GenerationRunCompletion,
   GenerationRunCompletionInput,
+  GenerationRunCompletionInputV3,
+  GenerationRunCompletionV3,
   GenerationRunStore,
 } from "@/lib/model/generation-run-store";
 import type { ProviderAdapter, ProviderAdapterResult } from "@/lib/model/provider";
@@ -31,6 +45,20 @@ const validCandidate = JSON.stringify({
   confidence: 0.9,
   rationale: "The request describes a feature change.",
   detectedLanguage: "en",
+});
+
+const validSufficiencyCandidate = JSON.stringify({
+  isSufficient: true,
+  confidence: 0.9,
+  missingFacts: [],
+  rationale: "The discovery context is sufficient.",
+});
+
+const validQuestionCandidate = JSON.stringify({
+  question: "Which audience should this serve?",
+  rationale: "The audience is still ambiguous.",
+  suggestedAnswers: [],
+  allowsFreeText: true,
 });
 
 const validProjectDelta = {
@@ -184,6 +212,168 @@ function dependencies(
     store: runStore,
     createCorrelationId: () => CORRELATION_ID,
     digest: async () => new Uint8Array(32).buffer,
+    ...overrides,
+  };
+}
+
+function typedDependencies(
+  primary: ProviderAdapter,
+  fallback: ProviderAdapter,
+  runStore: MockedRunStore & {
+    readonly claimV3: ReturnType<typeof vi.fn>;
+    readonly completeV3: ReturnType<typeof vi.fn>;
+  },
+  overrides: Partial<ModelGatewayDependencies> = {},
+): ModelGatewayDependencies {
+  return dependencies(primary, fallback, runStore, {
+    digest: async (input) =>
+      globalThis.crypto.subtle.digest("SHA-256", input as unknown as BufferSource),
+    ...overrides,
+  });
+}
+
+const DRAFT_ID = "02000000-0000-4000-8000-000000000001";
+const DRAFT_SUBJECT: ComposerDraftExecutionSubject = {
+  kind: "composer_draft",
+  id: DRAFT_ID,
+  version: 4,
+};
+const PROJECT_SUBJECT: ProjectExecutionSubject = {
+  kind: "project",
+  id: PROJECT_ID,
+  version: 2,
+};
+
+function typedRequest(
+  overrides: Partial<TypedModelGatewayRequest<unknown>> = {},
+): TypedModelGatewayRequest<unknown> {
+  return {
+    subject: DRAFT_SUBJECT,
+    idempotencyKey: "typed-gateway-test-key",
+    operation: "intent_detection",
+    schema: getModelOutputSchema("intent_detection"),
+    systemInstruction: "Return a structured decision.",
+    input: "Build a feature.",
+    reviewPolicy: "none",
+    ...overrides,
+  } as TypedModelGatewayRequest<unknown>;
+}
+
+function typedProjectRequest<O extends "discovery_sufficiency" | "clarification_question">(
+  operation: O,
+  overrides: Partial<TypedModelGatewayRequest<unknown, O>> = {},
+): TypedModelGatewayRequest<unknown, O> {
+  return {
+    subject: PROJECT_SUBJECT,
+    idempotencyKey: `typed-${operation}-test-key`,
+    operation,
+    schema: getModelOutputSchema(operation),
+    systemInstruction: "Return a structured decision.",
+    input: "The project context needs discovery.",
+    reviewPolicy: "none",
+    ...overrides,
+  } as TypedModelGatewayRequest<unknown, O>;
+}
+
+function assertTypedOperationPairTypes(): void {
+  const draftSubject: ModelExecutionSubject = DRAFT_SUBJECT;
+  const typedOperation: TypedModelOperation = "intent_detection";
+  const draftIntent = typedRequest();
+  const projectSufficiency = typedProjectRequest("discovery_sufficiency");
+  const projectQuestion = typedProjectRequest("clarification_question");
+
+  const invalidDraft = {
+    ...projectSufficiency,
+    // @ts-expect-error composer drafts may only run intent detection
+    subject: DRAFT_SUBJECT,
+  } satisfies TypedModelGatewayRequest<unknown, "discovery_sufficiency">;
+  const invalidProject = {
+    ...draftIntent,
+    // @ts-expect-error projects may not run intent detection through the typed v3 port
+    subject: PROJECT_SUBJECT,
+  } satisfies TypedModelGatewayRequest<unknown, "intent_detection">;
+
+  void draftSubject;
+  void typedOperation;
+  void projectQuestion;
+  void invalidDraft;
+  void invalidProject;
+}
+
+assertTypedOperationPairTypes();
+
+function typedStore(
+  operation:
+    "intent_detection" | "discovery_sufficiency" | "clarification_question" = "intent_detection",
+) {
+  const legacy = store();
+  const claimV3 = vi.fn(
+    async (input: GenerationRunClaimInputV3): Promise<GenerationRunClaimV3> => ({
+      runId: RUN_ID,
+      correlationId: CORRELATION_ID,
+      status: "running" as const,
+      subject: input.subject,
+      operationKind: input.operationKind,
+      inputSchemaVersion: input.inputSchemaVersion,
+      outputSchemaVersion: input.outputSchemaVersion,
+    }),
+  );
+  const completeV3 = vi.fn(
+    async (input: GenerationRunCompletionInputV3): Promise<GenerationRunCompletionV3> => ({
+      ...input,
+      correlationId: CORRELATION_ID,
+      subject: input.subject,
+      operationKind: operation,
+      inputSchemaVersion: "unseenprompt.model-gateway-request.v3",
+      outputSchemaVersion: `unseenprompt.model-output.${operation}.v1`,
+      validatedOutputText: input.validatedOutputText ?? null,
+      validatedOutputHash:
+        input.validatedOutputText === undefined || input.validatedOutputText === null
+          ? null
+          : await sha256Hex(input.validatedOutputText),
+    }),
+  );
+  return { ...legacy, claimV3, completeV3 } satisfies GenerationRunStore & {
+    claimV3: typeof claimV3;
+    completeV3: typeof completeV3;
+  };
+}
+
+async function sha256Hex(value: string): Promise<string> {
+  const hash = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+  return [...new Uint8Array(hash)].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function typedReplayClaim(
+  operation: TypedModelOperation = "intent_detection",
+  overrides: Partial<Extract<GenerationRunClaimV3, { status: "replayed" }>> = {},
+): Promise<Extract<GenerationRunClaimV3, { status: "replayed" }>> {
+  const value =
+    operation === "intent_detection"
+      ? JSON.parse(validCandidate)
+      : operation === "discovery_sufficiency"
+        ? JSON.parse(validSufficiencyCandidate)
+        : JSON.parse(validQuestionCandidate);
+  const text = serializeCanonicalJsonV1(value);
+  return {
+    runId: RUN_ID,
+    correlationId: CORRELATION_ID,
+    status: "replayed",
+    subject: operation === "intent_detection" ? DRAFT_SUBJECT : PROJECT_SUBJECT,
+    operationKind: operation,
+    inputSchemaVersion: "unseenprompt.model-gateway-request.v3",
+    outputSchemaVersion: `unseenprompt.model-output.${operation}.v1`,
+    provider: "openai",
+    model: "gpt-test",
+    latencyMs: 42,
+    inputTokens: 10,
+    outputTokens: 20,
+    retryCount: 1,
+    estimatedCostMicros: 30,
+    validationResult: "passed",
+    errorCode: null,
+    validatedOutputText: text,
+    validatedOutputHash: await sha256Hex(text),
     ...overrides,
   };
 }
@@ -1125,5 +1315,399 @@ describe("model gateway", () => {
       ),
     ).rejects.toMatchObject({ code: "configuration_error" });
     expect(runStore.claim).not.toHaveBeenCalled();
+  });
+
+  it("executes a composer-draft intent request through the v3 ports and fingerprint", async () => {
+    const primary = adapter("anthropic", [validCandidate]);
+    const fallback = adapter("openai", []);
+    const runStore = typedStore();
+    const response = await createModelGateway(
+      dependencies(primary, fallback, runStore, {
+        digest: async (input) =>
+          globalThis.crypto.subtle.digest("SHA-256", input as unknown as BufferSource),
+      }),
+    ).execute(typedRequest());
+
+    expect(response.data).toEqual(JSON.parse(validCandidate));
+    expect(runStore.claim).not.toHaveBeenCalled();
+    expect(runStore.complete).not.toHaveBeenCalled();
+    expect(runStore.claimV3).toHaveBeenCalledWith(
+      expect.objectContaining({
+        subject: DRAFT_SUBJECT,
+        inputSchemaVersion: "unseenprompt.model-gateway-request.v3",
+      }),
+    );
+    expect(runStore.claimV3.mock.calls[0]?.[0].requestFingerprint).toMatch(/^[0-9a-f]{64}$/);
+    expect(runStore.completeV3).toHaveBeenCalledWith(
+      expect.objectContaining({ subject: DRAFT_SUBJECT, validatedOutputText: expect.any(String) }),
+    );
+    expect(response.metadata.projectStateVersion).toBe(DRAFT_SUBJECT.version);
+  });
+
+  it("replays a validated typed output without provider or completion calls", async () => {
+    const primary = adapter("anthropic", [validCandidate]);
+    const fallback = adapter("openai", []);
+    const text = serializeCanonicalJsonV1(JSON.parse(validCandidate));
+    const hash = await sha256Hex(text);
+    const runStore = typedStore();
+    runStore.claimV3.mockResolvedValueOnce({
+      runId: RUN_ID,
+      correlationId: CORRELATION_ID,
+      status: "replayed",
+      subject: DRAFT_SUBJECT,
+      operationKind: "intent_detection",
+      inputSchemaVersion: "unseenprompt.model-gateway-request.v3",
+      outputSchemaVersion: "unseenprompt.model-output.intent_detection.v1",
+      provider: "openai",
+      model: "gpt-test",
+      latencyMs: 42,
+      inputTokens: 10,
+      outputTokens: 20,
+      retryCount: 1,
+      estimatedCostMicros: 30,
+      validationResult: "passed",
+      errorCode: null,
+      validatedOutputText: text,
+      validatedOutputHash: hash,
+    });
+    const response = await createModelGateway(
+      dependencies(primary, fallback, runStore, {
+        digest: async (input) =>
+          globalThis.crypto.subtle.digest("SHA-256", input as unknown as BufferSource),
+      }),
+    ).execute(typedRequest());
+
+    expect(response.data).toEqual(JSON.parse(validCandidate));
+    expect(response.metadata.replayed).toBe(true);
+    expect(primary.generate).not.toHaveBeenCalled();
+    expect(fallback.generate).not.toHaveBeenCalled();
+    expect(runStore.completeV3).not.toHaveBeenCalled();
+  });
+
+  it("rejects a forged typed replay subject, hash, or noncanonical output", async () => {
+    const primary = adapter("anthropic", [validCandidate]);
+    const fallback = adapter("openai", []);
+    const text = serializeCanonicalJsonV1(JSON.parse(validCandidate));
+    const runStore = typedStore();
+    runStore.claimV3.mockResolvedValueOnce({
+      runId: RUN_ID,
+      correlationId: CORRELATION_ID,
+      status: "replayed",
+      subject: { ...DRAFT_SUBJECT, version: 5 },
+      operationKind: "intent_detection",
+      inputSchemaVersion: "unseenprompt.model-gateway-request.v3",
+      outputSchemaVersion: "unseenprompt.model-output.intent_detection.v1",
+      provider: "openai",
+      model: "gpt-test",
+      latencyMs: 42,
+      inputTokens: 10,
+      outputTokens: 20,
+      retryCount: 1,
+      estimatedCostMicros: 30,
+      validationResult: "passed",
+      errorCode: null,
+      validatedOutputText: text,
+      validatedOutputHash: await sha256Hex(text),
+    });
+
+    await expect(
+      createModelGateway(
+        dependencies(primary, fallback, runStore, {
+          digest: async (input) =>
+            globalThis.crypto.subtle.digest("SHA-256", input as unknown as BufferSource),
+        }),
+      ).execute(typedRequest()),
+    ).rejects.toMatchObject({ code: "persistence_failed" });
+    expect(primary.generate).not.toHaveBeenCalled();
+    expect(runStore.completeV3).not.toHaveBeenCalled();
+  });
+
+  it("rejects draft operations other than intent detection and missing v3 ports before provider work", async () => {
+    const primary = adapter("anthropic", [validCandidate]);
+    const fallback = adapter("openai", []);
+    const runStore = store();
+    await expect(
+      createModelGateway(dependencies(primary, fallback, runStore)).execute(
+        typedRequest({
+          operation: "discovery_sufficiency",
+          schema: getModelOutputSchema("discovery_sufficiency"),
+        }),
+      ),
+    ).rejects.toMatchObject({ code: "configuration_error" });
+    await expect(
+      createModelGateway(dependencies(primary, fallback, runStore)).execute(typedRequest()),
+    ).rejects.toMatchObject({ code: "configuration_error" });
+    expect(primary.generate).not.toHaveBeenCalled();
+    expect(runStore.claim).not.toHaveBeenCalled();
+  });
+
+  it("accepts both project v3 operation pairs and rejects project intent or project delta before claim", async () => {
+    const sufficiencyPrimary = adapter("anthropic", [validSufficiencyCandidate]);
+    const sufficiencyFallback = adapter("openai", []);
+    const sufficiencyStore = typedStore("discovery_sufficiency");
+    const sufficiency = await createModelGateway(
+      typedDependencies(sufficiencyPrimary, sufficiencyFallback, sufficiencyStore),
+    ).execute(typedProjectRequest("discovery_sufficiency"));
+    expect(sufficiency.data).toEqual(JSON.parse(validSufficiencyCandidate));
+    expect(sufficiencyStore.claimV3).toHaveBeenCalledTimes(1);
+
+    const questionPrimary = adapter("anthropic", [validQuestionCandidate]);
+    const questionFallback = adapter("openai", []);
+    const questionStore = typedStore("clarification_question");
+    const question = await createModelGateway(
+      typedDependencies(questionPrimary, questionFallback, questionStore),
+    ).execute(typedProjectRequest("clarification_question"));
+    expect(question.data).toEqual(JSON.parse(validQuestionCandidate));
+    expect(questionStore.claimV3).toHaveBeenCalledTimes(1);
+
+    const primary = adapter("anthropic", [validCandidate]);
+    const fallback = adapter("openai", [validCandidate]);
+    const runStore = typedStore();
+    await expect(
+      createModelGateway(typedDependencies(primary, fallback, runStore)).execute(
+        typedRequest({
+          subject: PROJECT_SUBJECT,
+          operation: "intent_detection",
+          schema: getModelOutputSchema("intent_detection"),
+        } as never),
+      ),
+    ).rejects.toMatchObject({ code: "configuration_error" });
+    await expect(
+      createModelGateway(typedDependencies(primary, fallback, runStore)).execute(
+        typedRequest({
+          subject: PROJECT_SUBJECT,
+          operation: "project_delta",
+          schema: getModelOutputSchema("project_delta"),
+        } as never),
+      ),
+    ).rejects.toMatchObject({ code: "configuration_error" });
+    expect(runStore.claimV3).not.toHaveBeenCalled();
+    expect(primary.generate).not.toHaveBeenCalled();
+    expect(fallback.generate).not.toHaveBeenCalled();
+  });
+
+  it("does not request typed historical replay and rejects a stale v3 subject claim", async () => {
+    const primary = adapter("anthropic", [validCandidate]);
+    const fallback = adapter("openai", [validCandidate]);
+    const runStore = typedStore();
+    runStore.claimV3.mockResolvedValueOnce({
+      runId: RUN_ID,
+      correlationId: CORRELATION_ID,
+      status: "running",
+      subject: { ...DRAFT_SUBJECT, version: DRAFT_SUBJECT.version + 1 },
+      operationKind: "intent_detection",
+      inputSchemaVersion: "unseenprompt.model-gateway-request.v3",
+      outputSchemaVersion: "unseenprompt.model-output.intent_detection.v1",
+    });
+
+    await expect(
+      createModelGateway(typedDependencies(primary, fallback, runStore)).execute(
+        typedRequest({ logicalIdempotencyFingerprint: "ab".repeat(32) }),
+      ),
+    ).rejects.toMatchObject({ code: "persistence_failed" });
+    expect(runStore.claimV3.mock.calls[0]?.[0]).not.toHaveProperty("allowHistoricalReplay");
+    expect(primary.generate).not.toHaveBeenCalled();
+    expect(fallback.generate).not.toHaveBeenCalled();
+    expect(runStore.completeV3).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    {
+      name: "wrong subject kind",
+      overrides: { subject: PROJECT_SUBJECT },
+    },
+    {
+      name: "wrong subject version",
+      overrides: { subject: { ...DRAFT_SUBJECT, version: 5 } },
+    },
+    {
+      name: "wrong operation echo",
+      overrides: {
+        operationKind: "discovery_sufficiency" as const,
+        outputSchemaVersion: "unseenprompt.model-output.discovery_sufficiency.v1",
+      },
+    },
+    {
+      name: "wrong schema echo",
+      overrides: { outputSchemaVersion: "unseenprompt.model-output.discovery_sufficiency.v1" },
+    },
+    {
+      name: "wrong output hash",
+      overrides: { validatedOutputHash: "00".repeat(32) },
+    },
+    {
+      name: "failed success echo",
+      overrides: { validationResult: "failed" as never },
+    },
+    {
+      name: "noncanonical output",
+      overrides: {
+        validatedOutputText: JSON.stringify(JSON.parse(validCandidate)),
+        validatedOutputHash: "placeholder",
+      },
+    },
+  ])("fails closed for typed replay $name before provider or completion", async ({ overrides }) => {
+    const primary = adapter("anthropic", [validCandidate]);
+    const fallback = adapter("openai", [validCandidate]);
+    const runStore = typedStore();
+    const replayOverrides = { ...overrides } as Partial<
+      Extract<GenerationRunClaimV3, { status: "replayed" }>
+    >;
+    const normalizedReplayOverrides =
+      replayOverrides.validatedOutputText === undefined
+        ? replayOverrides
+        : {
+            ...replayOverrides,
+            validatedOutputHash: await sha256Hex(replayOverrides.validatedOutputText),
+          };
+    runStore.claimV3.mockResolvedValueOnce(
+      await typedReplayClaim("intent_detection", normalizedReplayOverrides),
+    );
+
+    await expect(
+      createModelGateway(typedDependencies(primary, fallback, runStore)).execute(typedRequest()),
+    ).rejects.toMatchObject({ code: "persistence_failed" });
+    expect(primary.generate).not.toHaveBeenCalled();
+    expect(fallback.generate).not.toHaveBeenCalled();
+    expect(runStore.completeV3).not.toHaveBeenCalled();
+  });
+
+  it("rejects exactly-bound and multibyte-overflow typed replay payloads before provider work", async () => {
+    const payloads = [
+      "x".repeat(MAX_VALIDATED_OUTPUT_BYTES),
+      `${"😀".repeat(MAX_VALIDATED_OUTPUT_BYTES / 4)}x`,
+    ];
+    for (const payload of payloads) {
+      const primary = adapter("anthropic", [validCandidate]);
+      const fallback = adapter("openai", [validCandidate]);
+      const runStore = typedStore();
+      runStore.claimV3.mockResolvedValueOnce(
+        await typedReplayClaim("intent_detection", {
+          validatedOutputText: payload,
+          validatedOutputHash: await sha256Hex(payload),
+        }),
+      );
+
+      await expect(
+        createModelGateway(typedDependencies(primary, fallback, runStore)).execute(typedRequest()),
+      ).rejects.toMatchObject({ code: "persistence_failed" });
+      expect(primary.generate).not.toHaveBeenCalled();
+      expect(runStore.completeV3).not.toHaveBeenCalled();
+    }
+  });
+
+  it("retries typed completion persistence once without replaying the provider", async () => {
+    const primary = adapter("anthropic", [validCandidate]);
+    const fallback = adapter("openai", []);
+    const runStore = typedStore();
+    runStore.completeV3.mockRejectedValueOnce(
+      createModelGatewayError("persistence_failed", CORRELATION_ID),
+    );
+
+    const response = await createModelGateway(
+      typedDependencies(primary, fallback, runStore),
+    ).execute(typedRequest());
+    expect(response.data).toEqual(JSON.parse(validCandidate));
+    expect(primary.generate).toHaveBeenCalledTimes(1);
+    expect(runStore.completeV3).toHaveBeenCalledTimes(2);
+  });
+
+  it("fails closed on a typed completion echo mismatch without replaying the provider", async () => {
+    const primary = adapter("anthropic", [validCandidate]);
+    const fallback = adapter("openai", []);
+    const runStore = typedStore();
+    runStore.completeV3.mockImplementationOnce(async (input) => ({
+      ...input,
+      correlationId: CORRELATION_ID,
+      subject: input.subject,
+      operationKind: "discovery_sufficiency",
+      inputSchemaVersion: "unseenprompt.model-gateway-request.v3",
+      outputSchemaVersion: "unseenprompt.model-output.discovery_sufficiency.v1",
+      validatedOutputText: input.validatedOutputText ?? null,
+      validatedOutputHash:
+        input.validatedOutputText === undefined || input.validatedOutputText === null
+          ? null
+          : await sha256Hex(input.validatedOutputText),
+    }));
+
+    await expect(
+      createModelGateway(typedDependencies(primary, fallback, runStore)).execute(typedRequest()),
+    ).rejects.toMatchObject({ code: "persistence_failed" });
+    expect(primary.generate).toHaveBeenCalledTimes(1);
+    expect(runStore.completeV3).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves typed abort and caller-deadline behavior before claim", async () => {
+    const primary = adapter("anthropic", [validCandidate]);
+    const fallback = adapter("openai", [validCandidate]);
+    const abortedStore = typedStore();
+    const controller = new AbortController();
+    controller.abort();
+    await expect(
+      createModelGateway(typedDependencies(primary, fallback, abortedStore)).execute(
+        typedRequest({ signal: controller.signal }),
+      ),
+    ).rejects.toMatchObject({ code: "aborted" });
+    expect(abortedStore.claimV3).not.toHaveBeenCalled();
+    expect(primary.generate).not.toHaveBeenCalled();
+
+    let clock = 100;
+    const deadlineStore = typedStore();
+    await expect(
+      createModelGateway(
+        typedDependencies(primary, fallback, deadlineStore, {
+          now: () => {
+            const current = clock;
+            clock += 1_001;
+            return current;
+          },
+        }),
+      ).execute(typedRequest({ deadlineMs: 1_000 })),
+    ).rejects.toMatchObject({ code: "deadline_exceeded" });
+    expect(deadlineStore.claimV3).not.toHaveBeenCalled();
+  });
+
+  it("preserves typed retry, repair, fallback, reviewer, and diagnostic privacy behavior", async () => {
+    const malformed = `bad-${"MODEL_PRIVATE_SENTINEL"}`;
+    const primary = adapter("anthropic", [malformed, "still-bad"]);
+    const fallback = adapter("openai", [validCandidate]);
+    const reviewer = adapter("gemini", [validCandidate]);
+    const runStore = typedStore();
+    const events: unknown[] = [];
+    const reviewerEnvironment = {
+      ...environment,
+      reviewer: {
+        provider: "gemini" as const,
+        model: "reviewer-test",
+        inputCostMicrosPerMillionTokens: 1,
+        outputCostMicrosPerMillionTokens: 1,
+      },
+    } satisfies ModelEnvironment;
+
+    const response = await createModelGateway(
+      typedDependencies(primary, fallback, runStore, {
+        environment: reviewerEnvironment,
+        adapters: { anthropic: primary, openai: fallback, gemini: reviewer },
+        logger: { log: (event) => events.push(event) },
+        sleep: async () => undefined,
+      }),
+    ).execute(
+      typedRequest({
+        reviewPolicy: "required",
+        input: "PRIVATE_INPUT_SENTINEL",
+        systemInstruction: "PRIVATE_SYSTEM_SENTINEL",
+      }),
+    );
+
+    expect(response.data).toEqual(JSON.parse(validCandidate));
+    expect(response.metadata.calls.map((call) => call.kind)).toEqual([
+      "primary",
+      "repair",
+      "fallback",
+      "reviewer",
+    ]);
+    expect(JSON.stringify(events)).not.toContain("MODEL_PRIVATE_SENTINEL");
+    expect(JSON.stringify(events)).not.toContain("PRIVATE_INPUT_SENTINEL");
+    expect(JSON.stringify(events)).not.toContain("PRIVATE_SYSTEM_SENTINEL");
   });
 });

@@ -44,10 +44,16 @@ select ok(has_table_privilege('authenticated','public.project_delta_applications
 select ok((select proconfig @> array['search_path=pg_catalog, public, private'] from pg_proc where oid='public.execute_project_command_v1(uuid,bigint,text,text,jsonb)'::regprocedure),'state RPC pins search path');
 select ok((select prosecdef from pg_proc where oid='public.apply_validated_project_delta_v1(uuid,uuid,bigint)'::regprocedure),'delta apply is security definer');
 
+-- Generation claims/completions cross the Phase 7 server-only boundary. Grant the existing
+-- owner-scoped Phase 6 state helpers to the service role for this isolated acceptance transaction,
+-- then exercise every RPC with an explicit server-role claim and owner subject.
+grant execute on function public.get_project_state_snapshot_v1(uuid) to service_role;
+grant execute on function public.execute_project_command_v1(uuid,bigint,text,text,jsonb) to service_role;
+grant execute on function public.apply_validated_project_delta_v1(uuid,uuid,bigint) to service_role;
 select set_config('request.jwt.claim.sub','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',true);
-select set_config('request.jwt.claim.role','authenticated',true);
-select set_config('request.jwt.claims','{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}',true);
-set local role authenticated;
+select set_config('request.jwt.claim.role','service_role',true);
+select set_config('request.jwt.claims','{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"service_role"}',true);
+set local role service_role;
 
 create temporary table tmp_phase6_snapshot as
 select public.get_project_state_snapshot_v1('02000000-0000-4000-8000-000000000001') as payload;
@@ -60,23 +66,23 @@ select ok((select payload->'projection'->>'id'='02000000-0000-4000-8000-00000000
   from tmp_phase6_snapshot),'owner receives one canonical state snapshot shape');
 
 create temporary table tmp_phase6_claim as
-select * from public.claim_generation_run_v2(
-  '02000000-0000-4000-8000-000000000001',1,'phase6-generation-key',repeat('a',64),'project_delta',
+select * from public.claim_generation_run_v2_server(
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','02000000-0000-4000-8000-000000000001',1,'phase6-generation-key',repeat('a',64),'project_delta',
   'unseenprompt.model-gateway-request.v1','unseenprompt.model-output.project_delta.v1'
 );
 select is((select claim_status from tmp_phase6_claim),'running','new v2 claim is running');
 select is((select status from tmp_phase6_claim),'running','new v2 run status is running');
 
-select lives_ok($$select * from public.complete_generation_run_v2(
-  (select run_id from tmp_phase6_claim),'succeeded','openai','model-phase6',10,1,2,0,3,'passed',null,
+select lives_ok($$select * from public.complete_generation_run_v2_server(
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',(select run_id from tmp_phase6_claim),'succeeded','openai','model-phase6',10,1,2,0,3,'passed',null,
   '{"summary":"A bounded proposal","requirementProposals":[{"action":"add","reference":"","statement":"Users can sign in.","rationale":"Ownership is required."}],"decisionProposals":[{"action":"add","reference":"","statement":"Use a typed boundary.","rationale":"The boundary limits unsafe data."}],"milestoneProposals":[{"action":"add","reference":"","title":"First milestone","rationale":"Establish the foundation."}],"unresolvedConflicts":[]}'
  )$$,'valid v2 project delta persists');
 select ok((select validated_project_delta_hash = encode(extensions.digest(convert_to(validated_project_delta_text,'UTF8'),'sha256'),'hex') from public.generation_runs where id=(select run_id from tmp_phase6_claim)),'delta hash is database computed');
 select is((select octet_length(validated_project_delta_text)::int from public.generation_runs where id=(select run_id from tmp_phase6_claim)),442,'exact validated text is retained');
 
 create temporary table tmp_phase6_replay as
-select * from public.claim_generation_run_v2(
-  '02000000-0000-4000-8000-000000000001',1,'phase6-generation-key',repeat('a',64),'project_delta',
+select * from public.claim_generation_run_v2_server(
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','02000000-0000-4000-8000-000000000001',1,'phase6-generation-key',repeat('a',64),'project_delta',
   'unseenprompt.model-gateway-request.v1','unseenprompt.model-output.project_delta.v1'
 );
 select is((select claim_status from tmp_phase6_replay),'replayed','duplicate delta claim replays');
@@ -105,8 +111,8 @@ select throws_ok($$select public.execute_project_command_v1('02000000-0000-4000-
 select throws_ok($$select public.execute_project_command_v1('02000000-0000-4000-8000-000000000001',5,'phase6-hostile-key',repeat('1',64),'{"type":"change_mode","mode":"feature","actorType":"system"}'::jsonb)$$,'P0001','validation_failed','caller actor spoof field is rejected');
 
 select set_config('request.jwt.claim.sub','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',true);
-select set_config('request.jwt.claim.role','authenticated',true);
-select set_config('request.jwt.claims','{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated"}',true);
+select set_config('request.jwt.claim.role','service_role',true);
+select set_config('request.jwt.claims','{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"service_role"}',true);
 select throws_ok($$select public.execute_project_command_v1('02000000-0000-4000-8000-000000000001',5,'phase6-cross-user-key',repeat('2',64),'{"type":"change_mode","mode":"feature"}'::jsonb)$$,'P0001','project_not_found','cross-user project is not disclosed');
 reset role;
 select is((select count(*)::int from public.projects where owner_id='aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'),'1','cross-user project remains owned by A');
@@ -114,9 +120,9 @@ select is((select count(*)::int from public.projects where owner_id='aaaaaaaa-aa
 create or replace function public.__phase6_fail_project_update() returns trigger language plpgsql as $$begin if new.state_version = 6 then raise exception 'phase6_forced_failure' using errcode='P0001'; end if; return new; end;$$;
 create trigger __phase6_fail_project_update before update on public.projects for each row execute function public.__phase6_fail_project_update();
 select set_config('request.jwt.claim.sub','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',true);
-select set_config('request.jwt.claim.role','authenticated',true);
-select set_config('request.jwt.claims','{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}',true);
-set local role authenticated;
+select set_config('request.jwt.claim.role','service_role',true);
+select set_config('request.jwt.claims','{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"service_role"}',true);
+set local role service_role;
 select throws_ok($$select public.execute_project_command_v1('02000000-0000-4000-8000-000000000001',5,'phase6-rollback-key',repeat('3',64),'{"type":"change_mode","mode":"feature"}'::jsonb)$$,'P0001','phase6_forced_failure','forced projection failure rolls back command');
 reset role;
 drop trigger if exists __phase6_fail_project_update on public.projects;
@@ -127,9 +133,9 @@ select is((select count(*)::int from public.idempotency_records where idempotenc
 
 -- Exercise the complete user command family from a non-interrupted ready state.
 select set_config('request.jwt.claim.sub','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',true);
-select set_config('request.jwt.claim.role','authenticated',true);
-select set_config('request.jwt.claims','{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}',true);
-set local role authenticated;
+select set_config('request.jwt.claim.role','service_role',true);
+select set_config('request.jwt.claims','{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"service_role"}',true);
+set local role service_role;
 
 create temporary table tmp_phase6_block as
 select public.execute_project_command_v1(
@@ -156,12 +162,12 @@ select ok((select payload ?& array['schemaVersion','from','to'] and payload->>'f
   from public.project_events where project_id='02000000-0000-4000-8000-000000000001' and sequence_number=7),'unblock payload records resume target');
 
 create temporary table tmp_phase6_archived_claim as
-select * from public.claim_generation_run_v2(
-  '02000000-0000-4000-8000-000000000001',7,'phase6-archived-proposal-key',repeat('6',64),'project_delta',
+select * from public.claim_generation_run_v2_server(
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','02000000-0000-4000-8000-000000000001',7,'phase6-archived-proposal-key',repeat('6',64),'project_delta',
   'unseenprompt.model-gateway-request.v1','unseenprompt.model-output.project_delta.v1'
 );
-select lives_ok($$select * from public.complete_generation_run_v2(
-  (select run_id from tmp_phase6_archived_claim),'succeeded','openai','model-phase6',10,1,2,0,3,'passed',null,
+select lives_ok($$select * from public.complete_generation_run_v2_server(
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',(select run_id from tmp_phase6_archived_claim),'succeeded','openai','model-phase6',10,1,2,0,3,'passed',null,
   '{"summary":"Archived proposal","requirementProposals":[],"decisionProposals":[],"milestoneProposals":[{"action":"add","reference":"","title":"Archived milestone","rationale":"Wait for resume."}],"unresolvedConflicts":[]}'
 )$$,'unapplied delta persists before archive');
 
@@ -269,9 +275,9 @@ insert into public.decisions (id,project_id,decision_key,decision,rationale,stat
 select '04000000-0000-4000-8000-000000000002','02000000-0000-4000-8000-000000000001','architecture','A proposed decision successor.','Needs owner confirmation.','proposed',d.id
 from public.decisions d where d.project_id='02000000-0000-4000-8000-000000000001' and d.status='confirmed' limit 1;
 select set_config('request.jwt.claim.sub','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',true);
-select set_config('request.jwt.claim.role','authenticated',true);
-select set_config('request.jwt.claims','{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}',true);
-set local role authenticated;
+select set_config('request.jwt.claim.role','service_role',true);
+select set_config('request.jwt.claims','{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"service_role"}',true);
+set local role service_role;
 
 create temporary table tmp_phase6_req_confirm_successor as
 select public.execute_project_command_v1(
@@ -308,16 +314,16 @@ reset role;
 insert into public.projects (id,owner_id,title,mode,stage,state_version)
 values ('02000000-0000-4000-8000-000000000003','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','Phase 6 apply rollback','new_build','discovery',1);
 select set_config('request.jwt.claim.sub','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',true);
-select set_config('request.jwt.claim.role','authenticated',true);
-select set_config('request.jwt.claims','{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}',true);
-set local role authenticated;
+select set_config('request.jwt.claim.role','service_role',true);
+select set_config('request.jwt.claims','{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"service_role"}',true);
+set local role service_role;
 create temporary table tmp_phase6_apply_rollback_claim as
-select * from public.claim_generation_run_v2(
-  '02000000-0000-4000-8000-000000000003',1,'phase6-apply-rollback-key',repeat('a',64),'project_delta',
+select * from public.claim_generation_run_v2_server(
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','02000000-0000-4000-8000-000000000003',1,'phase6-apply-rollback-key',repeat('a',64),'project_delta',
   'unseenprompt.model-gateway-request.v1','unseenprompt.model-output.project_delta.v1'
 );
-select lives_ok($$select * from public.complete_generation_run_v2(
-  (select run_id from tmp_phase6_apply_rollback_claim),'succeeded','openai','model-phase6',10,1,2,0,3,'passed',null,
+select lives_ok($$select * from public.complete_generation_run_v2_server(
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',(select run_id from tmp_phase6_apply_rollback_claim),'succeeded','openai','model-phase6',10,1,2,0,3,'passed',null,
   '{"summary":"Apply rollback proposal","requirementProposals":[{"action":"add","reference":"","statement":"Rollback requirement.","rationale":"Atomicity test."}],"decisionProposals":[{"action":"add","reference":"","statement":"Rollback decision.","rationale":"Atomicity test."}],"milestoneProposals":[{"action":"add","reference":"","title":"Rollback milestone","rationale":"Atomicity test."}],"unresolvedConflicts":[]}'
 )$$,'rollback proposal persists before forced apply failure');
 reset role;
@@ -337,9 +343,9 @@ create trigger __phase6_fail_delta_projection
 before update on public.projects
 for each row execute function public.__phase6_fail_delta_projection();
 select set_config('request.jwt.claim.sub','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',true);
-select set_config('request.jwt.claim.role','authenticated',true);
-select set_config('request.jwt.claims','{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}',true);
-set local role authenticated;
+select set_config('request.jwt.claim.role','service_role',true);
+select set_config('request.jwt.claims','{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"service_role"}',true);
+set local role service_role;
 select throws_ok($$select public.apply_validated_project_delta_v1('02000000-0000-4000-8000-000000000003',(select run_id from tmp_phase6_apply_rollback_claim),1)$$,'P0001','phase6_delta_forced_failure','apply rollback removes normalized children and event');
 reset role;
 drop trigger if exists __phase6_fail_delta_projection on public.projects;
@@ -355,16 +361,16 @@ select is((select count(*)::int from public.project_delta_applications where pro
 insert into public.projects (id,owner_id,title,mode,stage,state_version)
 values ('02000000-0000-4000-8000-000000000004','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','Phase 6 version mismatch','new_build','discovery',1);
 select set_config('request.jwt.claim.sub','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',true);
-select set_config('request.jwt.claim.role','authenticated',true);
-select set_config('request.jwt.claims','{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}',true);
-set local role authenticated;
+select set_config('request.jwt.claim.role','service_role',true);
+select set_config('request.jwt.claims','{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"service_role"}',true);
+set local role service_role;
 create temporary table tmp_phase6_version_claim as
-select * from public.claim_generation_run_v2(
-  '02000000-0000-4000-8000-000000000004',1,'phase6-version-mismatch-key',repeat('b',64),'project_delta',
+select * from public.claim_generation_run_v2_server(
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','02000000-0000-4000-8000-000000000004',1,'phase6-version-mismatch-key',repeat('b',64),'project_delta',
   'unseenprompt.model-gateway-request.v1','unseenprompt.model-output.project_delta.v1'
 );
-select lives_ok($$select * from public.complete_generation_run_v2(
-  (select run_id from tmp_phase6_version_claim),'succeeded','openai','model-phase6',10,1,2,0,3,'passed',null,
+select lives_ok($$select * from public.complete_generation_run_v2_server(
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',(select run_id from tmp_phase6_version_claim),'succeeded','openai','model-phase6',10,1,2,0,3,'passed',null,
   '{"summary":"Version mismatch proposal","requirementProposals":[{"action":"add","reference":"","statement":"Version requirement.","rationale":"Mismatch test."}],"decisionProposals":[{"action":"add","reference":"","statement":"Version decision.","rationale":"Mismatch test."}],"milestoneProposals":[{"action":"add","reference":"","title":"Version milestone","rationale":"Mismatch test."}],"unresolvedConflicts":[]}'
 )$$,'version mismatch proposal persists before apply checks');
 select throws_ok($$select public.apply_validated_project_delta_v1('02000000-0000-4000-8000-000000000004',(select run_id from tmp_phase6_version_claim),2)$$,'P0001','proposal_conflict','source version mismatch is rejected');
@@ -389,9 +395,9 @@ reset role;
 insert into public.projects (id,owner_id,title,mode,stage,state_version)
 values ('02000000-0000-4000-8000-000000000005','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','Phase 6 blocked archive','new_build','result_review',1);
 select set_config('request.jwt.claim.sub','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',true);
-select set_config('request.jwt.claim.role','authenticated',true);
-select set_config('request.jwt.claims','{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}',true);
-set local role authenticated;
+select set_config('request.jwt.claim.role','service_role',true);
+select set_config('request.jwt.claims','{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"service_role"}',true);
+set local role service_role;
 select is((public.execute_project_command_v1('02000000-0000-4000-8000-000000000005',1,'phase6-blocked-archive-block-key',repeat('d',64),'{"type":"block_project","blockerSummary":"Waiting on the owner."}'::jsonb)->>'state_version')::bigint,2::bigint,'blocked archive fixture enters blocked');
 select is((select stage from public.projects where id='02000000-0000-4000-8000-000000000005'),'blocked','blocked archive fixture is blocked');
 select is((select blocked_from_stage from public.projects where id='02000000-0000-4000-8000-000000000005'),'result_review','blocked archive fixture stores original stage');
@@ -423,9 +429,9 @@ values
   ('05000000-0000-4000-8000-000000000002','02000000-0000-4000-8000-000000000006','candidate-key','Proposed conflicting decision','Awaiting confirmation.','proposed',null),
   ('05000000-0000-4000-8000-000000000003','02000000-0000-4000-8000-000000000006','other-key','Confirmed predecessor','Eligible for supersession.','confirmed',timezone('utc',now()));
 select set_config('request.jwt.claim.sub','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',true);
-select set_config('request.jwt.claim.role','authenticated',true);
-select set_config('request.jwt.claims','{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}',true);
-set local role authenticated;
+select set_config('request.jwt.claim.role','service_role',true);
+select set_config('request.jwt.claims','{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"service_role"}',true);
+set local role service_role;
 select throws_ok($$select public.execute_project_command_v1('02000000-0000-4000-8000-000000000006',1,'phase6-decision-conflict-confirm-key',repeat('1',64),jsonb_build_object('type','confirm_decision','decisionId','05000000-0000-4000-8000-000000000002','decisionKey','conflict-key'))$$,'P0001','decision_key_conflict','confirming a proposed decision rejects active key collision');
 select is((select state_version from public.projects where id='02000000-0000-4000-8000-000000000006'),1::bigint,'confirm key conflict leaves project version unchanged');
 select is((select count(*)::int from public.project_events where project_id='02000000-0000-4000-8000-000000000006' and sequence_number > 1),0,'confirm key conflict leaves no additional event; project.created remains');
@@ -440,12 +446,12 @@ select ok((select d.status='confirmed' and d.decision_key='other-key' and d.conf
 -- A valid Unicode proposal is retained for replay, but applying it fails closed when the
 -- normalized milestone byte ceiling would be exceeded; no projection/event/receipt is partial.
 create temporary table tmp_phase6_unicode_claim as
-select * from public.claim_generation_run_v2(
-  '02000000-0000-4000-8000-000000000001',17,'phase6-unicode-key',repeat('1',64),'project_delta',
+select * from public.claim_generation_run_v2_server(
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','02000000-0000-4000-8000-000000000001',17,'phase6-unicode-key',repeat('1',64),'project_delta',
   'unseenprompt.model-gateway-request.v1','unseenprompt.model-output.project_delta.v1'
 );
-select lives_ok($$select * from public.complete_generation_run_v2(
-  (select run_id from tmp_phase6_unicode_claim),'succeeded','openai','model-phase6',10,1,2,0,3,'passed',null,
+select lives_ok($$select * from public.complete_generation_run_v2_server(
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',(select run_id from tmp_phase6_unicode_claim),'succeeded','openai','model-phase6',10,1,2,0,3,'passed',null,
   jsonb_build_object('summary','Unicode proposal','requirementProposals','[]'::jsonb,'decisionProposals','[]'::jsonb,'milestoneProposals',jsonb_build_array(jsonb_build_object('action','add','reference','','title',repeat('😀',240),'rationale','Unicode title')),'unresolvedConflicts','[]'::jsonb)::text
 )$$,'Unicode validated output persists for replay');
 select is((select char_length((validated_project_delta_text::jsonb->'milestoneProposals'->0->>'title')) from public.generation_runs where id=(select run_id from tmp_phase6_unicode_claim)),240,'Unicode character length remains bounded');
@@ -454,12 +460,12 @@ select is((select state_version from public.projects where id='02000000-0000-400
 select is((select count(*)::int from public.project_delta_applications where generation_run_id=(select run_id from tmp_phase6_unicode_claim)),0,'Unicode conflict leaves no apply receipt');
 
 create temporary table tmp_phase6_duplicate_claim as
-select * from public.claim_generation_run_v2(
-  '02000000-0000-4000-8000-000000000001',17,'phase6-duplicate-key',repeat('2',64),'project_delta',
+select * from public.claim_generation_run_v2_server(
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','02000000-0000-4000-8000-000000000001',17,'phase6-duplicate-key',repeat('2',64),'project_delta',
   'unseenprompt.model-gateway-request.v1','unseenprompt.model-output.project_delta.v1'
 );
-select lives_ok($$select * from public.complete_generation_run_v2(
-  (select run_id from tmp_phase6_duplicate_claim),'succeeded','openai','model-phase6',10,1,2,0,3,'passed',null,
+select lives_ok($$select * from public.complete_generation_run_v2_server(
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',(select run_id from tmp_phase6_duplicate_claim),'succeeded','openai','model-phase6',10,1,2,0,3,'passed',null,
   jsonb_build_object('summary','Duplicate proposal','requirementProposals',jsonb_build_array(
     jsonb_build_object('action','revise','reference',(select id::text from public.requirements where project_id='02000000-0000-4000-8000-000000000001' and status='confirmed' limit 1),'statement','First revision','rationale','Conflict test'),
     jsonb_build_object('action','revise','reference',(select id::text from public.requirements where project_id='02000000-0000-4000-8000-000000000001' and status='confirmed' limit 1),'statement','Second revision','rationale','Conflict test')
@@ -469,12 +475,12 @@ select throws_ok($$select public.apply_validated_project_delta_v1('02000000-0000
 select is((select state_version from public.projects where id='02000000-0000-4000-8000-000000000001'),17::bigint,'duplicate conflict leaves projection unchanged');
 
 create temporary table tmp_phase6_remove_claim as
-select * from public.claim_generation_run_v2(
-  '02000000-0000-4000-8000-000000000001',17,'phase6-remove-key',repeat('3',64),'project_delta',
+select * from public.claim_generation_run_v2_server(
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','02000000-0000-4000-8000-000000000001',17,'phase6-remove-key',repeat('3',64),'project_delta',
   'unseenprompt.model-gateway-request.v1','unseenprompt.model-output.project_delta.v1'
 );
-select lives_ok($$select * from public.complete_generation_run_v2(
-  (select run_id from tmp_phase6_remove_claim),'succeeded','openai','model-phase6',10,1,2,0,3,'passed',null,
+select lives_ok($$select * from public.complete_generation_run_v2_server(
+  'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',(select run_id from tmp_phase6_remove_claim),'succeeded','openai','model-phase6',10,1,2,0,3,'passed',null,
   jsonb_build_object('summary','Remove proposal','requirementProposals',jsonb_build_array(jsonb_build_object('action','remove','reference',(select id::text from public.requirements where project_id='02000000-0000-4000-8000-000000000001' and status='confirmed' limit 1),'statement','Remove proposal','rationale','Requires confirmation')),'decisionProposals','[]'::jsonb,'milestoneProposals','[]'::jsonb,'unresolvedConflicts','[]'::jsonb)::text
 )$$,'remove proposal persists for conflict checking');
 select throws_ok($$select public.apply_validated_project_delta_v1('02000000-0000-4000-8000-000000000001',(select run_id from tmp_phase6_remove_claim),17)$$,'P0001','proposal_conflict','remove proposal never deletes confirmed truth');
@@ -483,21 +489,21 @@ select is((select count(*)::int from public.project_delta_applications where gen
 -- Missing and foreign generation runs intentionally share the same non-disclosing replay error.
 reset role;
 select set_config('request.jwt.claim.sub','bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',true);
-select set_config('request.jwt.claim.role','authenticated',true);
-select set_config('request.jwt.claims','{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"authenticated"}',true);
-set local role authenticated;
+select set_config('request.jwt.claim.role','service_role',true);
+select set_config('request.jwt.claims','{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","role":"service_role"}',true);
+set local role service_role;
 create temporary table tmp_phase6_foreign_claim as
-select * from public.claim_generation_run_v2(
-  '02000000-0000-4000-8000-000000000002',1,'phase6-foreign-run-key',repeat('4',64),'project_delta',
+select * from public.claim_generation_run_v2_server(
+  'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','02000000-0000-4000-8000-000000000002',1,'phase6-foreign-run-key',repeat('4',64),'project_delta',
   'unseenprompt.model-gateway-request.v1','unseenprompt.model-output.project_delta.v1'
 ) limit 1;
 select throws_ok($$select public.get_project_state_snapshot_v1('02000000-0000-4000-8000-000000000001')$$,'P0001','project_not_found','cross-owner snapshot is not disclosed');
 select throws_ok($$select public.get_project_state_snapshot_v1('ffffffff-ffff-4fff-8fff-ffffffffffff')$$,'P0001','project_not_found','missing snapshot is not disclosed');
 reset role;
 select set_config('request.jwt.claim.sub','aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',true);
-select set_config('request.jwt.claim.role','authenticated',true);
-select set_config('request.jwt.claims','{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"authenticated"}',true);
-set local role authenticated;
+select set_config('request.jwt.claim.role','service_role',true);
+select set_config('request.jwt.claims','{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","role":"service_role"}',true);
+set local role service_role;
 select throws_ok($$select public.apply_validated_project_delta_v1('02000000-0000-4000-8000-000000000001',(select run_id from tmp_phase6_foreign_claim),1)$$,'P0001','proposal_not_replayable','foreign proposal is not disclosed');
 select throws_ok($$select public.apply_validated_project_delta_v1('02000000-0000-4000-8000-000000000001','ffffffff-ffff-4fff-8fff-ffffffffffff',1)$$,'P0001','proposal_not_replayable','missing proposal is not disclosed');
 
