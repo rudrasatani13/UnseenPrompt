@@ -51,7 +51,7 @@ describe("ProductLayout", () => {
     expect(
       screen.queryByRole("heading", { name: "UnseenPrompt is temporarily unavailable" }),
     ).not.toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: "New Project" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: "New Prompt" }).length).toBeGreaterThan(0);
   });
 
   it("replaces product children with maintenance notice when maintenance is on", async () => {
@@ -76,7 +76,7 @@ describe("ProductLayout", () => {
       screen.getByRole("heading", { name: "UnseenPrompt is temporarily unavailable" }),
     ).toBeVisible();
     expect(screen.getByRole("main")).toBeInTheDocument();
-    expect(screen.getAllByRole("link", { name: "New Project" }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole("link", { name: "New Prompt" }).length).toBeGreaterThan(0);
   });
 
   it("does not serialize the environment object into client-visible markup", async () => {
