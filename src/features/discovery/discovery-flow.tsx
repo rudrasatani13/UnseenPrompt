@@ -240,6 +240,7 @@ export function DiscoveryFlow({ initialSnapshot }: DiscoveryFlowProps) {
   const retryRef = useRef<(() => void) | null>(null);
   const focusAfterPendingRef = useRef<HTMLElement | null>(null);
   const headingRef = useRef<HTMLHeadingElement | null>(null);
+  const sendingRef = useRef(false);
 
   useEffect(() => {
     return () => controllerRef.current?.abort();
@@ -361,11 +362,12 @@ export function DiscoveryFlow({ initialSnapshot }: DiscoveryFlowProps) {
     options: { readonly clearQuestionId?: string } = {},
     existingEnvelope?: DiscoveryCommandEnvelopeV1,
   ): Promise<void> {
-    if (pending) return;
+    if (pending || sendingRef.current) return;
     retryRef.current = null;
     rememberFocus();
     const controller = new AbortController();
     controllerRef.current = controller;
+    sendingRef.current = true;
     setPendingAction(action);
     setError(null);
     let sentEnvelope: DiscoveryCommandEnvelopeV1 | undefined;
@@ -450,6 +452,7 @@ export function DiscoveryFlow({ initialSnapshot }: DiscoveryFlowProps) {
       setAnnouncement("Discovery needs another attempt.");
     } finally {
       if (controllerRef.current === controller) controllerRef.current = null;
+      sendingRef.current = false;
       setPendingAction(null);
     }
   }
@@ -461,6 +464,7 @@ export function DiscoveryFlow({ initialSnapshot }: DiscoveryFlowProps) {
       );
     }
     controllerRef.current?.abort();
+    sendingRef.current = false;
   }
 
   function advance(): void {
