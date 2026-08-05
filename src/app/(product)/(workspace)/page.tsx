@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { getServerEnvironment } from "@/config/env/server";
-import { HomeComposer } from "@/features/discovery/home-composer";
+import { PromptStudio } from "@/features/prompt-studio/prompt-studio";
 import { ComingSoonLanding } from "@/features/waitlist/coming-soon-landing";
 import { createSupabaseAccountRepository } from "@/lib/account/supabase-account-repository";
 import { isProductSurfaceEnabled } from "@/lib/security/product-surface";
@@ -52,5 +52,5 @@ export default async function HomePage() {
     redirect("/onboarding");
   }
 
-  return <HomeComposer />;
+  return <PromptStudio />;
 }

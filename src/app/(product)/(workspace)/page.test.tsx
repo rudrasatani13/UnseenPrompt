@@ -22,8 +22,8 @@ vi.mock("@/config/env/server", () => ({
 vi.mock("next/navigation", () => ({ redirect }));
 vi.mock("@/lib/supabase/require-user", () => ({ getAuthenticatedContext }));
 vi.mock("@/lib/account/supabase-account-repository", () => ({ createSupabaseAccountRepository }));
-vi.mock("@/features/discovery/home-composer", () => ({
-  HomeComposer: () => <div data-testid="home-composer-stub">Composer</div>,
+vi.mock("@/features/prompt-studio/prompt-studio", () => ({
+  PromptStudio: () => <div data-testid="prompt-studio-stub">Prompt Studio</div>,
 }));
 vi.mock("@/features/waitlist/waitlist-form", () => ({
   WaitlistForm: () => <div data-testid="waitlist-form-stub">Form</div>,
@@ -71,7 +71,7 @@ describe("HomePage environment and account gates", () => {
 
     expect(createSupabaseAccountRepository).toHaveBeenCalledWith(supabaseClient);
     expect(getProfile).toHaveBeenCalledWith(USER_ID);
-    expect(screen.getByTestId("home-composer-stub")).toBeInTheDocument();
+    expect(screen.getByTestId("prompt-studio-stub")).toBeInTheDocument();
     expect(redirect).not.toHaveBeenCalled();
   });
 
