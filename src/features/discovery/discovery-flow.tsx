@@ -18,8 +18,7 @@ import {
   discoverySnapshotSchema,
 } from "@/domain/discovery/schemas";
 
-import { DiscoveryQuestion } from "./discovery-question";
-import { DiscoveryWorkspace } from "./discovery-workspace";
+import { DiscoveryChat } from "./discovery-chat";
 
 type FlowErrorVariant = "provider-error" | "stale";
 
@@ -205,10 +204,6 @@ export function DiscoveryFlow({ initialSnapshot }: DiscoveryFlowProps) {
   const [error, setError] = useState<FlowError | null>(null);
   const [announcement, setAnnouncement] = useState(() => initialAnnouncement(initialSnapshot));
   const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
-  const [answerDrafts, setAnswerDrafts] = useState<Record<string, string>>({});
-  const [answerSources, setAnswerSources] = useState<
-    Record<string, DiscoveryAnswerSource | undefined>
-  >({});
   const [completedPath, setCompletedPath] = useState<string | null>(
     initialSnapshot.session.status === "completed"
       ? `/projects/${initialSnapshot.projectId}/brief`
@@ -226,25 +221,9 @@ export function DiscoveryFlow({ initialSnapshot }: DiscoveryFlowProps) {
   const editingQuestion =
     editingQuestionId === null ? null : questionFor(snapshot, editingQuestionId);
   const activeQuestion = editingQuestion ?? snapshot.activeQuestion;
-  const editingAnswer =
-    editingQuestion === null ? null : currentAnswerFor(snapshot, editingQuestion.id);
-  const displayedAnswerText =
-    activeQuestion === null ? "" : (answerDrafts[activeQuestion.id] ?? "");
-  const displayedAnswerSource =
-    activeQuestion === null ? null : (answerSources[activeQuestion.id] ?? null);
-
-  function setDraft(questionId: string, answerText: string, source: DiscoveryAnswerSource): void {
-    setAnswerDrafts((current) => ({ ...current, [questionId]: answerText }));
-    setAnswerSources((current) => ({ ...current, [questionId]: source }));
-    setError(null);
-  }
 
   function beginCorrection(questionId: string): void {
     if (pending) return;
-    const answer = currentAnswerFor(snapshot, questionId);
-    if (answer === null) return;
-    setAnswerDrafts((current) => ({ ...current, [questionId]: answer.answerText }));
-    setAnswerSources((current) => ({ ...current, [questionId]: answer.source }));
     setEditingQuestionId(questionId);
     setError(null);
     setAnnouncement("Correction mode. Update the saved answer, then confirm the correction.");
@@ -309,7 +288,6 @@ export function DiscoveryFlow({ initialSnapshot }: DiscoveryFlowProps) {
   async function sendCommand(
     action: "advance" | "answer" | "abandon" | "resume",
     command: DiscoveryCommandV1,
-    options: { readonly clearQuestionId?: string } = {},
     existingEnvelope?: DiscoveryCommandEnvelopeV1,
   ): Promise<void> {
     if (pending || sendingRef.current) return;
@@ -345,18 +323,6 @@ export function DiscoveryFlow({ initialSnapshot }: DiscoveryFlowProps) {
       }
 
       await parseResponse(response, receiptSchema);
-      if (options.clearQuestionId !== undefined) {
-        setAnswerDrafts((current) => {
-          const next = { ...current };
-          delete next[options.clearQuestionId!];
-          return next;
-        });
-        setAnswerSources((current) => {
-          const next = { ...current };
-          delete next[options.clearQuestionId!];
-          return next;
-        });
-      }
       // Once the receipt is durable, finish the authoritative reload even if the user cancelled
       // the provider-bound POST while its response was in flight.
       const latest = await reloadSnapshot();
@@ -376,7 +342,7 @@ export function DiscoveryFlow({ initialSnapshot }: DiscoveryFlowProps) {
           } catch {
             if (sentEnvelope !== undefined) {
               const retryEnvelope = sentEnvelope;
-              retryRef.current = () => void sendCommand(action, command, options, retryEnvelope);
+              retryRef.current = () => void sendCommand(action, command, retryEnvelope);
             }
             setError(CANCELLATION_UNKNOWN_ERROR);
             setAnnouncement(
@@ -395,7 +361,7 @@ export function DiscoveryFlow({ initialSnapshot }: DiscoveryFlowProps) {
       }
       if (sentEnvelope !== undefined) {
         const retryEnvelope = sentEnvelope;
-        retryRef.current = () => void sendCommand(action, command, options, retryEnvelope);
+        retryRef.current = () => void sendCommand(action, command, retryEnvelope);
       }
       setError(errorForRequest(caught));
       setAnnouncement("Discovery needs another attempt.");
@@ -406,23 +372,14 @@ export function DiscoveryFlow({ initialSnapshot }: DiscoveryFlowProps) {
     }
   }
 
-  function cancelPending(): void {
-    if (pendingAction !== null) {
-      setAnnouncement(
-        "Cancellation requested. The request may have completed; checking the latest saved discovery state.",
-      );
-    }
-    controllerRef.current?.abort();
-    sendingRef.current = false;
-  }
-
   function advance(): void {
     void sendCommand("advance", { type: "advance_discovery" });
   }
 
   function submitAnswer(answerText: string, source: DiscoveryAnswerSource): void {
     if (activeQuestion === null) return;
-    const predecessor = editingAnswer;
+    const predecessor =
+      editingQuestionId === null ? null : currentAnswerFor(snapshot, editingQuestionId);
     const command: DiscoveryCommandV1 =
       editingQuestionId === null || predecessor === null
         ? { type: "confirm_answer", questionId: activeQuestion.id, source, answerText }
@@ -433,7 +390,7 @@ export function DiscoveryFlow({ initialSnapshot }: DiscoveryFlowProps) {
             source,
             answerText,
           };
-    void sendCommand("answer", command, { clearQuestionId: activeQuestion.id });
+    void sendCommand("answer", command);
   }
 
   function abandon(): void {
@@ -489,35 +446,20 @@ export function DiscoveryFlow({ initialSnapshot }: DiscoveryFlowProps) {
                 },
         };
 
-  const question =
-    activeQuestion === null || status === "abandoned" || status === "blocked" ? null : (
-      <DiscoveryQuestion
-        question={activeQuestion}
-        answerText={displayedAnswerText}
-        answerSource={displayedAnswerSource}
-        pending={pending}
-        submitLabel={editingQuestionId === null ? "Save answer" : "Save correction"}
-        onAnswerChange={(answerText, source) => setDraft(activeQuestion.id, answerText, source)}
-        onSubmit={submitAnswer}
-        {...(editingQuestionId === null ? {} : { onCancel: cancelCorrection })}
-      />
-    );
-
   return (
     <>
-      <DiscoveryWorkspace
+      <DiscoveryChat
         snapshot={snapshot}
         pending={pending}
-        question={question}
         status={workspaceStatus}
+        editingQuestionId={editingQuestionId}
+        onAnswerSubmit={submitAnswer}
         onAdvance={advance}
-        onPause={abandon}
-        onReload={() => void refreshAfterConflict()}
+        onEditAnswer={beginCorrection}
+        onCancelEdit={cancelCorrection}
         onOpenBrief={() => {
           if (completedPath !== null) router.push(completedPath);
         }}
-        onEditAnswer={beginCorrection}
-        onCancelPending={cancelPending}
         completedPath={completedPath}
       />
       <p className="sr-only" role="status" aria-live="polite">

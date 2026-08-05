@@ -68,7 +68,7 @@ test("resume renders the saved question and never sends advance_discovery", asyn
   await resumeButton.click();
 
   await expect.poll(() => commandTypes).toEqual(["resume_discovery"]);
-  await expect(page.locator('[data-slot="discovery-question"]')).toBeVisible();
+  await expect(page.locator('[data-slot="discovery-thread"]')).toBeVisible();
   await expect(page.getByText(activeSnapshot.activeQuestion.questionText)).toBeVisible();
   expect(commandTypes.filter((type) => type === "advance_discovery")).toHaveLength(0);
 });

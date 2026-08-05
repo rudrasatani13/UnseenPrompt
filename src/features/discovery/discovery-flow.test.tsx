@@ -123,7 +123,6 @@ describe("DiscoveryFlow", () => {
     render(<DiscoveryFlow initialSnapshot={snapshot()} />);
 
     expect(screen.getByText("What workflow matters most?")).toBeVisible();
-    expect(screen.getByText("Why this matters:")).toBeVisible();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -145,8 +144,7 @@ describe("DiscoveryFlow", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<DiscoveryFlow initialSnapshot={snapshot()} />);
-    await user.click(screen.getByRole("radio", { name: "A small team" }));
-    await user.click(screen.getByRole("button", { name: "Save answer" }));
+    await user.click(screen.getByRole("button", { name: "A small team" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     const [, request] = fetchMock.mock.calls[0] ?? [];
@@ -163,7 +161,7 @@ describe("DiscoveryFlow", () => {
       answerText: "a small team",
     });
     expect(fetchMock.mock.calls[1]?.[0]).toBe(`/api/projects/${PROJECT_ID}/discovery`);
-    expect(screen.getByRole("button", { name: "Improve this prompt" })).toBeVisible();
+    expect(screen.getByText(/Anything else/i)).toBeVisible();
   });
 
   it("preserves unsent text after a stale conflict reload", async () => {
@@ -175,14 +173,12 @@ describe("DiscoveryFlow", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<DiscoveryFlow initialSnapshot={snapshot()} />);
-    const freeText = screen.getByLabelText("Or write your own answer");
+    const freeText = screen.getByLabelText("Your answer");
     await user.type(freeText, "A multilingual internal workflow");
-    await user.click(screen.getByRole("button", { name: "Save answer" }));
+    await user.click(screen.getByRole("button", { name: "Send" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("project changed");
-    expect(screen.getByLabelText("Or write your own answer")).toHaveValue(
-      "A multilingual internal workflow",
-    );
+    expect(screen.getByLabelText("Your answer")).toHaveValue("A multilingual internal workflow");
   });
 
   it("resumes an abandoned session by reloading its saved snapshot", async () => {
@@ -216,7 +212,7 @@ describe("DiscoveryFlow", () => {
     });
   });
 
-  it("reconciles an aborted answer request and keeps unsent text without claiming unchanged state", async () => {
+  it("reconciles an aborted answer request and reloads the authoritative snapshot", async () => {
     const user = userEvent.setup();
     const fetchMock = vi
       .fn()
@@ -232,17 +228,13 @@ describe("DiscoveryFlow", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<DiscoveryFlow initialSnapshot={snapshot()} />);
-    const freeText = screen.getByLabelText("Or write your own answer");
+    const freeText = screen.getByLabelText("Your answer");
     await user.type(freeText, "A multilingual internal workflow");
-    await user.click(screen.getByRole("button", { name: "Save answer" }));
-    await user.click(await screen.findByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Send" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     expect(fetchMock.mock.calls[1]?.[0]).toBe(`/api/projects/${PROJECT_ID}/discovery`);
-    expect(screen.getByLabelText("Or write your own answer")).toHaveValue(
-      "A multilingual internal workflow",
-    );
-    expect(screen.getByRole("status")).toHaveTextContent(/request cancelled/i);
+    expect(screen.getByText("What workflow matters most?")).toBeVisible();
     expect(screen.queryByText(/state is unchanged/i)).not.toBeInTheDocument();
   });
 
@@ -262,15 +254,13 @@ describe("DiscoveryFlow", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<DiscoveryFlow initialSnapshot={snapshot()} />);
-    const freeText = screen.getByLabelText("Or write your own answer");
+    const freeText = screen.getByLabelText("Your answer");
     await user.type(freeText, "Keep this local answer");
-    await user.click(screen.getByRole("button", { name: "Save answer" }));
-    await user.click(await screen.findByRole("button", { name: "Cancel" }));
+    await user.click(screen.getByRole("button", { name: "Send" }));
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Request status is unknown");
     expect(alert).toHaveTextContent(/may have been saved/i);
-    expect(screen.getByLabelText("Or write your own answer")).toHaveValue("Keep this local answer");
     expect(screen.queryByText(/state is unchanged/i)).not.toBeInTheDocument();
   });
 
@@ -303,10 +293,8 @@ describe("DiscoveryFlow", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<DiscoveryFlow initialSnapshot={snapshot()} />);
-    await user.click(screen.getByRole("button", { name: "Edit saved answer" }));
-    expect(screen.getByRole("button", { name: "Save correction" })).toBeVisible();
-    await user.click(screen.getByRole("radio", { name: "Just me" }));
-    await user.click(screen.getByRole("button", { name: "Save correction" }));
+    await user.click(screen.getByRole("button", { name: "Correct" }));
+    await user.click(screen.getByRole("button", { name: "Just me" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     const envelope = JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body)) as {
@@ -336,9 +324,10 @@ describe("DiscoveryFlow", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(<DiscoveryFlow initialSnapshot={snapshot({ activeQuestion: null })} />);
 
-    await user.click(screen.getByRole("button", { name: "Improve this prompt" }));
+    await user.type(screen.getByLabelText("Send a message"), "That is everything");
+    await user.click(screen.getByRole("button", { name: "Send" }));
 
     await waitFor(() => expect(push).toHaveBeenCalledWith(`/projects/${PROJECT_ID}/brief`));
-    expect(screen.getByText("Your prompt is ready")).toBeVisible();
+    expect(screen.getByText("Your project brief is ready.")).toBeVisible();
   });
 });

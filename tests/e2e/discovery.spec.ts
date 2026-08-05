@@ -49,13 +49,13 @@ test.describe("Phase 7 discovery journeys", () => {
     await page.getByRole("button", { name: "Resume workspace" }).click();
     await expect.poll(() => resumeCalls).toBe(1);
     expect(advanceCalls).toBe(0);
-    await expect(page.locator('[data-slot="discovery-question"]')).toBeVisible();
+    await expect(page.locator('[data-slot="discovery-thread"]')).toBeVisible();
   });
 
   test("answer correction and completion keep proposal review explicit", async ({ page }) => {
     await page.goto(`/projects/${projectId}/discovery`);
-    await expect(page.locator('[data-slot="discovery-question"]')).toBeVisible();
-    await page.getByRole("button", { name: /confirm answer|continue/i }).click();
+    await expect(page.locator('[data-slot="discovery-thread"]')).toBeVisible();
+    await page.getByRole("button", { name: "Send" }).click();
     await expect(page.locator('[data-slot="discovery-status"]')).toBeVisible();
     await expect(page.getByText(/confirm|review/i).first()).toBeVisible();
   });
