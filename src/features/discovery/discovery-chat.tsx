@@ -144,7 +144,9 @@ export function DiscoveryChat({
   const inputTooLong = inputBytes > MAX_DISCOVERY_ANSWER_UTF8_BYTES;
 
   useEffect(() => {
-    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight });
+    const scrollTarget = scrollRef.current;
+    if (scrollTarget === null || typeof scrollTarget.scrollTo !== "function") return;
+    scrollTarget.scrollTo({ top: scrollTarget.scrollHeight });
   }, [messages, pending, status]);
 
   function submit(event: FormEvent<HTMLFormElement>): void {
