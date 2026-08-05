@@ -153,6 +153,7 @@ export function HomeComposer() {
   const [draft, setDraft] = useState<DraftStartResponse | null>(null);
   const [selectedMode, setSelectedMode] = useState<ProjectMode | null>(null);
   const [title, setTitle] = useState("");
+  const [promotedProjectId, setPromotedProjectId] = useState<string | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
   const submittingRef = useRef(false);
 
@@ -328,7 +329,7 @@ export function HomeComposer() {
       // against an already-promoted draft (which would surface as a 409 invalid_draft_state).
       setDraft(null);
       setSelectedMode(null);
-      setState("confirming");
+      setPromotedProjectId(promotion.projectId);
       router.push(`/projects/${promotion.projectId}/discovery`);
     } catch (caught) {
       if (caught instanceof DOMException && caught.name === "AbortError") return;
@@ -401,6 +402,29 @@ export function HomeComposer() {
             </Button>
           </CardFooter>
         </Card>
+      </section>
+    );
+  }
+
+  if (promotedProjectId !== null) {
+    return (
+      <section
+        data-slot="composer-promoted"
+        className="grid w-full max-w-3xl gap-6"
+        aria-labelledby="composer-promoted-heading"
+        aria-busy
+      >
+        <header className="grid gap-3">
+          <h1
+            id="composer-promoted-heading"
+            className="text-2xl font-semibold tracking-tight text-ink md:text-3xl"
+          >
+            Creating your project…
+          </h1>
+          <p className="max-w-prose text-sm leading-6 text-ink-muted">
+            Opening the discovery workspace for your new project.
+          </p>
+        </header>
       </section>
     );
   }
