@@ -1,13 +1,9 @@
 "use client";
 
-import { RotateCcw, ShieldAlert } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import {
   DISCOVERY_COMMAND_SCHEMA,
   DISCOVERY_SCHEMA_VERSION,
@@ -20,11 +16,10 @@ import {
 import {
   discoveryCommandEnvelopeSchema,
   discoverySnapshotSchema,
-  MAX_DISCOVERY_TURNS,
 } from "@/domain/discovery/schemas";
 
 import { DiscoveryQuestion } from "./discovery-question";
-import { DiscoveryStatus } from "./discovery-status";
+import { DiscoveryWorkspace } from "./discovery-workspace";
 
 type FlowErrorVariant = "provider-error" | "stale";
 
@@ -193,23 +188,6 @@ function initialAnnouncement(snapshot: DiscoverySnapshotV1): string {
   return "Discovery is ready for the next step.";
 }
 
-function statusLabel(status: DiscoverySnapshotV1["session"]["status"]): string {
-  switch (status) {
-    case "active":
-      return "In progress";
-    case "sufficient":
-      return "Ready to build";
-    case "completed":
-      return "Completed";
-    case "abandoned":
-      return "Paused";
-    case "blocked":
-      return "Blocked";
-    default:
-      return status;
-  }
-}
-
 export interface DiscoveryFlowProps {
   readonly initialSnapshot: DiscoverySnapshotV1;
 }
@@ -238,8 +216,6 @@ export function DiscoveryFlow({ initialSnapshot }: DiscoveryFlowProps) {
   );
   const controllerRef = useRef<AbortController | null>(null);
   const retryRef = useRef<(() => void) | null>(null);
-  const focusAfterPendingRef = useRef<HTMLElement | null>(null);
-  const headingRef = useRef<HTMLHeadingElement | null>(null);
   const sendingRef = useRef(false);
 
   useEffect(() => {
@@ -256,32 +232,6 @@ export function DiscoveryFlow({ initialSnapshot }: DiscoveryFlowProps) {
     activeQuestion === null ? "" : (answerDrafts[activeQuestion.id] ?? "");
   const displayedAnswerSource =
     activeQuestion === null ? null : (answerSources[activeQuestion.id] ?? null);
-
-  const confirmedHistory = useMemo(
-    () =>
-      snapshot.confirmedQuestions.flatMap((question) => {
-        const answer = currentAnswerFor(snapshot, question.id);
-        return answer === null || question.status === "superseded" ? [] : [{ question, answer }];
-      }),
-    [snapshot],
-  );
-
-  function rememberFocus(): void {
-    if (typeof document !== "undefined" && document.activeElement instanceof HTMLElement) {
-      focusAfterPendingRef.current = document.activeElement;
-    }
-  }
-
-  useEffect(() => {
-    if (pending || focusAfterPendingRef.current === null) return;
-    const element = focusAfterPendingRef.current;
-    focusAfterPendingRef.current = null;
-    if (document.contains(element) && !element.hasAttribute("disabled")) {
-      element.focus();
-    } else {
-      headingRef.current?.focus();
-    }
-  }, [pending]);
 
   function setDraft(questionId: string, answerText: string, source: DiscoveryAnswerSource): void {
     setAnswerDrafts((current) => ({ ...current, [questionId]: answerText }));
@@ -364,7 +314,6 @@ export function DiscoveryFlow({ initialSnapshot }: DiscoveryFlowProps) {
   ): Promise<void> {
     if (pending || sendingRef.current) return;
     retryRef.current = null;
-    rememberFocus();
     const controller = new AbortController();
     controllerRef.current = controller;
     sendingRef.current = true;
@@ -457,16 +406,6 @@ export function DiscoveryFlow({ initialSnapshot }: DiscoveryFlowProps) {
     }
   }
 
-  function cancelPending(): void {
-    if (pendingAction !== null) {
-      setAnnouncement(
-        "Cancellation requested. The request may have completed; checking the latest saved discovery state.",
-      );
-    }
-    controllerRef.current?.abort();
-    sendingRef.current = false;
-  }
-
   function advance(): void {
     void sendCommand("advance", { type: "advance_discovery" });
   }
@@ -496,46 +435,38 @@ export function DiscoveryFlow({ initialSnapshot }: DiscoveryFlowProps) {
   }
 
   const status = snapshot.session.status;
-  const heading =
-    status === "abandoned" ? "Discovery is paused" : "Shape the project before it is built";
-
-  return (
-    <section
-      data-slot="discovery-flow"
-      className="grid w-full max-w-3xl gap-8"
-      aria-busy={pending}
-      aria-labelledby="discovery-flow-heading"
-    >
-      <header className="grid gap-4">
-        <div className="flex flex-wrap items-center gap-3">
-          <p className="text-sm font-medium tracking-wide text-brand uppercase">
-            Project discovery
-          </p>
-          <Badge variant="secondary">{statusLabel(status)}</Badge>
-        </div>
-        <h1
-          id="discovery-flow-heading"
-          ref={headingRef}
-          tabIndex={-1}
-          className="text-3xl font-semibold tracking-tight text-balance text-ink md:text-5xl"
-        >
-          {heading}
-        </h1>
-        <p className="max-w-prose text-base leading-7 text-ink-muted">
-          We will ask one focused question at a time, keep your answers with the project, and stop
-          when there is enough context for a useful brief.
-        </p>
-        <p className="text-sm text-ink-muted">
-          {`${snapshot.session.confirmedTurnCount} of ${MAX_DISCOVERY_TURNS} discovery turns saved`}
-        </p>
-      </header>
-
-      {error === null ? null : (
-        <DiscoveryStatus
-          variant={error.variant}
-          title={error.title}
-          description={error.description}
-          action={
+  const workspaceStatus =
+    error === null
+      ? status === "abandoned"
+        ? {
+            variant: "abandoned" as const,
+            title: "Your answers are saved",
+            description: "Resume when you are ready. Your saved context will stay here.",
+            action: { label: "Resume workspace", onClick: resume, disabled: pending },
+            secondaryAction: {
+              label: "Reload",
+              onClick: () => void refreshAfterConflict(),
+              disabled: pending,
+            },
+          }
+        : status === "blocked"
+          ? {
+              variant: "blocked" as const,
+              title: "This workspace needs attention",
+              description: "The discovery limit was reached before enough context was collected.",
+              action: {
+                label: "Pause project",
+                onClick: abandon,
+                disabled: pending,
+                variant: "destructive" as const,
+              },
+            }
+          : null
+      : {
+          variant: error.variant,
+          title: error.title,
+          description: error.description,
+          action:
             error.variant === "stale"
               ? { label: "Reload latest state", onClick: () => void refreshAfterConflict() }
               : {
@@ -545,152 +476,48 @@ export function DiscoveryFlow({ initialSnapshot }: DiscoveryFlowProps) {
                     setError(null);
                     retry?.();
                   },
-                }
-          }
-        />
-      )}
+                },
+        };
 
-      {status === "abandoned" ? (
-        <DiscoveryStatus
-          variant="abandoned"
-          title="Your answers are saved"
-          description="Resume when you are ready. The saved active question will be shown without generating a new one."
-          action={{ label: "Resume discovery", onClick: resume, disabled: pending }}
-          secondaryAction={{
-            label: "Reload",
-            onClick: () => void refreshAfterConflict(),
-            disabled: pending,
-          }}
-        />
-      ) : null}
+  const question =
+    activeQuestion === null || status === "abandoned" || status === "blocked" ? null : (
+      <DiscoveryQuestion
+        question={activeQuestion}
+        answerText={displayedAnswerText}
+        answerSource={displayedAnswerSource}
+        pending={pending}
+        submitLabel={editingQuestionId === null ? "Save answer" : "Save correction"}
+        onAnswerChange={(answerText, source) => setDraft(activeQuestion.id, answerText, source)}
+        onSubmit={submitAnswer}
+        {...(editingQuestionId === null ? {} : { onCancel: cancelCorrection })}
+      />
+    );
 
-      {status === "blocked" ? (
-        <DiscoveryStatus
-          variant="blocked"
-          title="Discovery needs a manual reset"
-          description="The question limit was reached before the required context was complete. You can leave this project paused without losing its history."
-          action={{
-            label: "Abandon discovery",
-            onClick: abandon,
-            disabled: pending,
-            variant: "destructive",
-          }}
-        />
-      ) : null}
-
-      {completedPath === null && status !== "abandoned" && status !== "blocked" ? (
-        <>
-          {activeQuestion === null ? (
-            <DiscoveryStatus
-              variant="ready"
-              title={
-                status === "sufficient"
-                  ? "The project has enough context"
-                  : "Ready for the next question"
-              }
-              description={
-                status === "sufficient"
-                  ? "Confirm the next step to prepare the project brief."
-                  : "Start the next discovery turn when you are ready."
-              }
-              action={{
-                label: status === "sufficient" ? "Prepare project brief" : "Start discovery",
-                onClick: advance,
-                disabled: pending,
-              }}
-              secondaryAction={{
-                label: "Abandon discovery",
-                onClick: abandon,
-                disabled: pending,
-                variant: "outline",
-              }}
-            />
-          ) : (
-            <>
-              <DiscoveryQuestion
-                question={activeQuestion}
-                answerText={displayedAnswerText}
-                answerSource={displayedAnswerSource}
-                pending={pending}
-                submitLabel={editingQuestionId === null ? "Confirm answer" : "Confirm correction"}
-                onAnswerChange={(answerText, source) =>
-                  setDraft(activeQuestion.id, answerText, source)
-                }
-                onSubmit={submitAnswer}
-                {...(editingQuestionId === null ? {} : { onCancel: cancelCorrection })}
-              />
-              <Button
-                type="button"
-                variant="ghost"
-                className="w-fit justify-self-start px-0"
-                onClick={abandon}
-                disabled={pending}
-              >
-                Pause discovery
-              </Button>
-            </>
-          )}
-        </>
-      ) : null}
-
-      {completedPath !== null ? (
-        <DiscoveryStatus
-          variant="completed"
-          title="Discovery complete"
-          description="Your project brief is ready."
-          action={{ label: "Open project brief", onClick: () => router.push(completedPath) }}
-        />
-      ) : null}
-
-      {confirmedHistory.length === 0 ? null : (
-        <Card aria-labelledby="confirmed-answers-heading">
-          <CardHeader>
-            <CardTitle id="confirmed-answers-heading">Saved answers</CardTitle>
-            <p className="text-sm text-ink-muted">
-              These answers are part of the project history. Correct one explicitly if it changed.
-            </p>
-          </CardHeader>
-          <CardContent>
-            <ol className="grid gap-4">
-              {confirmedHistory.map(({ question, answer }, index) => (
-                <li
-                  key={question.id}
-                  className="grid gap-2 border-b border-subtle pb-4 last:border-0 last:pb-0"
-                >
-                  <p className="text-sm font-medium text-ink">{`${index + 1}. ${question.questionText}`}</p>
-                  <p className="text-sm leading-6 break-words whitespace-pre-wrap text-ink-muted">
-                    {answer.answerText}
-                  </p>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    className="w-fit justify-self-start px-0"
-                    onClick={() => beginCorrection(question.id)}
-                    disabled={pending || editingQuestionId !== null}
-                  >
-                    <RotateCcw aria-hidden="true" />
-                    Correct this answer
-                  </Button>
-                </li>
-              ))}
-            </ol>
-          </CardContent>
-        </Card>
-      )}
-
+  return (
+    <>
+      <DiscoveryWorkspace
+        snapshot={snapshot}
+        pending={pending}
+        question={question}
+        status={workspaceStatus}
+        onAdvance={advance}
+        onPause={abandon}
+        onResume={resume}
+        onReload={() => void refreshAfterConflict()}
+        onOpenBrief={() => {
+          if (completedPath !== null) router.push(completedPath);
+        }}
+        onEditAnswer={beginCorrection}
+        completedPath={completedPath}
+      />
       <p className="sr-only" role="status" aria-live="polite">
         {announcement}
       </p>
-
       {pending ? (
-        <div className="flex flex-wrap items-center gap-3" role="status" aria-live="polite">
-          <ShieldAlert aria-hidden="true" className="size-4" />
-          <span className="text-sm text-ink-muted">Saving this step…</span>
-          <Button type="button" variant="outline" onClick={cancelPending}>
-            Cancel
-          </Button>
+        <div className="sr-only" role="status" aria-live="polite">
+          Saving this step…
         </div>
       ) : null}
-    </section>
+    </>
   );
 }

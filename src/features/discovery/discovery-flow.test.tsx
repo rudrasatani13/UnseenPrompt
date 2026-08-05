@@ -163,7 +163,7 @@ describe("DiscoveryFlow", () => {
       answerText: "a small team",
     });
     expect(fetchMock.mock.calls[1]?.[0]).toBe(`/api/projects/${PROJECT_ID}/discovery`);
-    expect(screen.getByRole("button", { name: "Start discovery" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Improve this prompt" })).toBeVisible();
   });
 
   it("preserves unsent text after a stale conflict reload", async () => {
@@ -207,7 +207,7 @@ describe("DiscoveryFlow", () => {
 
     render(<DiscoveryFlow initialSnapshot={abandoned} />);
     expect(screen.queryByText("What workflow matters most?")).not.toBeInTheDocument();
-    await user.click(screen.getByRole("button", { name: "Resume discovery" }));
+    await user.click(screen.getByRole("button", { name: "Resume workspace" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     expect(screen.getByText("What workflow matters most?")).toBeVisible();
@@ -336,7 +336,7 @@ describe("DiscoveryFlow", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(<DiscoveryFlow initialSnapshot={snapshot({ activeQuestion: null })} />);
 
-    await user.click(screen.getByRole("button", { name: "Start discovery" }));
+    await user.click(screen.getByRole("button", { name: "Improve this prompt" }));
 
     await waitFor(() => expect(push).toHaveBeenCalledWith(`/projects/${PROJECT_ID}/brief`));
     expect(screen.getByText("Discovery complete")).toBeVisible();

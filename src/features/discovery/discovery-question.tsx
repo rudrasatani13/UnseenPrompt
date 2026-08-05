@@ -79,9 +79,7 @@ export function DiscoveryQuestion({
     >
       <Card>
         <CardHeader>
-          <p className="text-sm font-medium tracking-wide text-brand uppercase">
-            Question {question.position}
-          </p>
+          <p className="text-sm font-medium tracking-wide text-brand uppercase">One detail</p>
           <CardTitle id={`discovery-question-${question.id}`} className="text-xl leading-snug">
             {question.questionText}
           </CardTitle>
