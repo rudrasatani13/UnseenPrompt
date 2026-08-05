@@ -339,6 +339,6 @@ describe("DiscoveryFlow", () => {
     await user.click(screen.getByRole("button", { name: "Improve this prompt" }));
 
     await waitFor(() => expect(push).toHaveBeenCalledWith(`/projects/${PROJECT_ID}/brief`));
-    expect(screen.getByText("Discovery complete")).toBeVisible();
+    expect(screen.getByText("Your prompt is ready")).toBeVisible();
   });
 });
