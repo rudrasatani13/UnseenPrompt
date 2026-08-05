@@ -17,10 +17,10 @@ interface DiscoveryWorkspaceProps {
   readonly status: DiscoveryStatusProps | null;
   readonly onAdvance: () => void;
   readonly onPause: () => void;
-  readonly onResume: () => void;
   readonly onReload: () => void;
   readonly onOpenBrief: () => void;
   readonly onEditAnswer: (questionId: string) => void;
+  readonly onCancelPending: () => void;
   readonly completedPath: string | null;
 }
 
@@ -52,10 +52,10 @@ export function DiscoveryWorkspace({
   status,
   onAdvance,
   onPause,
-  onResume,
   onReload,
   onOpenBrief,
   onEditAnswer,
+  onCancelPending,
   completedPath,
 }: DiscoveryWorkspaceProps) {
   const isPaused = snapshot.session.status === "abandoned";
@@ -82,11 +82,7 @@ export function DiscoveryWorkspace({
             Start with the rough idea. Add only the details that change what should be built.
           </p>
         </div>
-        {isPaused ? (
-          <Button type="button" variant="outline" onClick={onResume} disabled={pending}>
-            Resume workspace
-          </Button>
-        ) : isComplete ? (
+        {isPaused || status !== null ? null : isComplete ? (
           <Button type="button" onClick={onOpenBrief}>
             Open project brief <ArrowRight aria-hidden="true" />
           </Button>
@@ -214,6 +210,11 @@ export function DiscoveryWorkspace({
               <PencilLine aria-hidden="true" className="size-3.5" /> Reload state
             </button>
           </div>
+          {pending ? (
+            <Button type="button" variant="outline" onClick={onCancelPending} className="w-full">
+              Cancel
+            </Button>
+          ) : null}
         </aside>
       </div>
     </section>

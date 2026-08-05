@@ -146,7 +146,7 @@ describe("DiscoveryFlow", () => {
 
     render(<DiscoveryFlow initialSnapshot={snapshot()} />);
     await user.click(screen.getByRole("radio", { name: "A small team" }));
-    await user.click(screen.getByRole("button", { name: "Confirm answer" }));
+    await user.click(screen.getByRole("button", { name: "Save answer" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     const [, request] = fetchMock.mock.calls[0] ?? [];
@@ -177,7 +177,7 @@ describe("DiscoveryFlow", () => {
     render(<DiscoveryFlow initialSnapshot={snapshot()} />);
     const freeText = screen.getByLabelText("Or write your own answer");
     await user.type(freeText, "A multilingual internal workflow");
-    await user.click(screen.getByRole("button", { name: "Confirm answer" }));
+    await user.click(screen.getByRole("button", { name: "Save answer" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("project changed");
     expect(screen.getByLabelText("Or write your own answer")).toHaveValue(
@@ -234,7 +234,7 @@ describe("DiscoveryFlow", () => {
     render(<DiscoveryFlow initialSnapshot={snapshot()} />);
     const freeText = screen.getByLabelText("Or write your own answer");
     await user.type(freeText, "A multilingual internal workflow");
-    await user.click(screen.getByRole("button", { name: "Confirm answer" }));
+    await user.click(screen.getByRole("button", { name: "Save answer" }));
     await user.click(await screen.findByRole("button", { name: "Cancel" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
@@ -264,7 +264,7 @@ describe("DiscoveryFlow", () => {
     render(<DiscoveryFlow initialSnapshot={snapshot()} />);
     const freeText = screen.getByLabelText("Or write your own answer");
     await user.type(freeText, "Keep this local answer");
-    await user.click(screen.getByRole("button", { name: "Confirm answer" }));
+    await user.click(screen.getByRole("button", { name: "Save answer" }));
     await user.click(await screen.findByRole("button", { name: "Cancel" }));
 
     const alert = await screen.findByRole("alert");
@@ -303,10 +303,10 @@ describe("DiscoveryFlow", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<DiscoveryFlow initialSnapshot={snapshot()} />);
-    await user.click(screen.getByRole("button", { name: "Correct this answer" }));
-    expect(screen.getByRole("button", { name: "Confirm correction" })).toBeVisible();
+    await user.click(screen.getByRole("button", { name: "Edit saved answer" }));
+    expect(screen.getByRole("button", { name: "Save correction" })).toBeVisible();
     await user.click(screen.getByRole("radio", { name: "Just me" }));
-    await user.click(screen.getByRole("button", { name: "Confirm correction" }));
+    await user.click(screen.getByRole("button", { name: "Save correction" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     const envelope = JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body)) as {

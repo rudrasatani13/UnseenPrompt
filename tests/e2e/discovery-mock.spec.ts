@@ -63,7 +63,7 @@ test("resume renders the saved question and never sends advance_discovery", asyn
   });
 
   await page.goto(`/projects/${PHASE7_MOCK_PROJECT_ID}/discovery`);
-  const resumeButton = page.getByRole("button", { name: "Resume discovery" });
+  const resumeButton = page.getByRole("button", { name: "Resume workspace" });
   await expect(resumeButton).toBeVisible();
   await resumeButton.click();
 

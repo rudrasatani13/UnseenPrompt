@@ -406,6 +406,16 @@ export function DiscoveryFlow({ initialSnapshot }: DiscoveryFlowProps) {
     }
   }
 
+  function cancelPending(): void {
+    if (pendingAction !== null) {
+      setAnnouncement(
+        "Cancellation requested. The request may have completed; checking the latest saved discovery state.",
+      );
+    }
+    controllerRef.current?.abort();
+    sendingRef.current = false;
+  }
+
   function advance(): void {
     void sendCommand("advance", { type: "advance_discovery" });
   }
@@ -502,12 +512,12 @@ export function DiscoveryFlow({ initialSnapshot }: DiscoveryFlowProps) {
         status={workspaceStatus}
         onAdvance={advance}
         onPause={abandon}
-        onResume={resume}
         onReload={() => void refreshAfterConflict()}
         onOpenBrief={() => {
           if (completedPath !== null) router.push(completedPath);
         }}
         onEditAnswer={beginCorrection}
+        onCancelPending={cancelPending}
         completedPath={completedPath}
       />
       <p className="sr-only" role="status" aria-live="polite">

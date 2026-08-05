@@ -45,8 +45,8 @@ test.describe("Phase 7 discovery journeys", () => {
       await route.continue();
     });
     await page.goto(`/projects/${projectId}/discovery`);
-    await expect(page.getByRole("button", { name: "Resume discovery" })).toBeVisible();
-    await page.getByRole("button", { name: "Resume discovery" }).click();
+    await expect(page.getByRole("button", { name: "Resume workspace" })).toBeVisible();
+    await page.getByRole("button", { name: "Resume workspace" }).click();
     await expect.poll(() => resumeCalls).toBe(1);
     expect(advanceCalls).toBe(0);
     await expect(page.locator('[data-slot="discovery-question"]')).toBeVisible();
