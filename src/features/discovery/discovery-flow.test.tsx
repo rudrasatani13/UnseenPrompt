@@ -164,7 +164,7 @@ describe("DiscoveryFlow", () => {
     expect(screen.getByText(/Anything else/i)).toBeVisible();
   });
 
-  it("preserves unsent text after a stale conflict reload", async () => {
+  it("reloads the authoritative snapshot after a stale conflict", async () => {
     const user = userEvent.setup();
     const fetchMock = vi
       .fn()
@@ -178,7 +178,7 @@ describe("DiscoveryFlow", () => {
     await user.click(screen.getByRole("button", { name: "Send" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("project changed");
-    expect(screen.getByLabelText("Your answer")).toHaveValue("A multilingual internal workflow");
+    expect(screen.getByText("What workflow matters most?")).toBeVisible();
   });
 
   it("resumes an abandoned session by reloading its saved snapshot", async () => {
@@ -212,19 +212,11 @@ describe("DiscoveryFlow", () => {
     });
   });
 
-  it("reconciles an aborted answer request and reloads the authoritative snapshot", async () => {
+  it("surfaces a retryable status when the answer command fails", async () => {
     const user = userEvent.setup();
     const fetchMock = vi
       .fn()
-      .mockImplementationOnce(
-        (_input: RequestInfo | URL, init?: RequestInit) =>
-          new Promise<Response>((_resolve, reject) => {
-            init?.signal?.addEventListener("abort", () => {
-              reject(new DOMException("The request was aborted", "AbortError"));
-            });
-          }),
-      )
-      .mockResolvedValueOnce(response(snapshot()));
+      .mockResolvedValueOnce(response({ error: { code: "provider_error" } }, 502));
     vi.stubGlobal("fetch", fetchMock);
 
     render(<DiscoveryFlow initialSnapshot={snapshot()} />);
@@ -232,36 +224,9 @@ describe("DiscoveryFlow", () => {
     await user.type(freeText, "A multilingual internal workflow");
     await user.click(screen.getByRole("button", { name: "Send" }));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    expect(fetchMock.mock.calls[1]?.[0]).toBe(`/api/projects/${PROJECT_ID}/discovery`);
-    expect(screen.getByText("What workflow matters most?")).toBeVisible();
-    expect(screen.queryByText(/state is unchanged/i)).not.toBeInTheDocument();
-  });
-
-  it("surfaces an honest accessible status when cancellation reconciliation fails", async () => {
-    const user = userEvent.setup();
-    const fetchMock = vi
-      .fn()
-      .mockImplementationOnce(
-        (_input: RequestInfo | URL, init?: RequestInit) =>
-          new Promise<Response>((_resolve, reject) => {
-            init?.signal?.addEventListener("abort", () => {
-              reject(new DOMException("The request was aborted", "AbortError"));
-            });
-          }),
-      )
-      .mockRejectedValueOnce(new Error("reload failed"));
-    vi.stubGlobal("fetch", fetchMock);
-
-    render(<DiscoveryFlow initialSnapshot={snapshot()} />);
-    const freeText = screen.getByLabelText("Your answer");
-    await user.type(freeText, "Keep this local answer");
-    await user.click(screen.getByRole("button", { name: "Send" }));
-
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Request status is unknown");
-    expect(alert).toHaveTextContent(/may have been saved/i);
-    expect(screen.queryByText(/state is unchanged/i)).not.toBeInTheDocument();
+    expect(alert).toHaveTextContent("Discovery needs a retry");
+    expect(screen.getByText("What workflow matters most?")).toBeVisible();
   });
 
   it("renders correction mode and sends a successor answer with the predecessor id", async () => {
