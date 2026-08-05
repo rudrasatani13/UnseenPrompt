@@ -154,6 +154,7 @@ export function HomeComposer() {
   const [selectedMode, setSelectedMode] = useState<ProjectMode | null>(null);
   const [title, setTitle] = useState("");
   const controllerRef = useRef<AbortController | null>(null);
+  const submittingRef = useRef(false);
 
   useEffect(() => {
     return () => controllerRef.current?.abort();
@@ -171,13 +172,16 @@ export function HomeComposer() {
   function cancelPending(): void {
     controllerRef.current?.abort();
     controllerRef.current = null;
+    submittingRef.current = false;
     setState(draft === null ? "composing" : "confirming");
     setError(null);
   }
 
   async function sendStart(inputText: string, idempotencyKey: string): Promise<void> {
+    if (submittingRef.current) return;
     const controller = new AbortController();
     controllerRef.current = controller;
+    submittingRef.current = true;
     setState("submitting");
     setError(null);
 
@@ -217,6 +221,7 @@ export function HomeComposer() {
           : errorMessage("unknown"),
       );
     } finally {
+      submittingRef.current = false;
       if (controllerRef.current === controller) controllerRef.current = null;
     }
   }
@@ -228,9 +233,11 @@ export function HomeComposer() {
   }
 
   async function retryIntent(): Promise<void> {
-    if (draft === null || draft.status !== "retry_required" || pending) return;
+    if (draft === null || draft.status !== "retry_required" || pending || submittingRef.current)
+      return;
     const controller = new AbortController();
     controllerRef.current = controller;
+    submittingRef.current = true;
     setState("confirming_submission");
     setError(null);
 
@@ -272,6 +279,7 @@ export function HomeComposer() {
           : errorMessage("unknown"),
       );
     } finally {
+      submittingRef.current = false;
       if (controllerRef.current === controller) controllerRef.current = null;
     }
   }
@@ -282,11 +290,13 @@ export function HomeComposer() {
       draft.status !== "awaiting_confirmation" ||
       selectedMode === null ||
       !titleWithinBudget(title) ||
-      pending
+      pending ||
+      submittingRef.current
     )
       return;
     const controller = new AbortController();
     controllerRef.current = controller;
+    submittingRef.current = true;
     setState("confirming_submission");
     setError(null);
 
@@ -324,6 +334,7 @@ export function HomeComposer() {
           : errorMessage("unknown"),
       );
     } finally {
+      submittingRef.current = false;
       if (controllerRef.current === controller) controllerRef.current = null;
     }
   }

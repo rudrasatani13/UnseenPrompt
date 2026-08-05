@@ -23,6 +23,7 @@ Operational procedures for UnseenPrompt Workers. Do **not** put real account IDs
 | `OPENAI_API_KEY`               | Cloudflare Worker secret, staging only | Model operator | Rotate in Cloudflare; never place in GitHub or logs        |
 | `GEMINI_API_KEY`               | Cloudflare Worker secret, staging only | Model operator | Rotate in Cloudflare; never place in GitHub or logs        |
 | `OPENCODE_API_KEY`             | Cloudflare Worker secret, staging only | Model operator | Rotate in Cloudflare; never place in GitHub or logs        |
+| `SUPABASE_SECRET_KEY`          | Cloudflare Worker secret, staging only | Platform       | Service-role key for generation RPCs; rotate in Cloudflare |
 
 Generate a local token for Wrangler:
 
@@ -36,6 +37,7 @@ pnpm exec wrangler secret put ANTHROPIC_API_KEY --env staging
 pnpm exec wrangler secret put OPENAI_API_KEY --env staging
 pnpm exec wrangler secret put GEMINI_API_KEY --env staging
 pnpm exec wrangler secret put OPENCODE_API_KEY --env staging
+pnpm exec wrangler secret put SUPABASE_SECRET_KEY --env staging
 ```
 
 ## Local commands
@@ -62,8 +64,8 @@ Automatic after **Continuous Integration succeeds** for a push to `main` (`workf
 2. Require all staging Supabase secrets (fail closed if any are missing)
 3. Require and validate all protected GitHub `staging` model route variables (fail closed)
 4. Query the staging Worker secret-name list and require `HEALTHCHECK_TOKEN`,
-   `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, and `OPENCODE_API_KEY` (names only;
-   fail closed)
+   `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, `OPENCODE_API_KEY`, and
+   `SUPABASE_SECRET_KEY` (names only; fail closed)
 5. Staging database dry-run + apply pending migrations (`supabase db push`)
 6. `pnpm cf:build`
 7. `wrangler deploy --env staging` with `RELEASE_SHA`, Supabase, and validated `MODEL_*` values
