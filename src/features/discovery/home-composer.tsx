@@ -324,6 +324,11 @@ export function HomeComposer() {
       });
       if (!response.ok) throw await responseError(response);
       const promotion = parseResponse(promotionResponseSchema, await response.json());
+      // Clear the draft immediately so a second click cannot re-submit confirm_and_promote
+      // against an already-promoted draft (which would surface as a 409 invalid_draft_state).
+      setDraft(null);
+      setSelectedMode(null);
+      setState("confirming");
       router.push(`/projects/${promotion.projectId}/discovery`);
     } catch (caught) {
       if (caught instanceof DOMException && caught.name === "AbortError") return;
