@@ -1,4 +1,4 @@
-import { ChartNoAxesColumn, Folder, Plus, UserRound, type LucideIcon } from "lucide-react";
+import { BookOpen, Plus, Search, UserRound, type LucideIcon } from "lucide-react";
 
 export type ShellNavigationItem =
   | {
@@ -27,16 +27,32 @@ export type ShellNavigationItem =
 export const productNavigation = [
   {
     id: "new-project",
-    label: "New Project",
+    label: "New Prompt",
     icon: Plus,
     availability: "available",
     href: "/",
     active: true,
   },
   {
-    id: "projects",
-    label: "Projects",
-    icon: Folder,
+    id: "library",
+    label: "Library",
+    icon: BookOpen,
+    availability: "soon",
+    href: null,
+    active: false,
+  },
+  {
+    id: "memories",
+    label: "Memories",
+    icon: BookOpen,
+    availability: "soon",
+    href: null,
+    active: false,
+  },
+  {
+    id: "search",
+    label: "Search",
+    icon: Search,
     availability: "soon",
     href: null,
     active: false,
@@ -47,14 +63,6 @@ export const productNavigation = [
     icon: UserRound,
     availability: "available",
     href: "/profile",
-    active: false,
-  },
-  {
-    id: "usage",
-    label: "Usage",
-    icon: ChartNoAxesColumn,
-    availability: "soon",
-    href: null,
     active: false,
   },
 ] as const satisfies readonly ShellNavigationItem[];
