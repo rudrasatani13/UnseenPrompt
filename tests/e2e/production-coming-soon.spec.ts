@@ -83,7 +83,7 @@ test.describe("production coming soon @production", () => {
     await expect(page.getByLabel("Email address")).toBeVisible();
     await expect(page.getByRole("button", { name: "Tell me when I can try it" })).toBeVisible();
     await expect(page.getByRole("navigation")).toHaveCount(0);
-    await expect(page.getByRole("link", { name: "New Project" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "New Prompt" })).toHaveCount(0);
     await assertNoSeriousAxeViolations(page);
   });
 

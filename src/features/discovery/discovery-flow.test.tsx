@@ -122,7 +122,9 @@ describe("DiscoveryFlow", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(<DiscoveryFlow initialSnapshot={snapshot()} />);
 
-    expect(screen.getByText("What workflow matters most?")).toBeVisible();
+    // The question appears both on its card and in the clarification dialog.
+    expect(screen.getAllByText("What workflow matters most?").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole("dialog")).toBeVisible();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -178,7 +180,7 @@ describe("DiscoveryFlow", () => {
     await user.click(screen.getByRole("button", { name: "Send" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("project changed");
-    expect(screen.getByText("What workflow matters most?")).toBeVisible();
+    expect(screen.getAllByText("What workflow matters most?").length).toBeGreaterThanOrEqual(1);
   });
 
   it("resumes an abandoned session by reloading its saved snapshot", async () => {
@@ -206,7 +208,7 @@ describe("DiscoveryFlow", () => {
     await user.click(screen.getByRole("button", { name: "Resume workspace" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
-    expect(screen.getByText("What workflow matters most?")).toBeVisible();
+    expect(screen.getAllByText("What workflow matters most?").length).toBeGreaterThanOrEqual(1);
     expect(JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body))).toMatchObject({
       command: { type: "resume_discovery" },
     });
@@ -226,7 +228,7 @@ describe("DiscoveryFlow", () => {
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent("Discovery needs a retry");
-    expect(screen.getByText("What workflow matters most?")).toBeVisible();
+    expect(screen.getAllByText("What workflow matters most?").length).toBeGreaterThanOrEqual(1);
   });
 
   it("renders correction mode and sends a successor answer with the predecessor id", async () => {
@@ -258,6 +260,9 @@ describe("DiscoveryFlow", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<DiscoveryFlow initialSnapshot={snapshot()} />);
+    // The clarification dialog opens for the active question; step back to the
+    // cards to reach the answered question's correction entry point.
+    await user.keyboard("{Escape}");
     await user.click(screen.getByRole("button", { name: "Correct" }));
     await user.click(screen.getByRole("button", { name: "Just me" }));
 

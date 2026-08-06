@@ -42,7 +42,7 @@ test.describe("visual regression", () => {
     await waitForProductReady(page);
     await page.getByRole("button", { name: "Open navigation" }).click();
     await expect(page.getByRole("dialog")).toBeVisible();
-    await expect(page.getByRole("dialog").getByText("New Project")).toBeVisible();
+    await expect(page.getByRole("dialog").getByText("New Prompt")).toBeVisible();
     await page.evaluate(() => document.fonts.ready);
     await expect(page).toHaveScreenshot("mobile-nav-sheet.png");
   });

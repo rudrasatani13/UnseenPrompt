@@ -5,6 +5,7 @@ import { useState, type ReactNode } from "react";
 import { BrandLockup } from "@/components/brand/brand-lockup";
 import type { ShellNavigationItem } from "@/components/shell/navigation";
 import { ShellNavigation } from "@/components/shell/shell-navigation";
+import { ShellRecent } from "@/components/shell/shell-recent";
 import { Menu } from "@/components/ui/icons/menu";
 import { PanelLeftClose } from "@/components/ui/icons/panel-left-close";
 import {
@@ -46,6 +47,7 @@ export function ApplicationShell({ navigation, children }: ApplicationShellProps
         </div>
         <div className="flex-1 overflow-y-auto px-3 py-4">
           <ShellNavigation navigation={navigation} id="desktop-shell-navigation" />
+          <ShellRecent />
         </div>
       </aside>
 
@@ -87,6 +89,7 @@ export function ApplicationShell({ navigation, children }: ApplicationShellProps
                   setMobileOpen(false);
                 }}
               />
+              <ShellRecent />
             </div>
           </SheetContent>
         </Sheet>

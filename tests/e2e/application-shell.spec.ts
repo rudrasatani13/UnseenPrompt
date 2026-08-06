@@ -43,11 +43,14 @@ test.describe("application shell", () => {
       ? page.locator("#desktop-shell-navigation")
       : page.getByRole("dialog").locator("#mobile-shell-navigation");
 
-    for (const label of ["Projects", "Usage"]) {
+    for (const label of ["Library", "Memories", "Search"]) {
       const soon = navigation.getByText(label, { exact: true });
       await expect(soon).toBeVisible();
       await expect(soon.locator("xpath=ancestor::a")).toHaveCount(0);
     }
+
+    // The structural RECENT section renders its empty state in both shells.
+    await expect(page.getByText("Prompts you start will appear here.")).toBeVisible();
 
     await expect(navigation.getByRole("link", { name: "Profile" })).toHaveAttribute(
       "href",
@@ -69,7 +72,7 @@ test.describe("application shell", () => {
 
     const dialog = page.getByRole("dialog");
     await expect(dialog).toBeVisible();
-    await expect(dialog).toContainText("New Project");
+    await expect(dialog).toContainText("New Prompt");
 
     const focusInside = async (): Promise<boolean> =>
       page.evaluate(() => {
@@ -112,7 +115,7 @@ test.describe("application shell", () => {
     await expect(
       page.getByRole("heading", {
         level: 1,
-        name: "Start with the messy version.",
+        name: "Turn lazy prompts into great ones",
       }),
     ).toBeVisible();
 

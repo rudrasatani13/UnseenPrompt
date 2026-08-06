@@ -97,6 +97,16 @@ describe("ApplicationShell", () => {
     expect(screen.queryByRole("navigation", { name: /bottom/i })).not.toBeInTheDocument();
   });
 
+  it("shows the structural RECENT section with its empty state", () => {
+    renderShell();
+
+    const sections = screen.getAllByRole("region", { name: "Recent prompts" });
+    expect(sections.length).toBeGreaterThanOrEqual(1);
+    expect(
+      screen.getAllByText("Prompts you start will appear here.").length,
+    ).toBeGreaterThanOrEqual(1);
+  });
+
   it("keeps Soon entries non-interactive", () => {
     renderShell();
 

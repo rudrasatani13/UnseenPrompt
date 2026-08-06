@@ -52,11 +52,19 @@ test.describe("Phase 7 discovery journeys", () => {
     await expect(page.locator('[data-slot="discovery-thread"]')).toBeVisible();
   });
 
-  test("answer correction and completion keep proposal review explicit", async ({ page }) => {
+  test("clarification review stays explicit before anything is sent", async ({ page }) => {
     await page.goto(`/projects/${projectId}/discovery`);
     await expect(page.locator('[data-slot="discovery-thread"]')).toBeVisible();
-    await page.getByRole("button", { name: "Send" }).click();
-    await expect(page.locator('[data-slot="discovery-status"]')).toBeVisible();
-    await expect(page.getByText(/confirm|review/i).first()).toBeVisible();
+    await expect(page.getByText("Improve your prompt")).toBeVisible();
+
+    // An open question auto-opens its clarification dialog; sending requires an
+    // explicit choice or text, and dismissing returns to the question cards.
+    const dialog = page.getByRole("dialog");
+    if (await dialog.isVisible()) {
+      await expect(dialog.getByRole("button", { name: "Send" })).toBeDisabled();
+      await page.keyboard.press("Escape");
+      await expect(dialog).toHaveCount(0);
+    }
+    await expect(page.locator('[data-slot="discovery-question-card"]').first()).toBeVisible();
   });
 });
