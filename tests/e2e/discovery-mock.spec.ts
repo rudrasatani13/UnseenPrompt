@@ -69,6 +69,7 @@ test("resume renders the saved question and never sends advance_discovery", asyn
 
   await expect.poll(() => commandTypes).toEqual(["resume_discovery"]);
   await expect(page.locator('[data-slot="discovery-thread"]')).toBeVisible();
-  await expect(page.getByText(activeSnapshot.activeQuestion.questionText)).toBeVisible();
+  // The question text appears both on its card and in the clarification dialog.
+  await expect(page.getByText(activeSnapshot.activeQuestion.questionText).first()).toBeVisible();
   expect(commandTypes.filter((type) => type === "advance_discovery")).toHaveLength(0);
 });

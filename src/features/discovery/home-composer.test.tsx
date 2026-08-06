@@ -57,10 +57,10 @@ describe("HomeComposer", () => {
     );
     const { container } = render(<HomeComposer />);
 
-    const input = screen.getByRole("textbox", { name: "Your starting point" });
+    const input = screen.getByRole("textbox", { name: "What do you want to work on?" });
     await user.type(input, "Build a multilingual नोट्स app.");
-    expect(screen.getByRole("button", { name: "Add an attachment" })).toBeDisabled();
-    await user.click(screen.getByRole("button", { name: "Suggest a route" }));
+    expect(screen.getByRole("button", { name: "Attach files (coming later)" })).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(
       await screen.findByRole("heading", { name: "Does this look like the right kind of work?" }),
@@ -105,8 +105,11 @@ describe("HomeComposer", () => {
     render(<HomeComposer />);
 
     const originalText = "Keep this private while the model retries.";
-    await user.type(screen.getByRole("textbox", { name: "Your starting point" }), originalText);
-    await user.click(screen.getByRole("button", { name: "Suggest a route" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "What do you want to work on?" }),
+      originalText,
+    );
+    await user.click(screen.getByRole("button", { name: "Continue" }));
     expect(
       await screen.findByRole("heading", { name: /route check needs another attempt/i }),
     ).toBeVisible();
@@ -141,8 +144,11 @@ describe("HomeComposer", () => {
     );
     render(<HomeComposer />);
 
-    await user.type(screen.getByRole("textbox", { name: "Your starting point" }), "A request");
-    await user.click(screen.getByRole("button", { name: "Suggest a route" }));
+    await user.type(
+      screen.getByRole("textbox", { name: "What do you want to work on?" }),
+      "A request",
+    );
+    await user.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("We could not check that request.");
     expect(screen.queryByText("provider secret should not be shown")).not.toBeInTheDocument();

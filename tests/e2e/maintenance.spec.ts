@@ -12,9 +12,9 @@ test.describe("maintenance mode @maintenance", () => {
     await expect(
       page.getByRole("heading", { name: "UnseenPrompt is temporarily unavailable" }),
     ).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Start with the messy version." })).toHaveCount(
-      0,
-    );
+    await expect(
+      page.getByRole("heading", { name: "Turn lazy prompts into great ones" }),
+    ).toHaveCount(0);
     await expect(page.locator('[data-slot="app-loading"]')).toHaveCount(0);
 
     const health = await request.get("/api/health");

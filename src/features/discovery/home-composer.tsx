@@ -1,15 +1,13 @@
 "use client";
 
-import { Paperclip, PencilLine, RotateCcw, Send, X } from "lucide-react";
+import { ArrowUp, LoaderCircle, Paperclip, PencilLine, RotateCcw, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { FormField } from "@/components/ui/form-field";
-import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import {
   COMPOSER_DRAFT_COMMAND_SCHEMA,
   COMPOSER_DRAFT_INPUT_SCHEMA,
@@ -141,11 +139,27 @@ function titleWithinBudget(value: string): boolean {
   return value.trim().length > 0 && utf8ByteLength(value) <= 240;
 }
 
+export interface ComposerPrefill {
+  /** Monotonic token so the same template can be applied twice in a row. */
+  readonly token: number;
+  readonly value: string;
+}
+
+export interface HomeComposerProps {
+  readonly prefill?: ComposerPrefill | null;
+  /**
+   * Reports whether the composer is still showing its home form. The home
+   * surface uses this to step the hero and Discover sections aside once the
+   * confirmation flow takes over.
+   */
+  readonly onHomeStateChange?: (inHomeView: boolean) => void;
+}
+
 /**
  * Authenticated Home Composer. It owns only browser state and direct API calls; provider and
  * persistence adapters stay server-side behind the authenticated routes.
  */
-export function HomeComposer() {
+export function HomeComposer({ prefill = null, onHomeStateChange }: HomeComposerProps = {}) {
   const router = useRouter();
   const [requestText, setRequestText] = useState("");
   const [state, setState] = useState<ComposerState>("composing");
@@ -156,26 +170,32 @@ export function HomeComposer() {
   const [promotedProjectId, setPromotedProjectId] = useState<string | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
   const submittingRef = useRef(false);
+  const [lastPrefillToken, setLastPrefillToken] = useState<number | null>(null);
 
   useEffect(() => {
     return () => controllerRef.current?.abort();
   }, []);
 
+  // Apply Discover prefills while rendering so the textarea updates in the
+  // same pass as the new token instead of a follow-up effect render.
+  if (prefill !== null && prefill.token !== lastPrefillToken) {
+    setLastPrefillToken(prefill.token);
+    setRequestText(prefill.value);
+  }
+
   const pending = state === "submitting" || state === "confirming_submission";
   const requestBytes = utf8ByteLength(requestText);
   const requestError =
-    requestText.trim().length === 0
-      ? "Tell us what you want to work on."
-      : requestBytes > MAX_INITIAL_REQUEST_UTF8_BYTES
-        ? `Use at most ${MAX_INITIAL_REQUEST_UTF8_BYTES} bytes.`
-        : undefined;
+    requestText.trim().length === 0 ? "Tell us what you want to work on." : undefined;
 
-  function cancelPending(): void {
-    controllerRef.current?.abort();
-    controllerRef.current = null;
-    submittingRef.current = false;
-    setState(draft === null ? "composing" : "confirming");
-    setError(null);
+  // The home form is only the composing view; every other state belongs to the
+  // confirmation flow. Report transitions while rendering so the parent can
+  // hide the hero in the same pass as the state that caused the change.
+  const inHomeView = draft === null && promotedProjectId === null && state === "composing";
+  const [lastReportedInHomeView, setLastReportedInHomeView] = useState<boolean | null>(null);
+  if (lastReportedInHomeView !== inHomeView) {
+    setLastReportedInHomeView(inHomeView);
+    onHomeStateChange?.(inHomeView);
   }
 
   async function sendStart(inputText: string, idempotencyKey: string): Promise<void> {
@@ -456,120 +476,111 @@ export function HomeComposer() {
   return (
     <form
       data-slot="home-composer"
-      className="grid w-full max-w-3xl gap-8"
+      className="grid w-full max-w-3xl gap-4"
       onSubmit={(event) => void submitRequest(event)}
       noValidate
       aria-busy={pending}
       aria-labelledby="home-composer-heading"
     >
-      <header className="grid gap-3">
-        <p className="text-sm font-medium tracking-wide text-brand uppercase">New project</p>
-        <h1
-          id="home-composer-heading"
-          className="text-3xl font-semibold tracking-tight text-balance text-ink md:text-5xl"
-        >
-          Start with the rough version.
-        </h1>
-        <p className="max-w-prose text-base leading-7 text-ink-muted">
-          Describe the idea, bug, feature, review, test, deploy, or improvement in the language that
-          feels natural. We will suggest a route and ask only what is still missing.
-        </p>
-      </header>
+      <h1 id="home-composer-heading" className="sr-only">
+        Start a new prompt
+      </h1>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>What do you want to work on?</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-6">
-          <FormField
-            label="Your starting point"
-            description="Keep it messy. Include the outcome you want, the current problem, or what you have already tried."
-            {...(requestError === undefined
-              ? { currentLength: requestBytes, maxLength: MAX_INITIAL_REQUEST_UTF8_BYTES }
-              : { error: requestError })}
-          >
-            {(controlProps) => (
-              <Textarea
-                {...controlProps}
-                value={requestText}
-                onChange={(event) => setRequestText(event.target.value)}
-                placeholder="I want to…"
-                rows={7}
-                dir="auto"
-                lang="auto"
-                spellCheck
-                autoComplete="off"
-              />
-            )}
-          </FormField>
-
-          <div className="grid gap-2 rounded-md border border-subtle bg-surface-muted p-4">
-            <div className="flex flex-wrap items-center gap-2">
-              <Paperclip aria-hidden="true" size={16} />
-              <p className="text-sm font-medium text-ink">Have a file to share?</p>
-              <span className="rounded-sm border border-subtle px-2 py-0.5 text-xs font-medium text-ink-muted">
-                Coming in Phase 10
-              </span>
-            </div>
-            <p id="attachment-description" className="text-sm leading-6 text-ink-muted">
-              File intake becomes available after project setup. Nothing is uploaded from this
-              screen.
-            </p>
-            <Button
-              type="button"
-              variant="outline"
-              disabled
-              aria-describedby="attachment-description"
-              className="w-fit"
-            >
-              <Paperclip aria-hidden="true" />
-              Add an attachment
-            </Button>
-          </div>
+      <Card className="overflow-hidden rounded-2xl border-subtle shadow-sm">
+        <CardContent className="grid gap-0 p-0">
+          <label htmlFor="home-composer-input" className="sr-only">
+            What do you want to work on?
+          </label>
+          <textarea
+            id="home-composer-input"
+            value={requestText}
+            onChange={(event) => setRequestText(event.target.value)}
+            placeholder="Create a resume that lands me a job as a product manager…"
+            rows={5}
+            dir="auto"
+            lang="auto"
+            spellCheck
+            autoComplete="off"
+            className="w-full resize-y rounded-2xl bg-transparent px-4 py-4 text-base leading-7 text-ink outline-none placeholder:text-ink-muted"
+          />
 
           {error === null ? null : (
-            <Alert variant="destructive">
-              <AlertTitle>We could not check that request.</AlertTitle>
-              <AlertDescription>
-                <p>{error}</p>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => void sendStart(requestText, createIdempotencyKey())}
-                    disabled={pending || requestError !== undefined}
-                  >
-                    <RotateCcw aria-hidden="true" />
-                    Try again
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    onClick={() => setError(null)}
-                    disabled={pending}
-                  >
-                    <X aria-hidden="true" />
-                    Dismiss
-                  </Button>
-                </div>
-              </AlertDescription>
-            </Alert>
+            <div className="px-4 pb-4">
+              <Alert variant="destructive">
+                <AlertTitle>We could not check that request.</AlertTitle>
+                <AlertDescription>
+                  <p>{error}</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => void sendStart(requestText, createIdempotencyKey())}
+                      disabled={pending || requestError !== undefined}
+                    >
+                      <RotateCcw aria-hidden="true" />
+                      Try again
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => setError(null)}
+                      disabled={pending}
+                    >
+                      <X aria-hidden="true" />
+                      Dismiss
+                    </Button>
+                  </div>
+                </AlertDescription>
+              </Alert>
+            </div>
           )}
         </CardContent>
-        <CardFooter className="border-t border-subtle">
-          <Button type="submit" disabled={pending || requestError !== undefined}>
-            {pending ? "Checking your request…" : "Suggest a route"}
-            {pending ? null : <Send aria-hidden="true" />}
-          </Button>
-          {pending ? (
-            <Button type="button" variant="ghost" onClick={cancelPending}>
-              Cancel
-            </Button>
-          ) : null}
+        <CardFooter className="flex-wrap items-center justify-between gap-3 border-t border-subtle px-4 py-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              disabled
+              aria-label="Attach files (coming later)"
+              className="inline-flex size-9 items-center justify-center rounded-full border border-subtle text-ink-muted"
+            >
+              <Paperclip aria-hidden="true" size={16} />
+            </button>
+            <button
+              type="button"
+              disabled
+              className="rounded-full border border-subtle px-3 py-1.5 text-xs font-medium text-ink-muted"
+            >
+              Prompt type: Auto
+            </button>
+            <button
+              type="button"
+              disabled
+              className="rounded-full border border-subtle px-3 py-1.5 text-xs font-medium text-ink-muted"
+            >
+              Basic model
+            </button>
+          </div>
+          <div className="flex items-center gap-3">
+            <span aria-hidden="true" className="text-xs text-ink-muted tabular-nums">
+              {requestBytes} / {MAX_INITIAL_REQUEST_UTF8_BYTES} bytes
+            </span>
+            <button
+              type="submit"
+              disabled={pending || requestError !== undefined}
+              className="inline-flex size-10 items-center justify-center rounded-full bg-brand text-surface outline-none transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-40"
+            >
+              <span className="sr-only">Continue</span>
+              {pending ? (
+                <LoaderCircle aria-hidden="true" size={18} className="animate-spin" />
+              ) : (
+                <ArrowUp aria-hidden="true" size={18} />
+              )}
+            </button>
+          </div>
         </CardFooter>
       </Card>
 
-      <p className="text-xs leading-5 text-ink-muted">
+      <p className="text-center text-xs leading-5 text-ink-muted">
         You stay in control: a suggested route never creates a project until you confirm it.
       </p>
     </form>

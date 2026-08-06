@@ -167,7 +167,7 @@ test.describe("accessibility", () => {
 
     if (isDesktop) {
       const newProject = page.locator("#desktop-shell-navigation").getByRole("link", {
-        name: "New Project",
+        name: "New Prompt",
       });
       await newProject.focus();
       await expect(newProject).toBeFocused();

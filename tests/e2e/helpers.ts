@@ -1,6 +1,6 @@
 import { expect, type Page } from "@playwright/test";
 
-const PRODUCT_HEADING = "Start with the messy version.";
+const PRODUCT_HEADING = "Turn lazy prompts into great ones";
 const COMING_SOON_HEADING = "Bring the half-finished thing.";
 const SIGN_IN_HEADING = "Sign in";
 
@@ -53,7 +53,7 @@ export async function waitForComingSoonReady(page: Page): Promise<void> {
       name: COMING_SOON_HEADING,
     }),
   ).toBeVisible();
-  await expect(page.getByRole("link", { name: "New Project" })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "New Prompt" })).toHaveCount(0);
   await expect(page.locator('[data-slot="app-loading"]')).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "Something went wrong" })).toHaveCount(0);
   await expect(page.locator("nextjs-portal")).toHaveCount(0);

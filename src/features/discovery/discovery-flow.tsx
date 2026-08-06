@@ -18,7 +18,7 @@ import {
   discoverySnapshotSchema,
 } from "@/domain/discovery/schemas";
 
-import { DiscoveryChat } from "./discovery-chat";
+import { DiscoveryWorkspace } from "./discovery-workspace";
 
 type FlowErrorVariant = "provider-error" | "stale";
 
@@ -448,7 +448,7 @@ export function DiscoveryFlow({ initialSnapshot }: DiscoveryFlowProps) {
 
   return (
     <>
-      <DiscoveryChat
+      <DiscoveryWorkspace
         snapshot={snapshot}
         pending={pending}
         status={workspaceStatus}
