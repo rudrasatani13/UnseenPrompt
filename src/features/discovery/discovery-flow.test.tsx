@@ -122,9 +122,9 @@ describe("DiscoveryFlow", () => {
     vi.stubGlobal("fetch", fetchMock);
     render(<DiscoveryFlow initialSnapshot={snapshot()} />);
 
-    // The question appears both on its card and in the clarification dialog.
+    // The question appears inline in the thread with its answer controls.
     expect(screen.getAllByText("What workflow matters most?").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByRole("dialog")).toBeVisible();
+    expect(screen.getByLabelText("Your answer")).toBeVisible();
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
@@ -260,9 +260,8 @@ describe("DiscoveryFlow", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<DiscoveryFlow initialSnapshot={snapshot()} />);
-    // The clarification dialog opens for the active question; step back to the
-    // cards to reach the answered question's correction entry point.
-    await user.keyboard("{Escape}");
+    // Answers sit inline in the thread; step to the answered question's
+    // correction entry point and revise it.
     await user.click(screen.getByRole("button", { name: "Correct" }));
     await user.click(screen.getByRole("button", { name: "Just me" }));
 

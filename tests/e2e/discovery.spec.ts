@@ -52,18 +52,19 @@ test.describe("Phase 7 discovery journeys", () => {
     await expect(page.locator('[data-slot="discovery-thread"]')).toBeVisible();
   });
 
-  test("clarification review stays explicit before anything is sent", async ({ page }) => {
+  test("clarification stays inline in the thread before anything is sent", async ({ page }) => {
     await page.goto(`/projects/${projectId}/discovery`);
     await expect(page.locator('[data-slot="discovery-thread"]')).toBeVisible();
-    await expect(page.getByText("Improve your prompt")).toBeVisible();
+    await expect(page.locator('[data-slot="discovery-progress"]')).toBeVisible();
 
-    // An open question auto-opens its clarification dialog; sending requires an
-    // explicit choice or text, and dismissing returns to the question cards.
-    const dialog = page.getByRole("dialog");
-    if (await dialog.isVisible()) {
-      await expect(dialog.getByRole("button", { name: "Send" })).toBeDisabled();
-      await page.keyboard.press("Escape");
-      await expect(dialog).toHaveCount(0);
+    // The open question answers inline: a suggestion chip or explicit text is
+    // required before the send control becomes usable.
+    const activeInput = page.getByLabel("Your answer");
+    if (await activeInput.isVisible()) {
+      await expect(page.getByRole("button", { name: "Send" })).toBeDisabled();
+      await activeInput.fill("A concrete answer");
+      await expect(page.getByRole("button", { name: "Send" })).toBeEnabled();
+      await page.getByRole("button", { name: "Send" }).click();
     }
     await expect(page.locator('[data-slot="discovery-question-card"]').first()).toBeVisible();
   });

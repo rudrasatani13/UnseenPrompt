@@ -1,18 +1,19 @@
 "use client";
 
-import { ArrowRight, Check, CircleCheck, LoaderCircle, Lock, PencilLine, Send } from "lucide-react";
+import {
+  ArrowRight,
+  ArrowUp,
+  Check,
+  CircleCheck,
+  LoaderCircle,
+  Lock,
+  PencilLine,
+  Sparkles,
+} from "lucide-react";
 import { type FormEvent, useState } from "react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { cn } from "@/components/ui/utils";
 import type {
   DiscoveryAnswerSource,
@@ -100,15 +101,15 @@ function priorityBadge(question: DiscoveryQuestionV1, answered: boolean) {
     );
   }
   if (question.position <= 2) {
-    return <Badge variant="danger">Critical</Badge>;
+    return <Badge variant="default">Critical</Badge>;
   }
-  return <Badge variant="warning">High priority</Badge>;
+  return <Badge variant="outline">High priority</Badge>;
 }
 
 /**
- * Reference-layout project workspace: Inputs column with the lazy prompt and
- * prioritized question cards, a Context panel with everything captured so far,
- * and a clarification dialog for the active question.
+ * Agent-style conversation thread: one column, one turn after another. Your
+ * request opens the thread, every question is a message with its priority, and
+ * answers land inline with a tick instead of in a modal or side panel.
  */
 export function DiscoveryWorkspace({
   snapshot,
@@ -123,22 +124,22 @@ export function DiscoveryWorkspace({
   completedPath,
 }: DiscoveryWorkspaceProps) {
   const [draft, setDraft] = useState("");
-  const [dismissedQuestionId, setDismissedQuestionId] = useState<string | null>(null);
+  const [lastSyncKey, setLastSyncKey] = useState<string | undefined>(undefined);
 
   const isEditing = editingQuestionId !== null;
   const editingQuestion = isEditing ? questionFor(snapshot, editingQuestionId) : null;
   const activeQuestion = editingQuestion ?? snapshot.activeQuestion;
   const activeQuestionId = activeQuestion?.id ?? null;
-
   const isPaused = snapshot.session.status === "abandoned";
   const isBlocked = snapshot.session.status === "blocked";
   const isComplete = completedPath !== null || snapshot.session.status === "completed";
+  const canAnswer = !pending && !isPaused && !isBlocked && !isComplete;
 
   const visibleQuestions = snapshot.confirmedQuestions.filter(
     (question) => question.status !== "superseded",
   );
   // The active question is normally part of the confirmed list; merge it in if a
-  // snapshot arrives before it was appended so its card is always visible.
+  // snapshot arrives before it was appended so its message is always visible.
   const activeIsListed =
     snapshot.activeQuestion !== null &&
     visibleQuestions.some((question) => question.id === snapshot.activeQuestion?.id);
@@ -149,22 +150,13 @@ export function DiscoveryWorkspace({
   const answeredCount = listedQuestions.filter(
     (question) => currentAnswerFor(snapshot, question.id) !== null,
   ).length;
+  const totalCount = listedQuestions.length;
 
-  const dialogOpen =
-    status === null &&
-    !isComplete &&
-    !isPaused &&
-    !isBlocked &&
-    activeQuestion !== null &&
-    dismissedQuestionId !== activeQuestionId;
-
-  // Resync the dialog draft (and dismissal) while rendering whenever the
-  // dialog's question changes, including entering correction mode.
+  // Resync the inline draft whenever the question being answered changes,
+  // including entering and leaving correction mode.
   const syncKey = `${editingQuestionId ?? ""}:${activeQuestionId ?? ""}`;
-  const [lastSyncKey, setLastSyncKey] = useState<string | undefined>(undefined);
   if (lastSyncKey !== syncKey) {
     setLastSyncKey(syncKey);
-    setDismissedQuestionId(null);
     const editingAnswer =
       editingQuestionId === null ? null : currentAnswerFor(snapshot, editingQuestionId);
     setDraft(editingAnswer === null ? "" : editingAnswer.answerText);
@@ -173,17 +165,8 @@ export function DiscoveryWorkspace({
   const draftBytes = utf8ByteLength(draft);
   const draftTooLong = draftBytes > MAX_DISCOVERY_ANSWER_UTF8_BYTES;
 
-  function closeDialog(): void {
-    if (pending) return;
-    if (isEditing) {
-      onCancelEdit();
-      return;
-    }
-    if (activeQuestionId !== null) setDismissedQuestionId(activeQuestionId);
-  }
-
   function pickSuggestion(value: string): void {
-    if (pending) return;
+    if (!canAnswer) return;
     setDraft("");
     onAnswerSubmit(value, "suggested");
   }
@@ -204,12 +187,11 @@ export function DiscoveryWorkspace({
   }
 
   const title = workspaceTitle(snapshot.initialRequestText);
-  const latestAssessment = snapshot.assessments.at(-1) ?? null;
 
   return (
     <section
       data-slot="discovery-workspace"
-      className="mx-auto grid w-full gap-6"
+      className="mx-auto grid w-full max-w-3xl gap-6"
       aria-busy={pending}
     >
       <header className="grid gap-3">
@@ -253,33 +235,35 @@ export function DiscoveryWorkspace({
         </div>
 
         <div
-          role="tablist"
-          aria-label="Project views"
-          className="flex gap-1 border-b border-subtle"
+          data-slot="discovery-progress"
+          className="flex flex-wrap items-center gap-3 border-b border-subtle pb-3"
         >
-          <button
-            type="button"
-            role="tab"
-            aria-selected="true"
-            className="-mb-px rounded-t-md border-b-2 border-brand px-3 py-2.5 text-sm font-medium text-ink"
+          <div
+            role="group"
+            aria-label={`${answeredCount} of ${totalCount} questions answered`}
+            className="flex items-center gap-1.5"
           >
-            Inputs
-          </button>
-          {["Versions", "Settings"].map((label) => (
-            <button
-              key={label}
-              type="button"
-              role="tab"
-              aria-selected="false"
-              disabled
-              className="-mb-px flex cursor-default items-center gap-2 rounded-t-md border-b-2 border-transparent px-3 py-2.5 text-sm font-medium text-ink-muted"
-            >
-              {label}
-              <span className="rounded-sm border border-subtle px-1.5 py-0.5 text-[10px] font-medium">
-                Soon
-              </span>
-            </button>
-          ))}
+            {listedQuestions.map((question) => {
+              const answered = currentAnswerFor(snapshot, question.id) !== null;
+              const isCurrent = activeQuestionId === question.id && !answered;
+              return (
+                <span
+                  key={question.id}
+                  aria-hidden="true"
+                  title={question.questionText}
+                  className={cn(
+                    "size-2.5 rounded-[3px] transition-colors",
+                    answered && "bg-ink",
+                    isCurrent && "border border-ink bg-surface",
+                    !answered && !isCurrent && "border border-subtle bg-surface",
+                  )}
+                />
+              );
+            })}
+          </div>
+          <p className="text-xs font-medium text-ink-muted tabular-nums">
+            {answeredCount}/{totalCount} answered
+          </p>
         </div>
       </header>
 
@@ -295,241 +279,190 @@ export function DiscoveryWorkspace({
         />
       )}
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,7fr)_minmax(0,5fr)]">
-        <div data-slot="discovery-thread" className="grid gap-4">
-          <div className="rounded-lg border border-subtle bg-surface p-4">
-            <p className="text-xs font-semibold tracking-wider text-ink-muted uppercase">
-              Lazy prompt
-            </p>
-            <p className="mt-2 text-sm leading-6 whitespace-pre-wrap text-ink">
-              {snapshot.initialRequestText}
-            </p>
+      <div data-slot="discovery-thread" className="grid gap-5" aria-label="Discovery conversation">
+        <div className="grid justify-items-end gap-1.5">
+          <span className="text-[10px] font-semibold tracking-widest text-ink-muted uppercase">
+            You
+          </span>
+          <div className="max-w-[85%] rounded-xl rounded-br-sm bg-ink px-3.5 py-2.5 text-sm leading-6 whitespace-pre-wrap text-surface">
+            {snapshot.initialRequestText}
           </div>
-
-          <div className="grid gap-3">
-            <h2 className="text-sm font-semibold text-ink">
-              Improve your prompt ({answeredCount}/{listedQuestions.length})
-            </h2>
-
-            {listedQuestions.map((question) => {
-              const answer = currentAnswerFor(snapshot, question.id);
-              const isActive = snapshot.activeQuestion?.id === question.id;
-              const isEditingThis = editingQuestionId === question.id;
-
-              return (
-                <article
-                  key={question.id}
-                  data-slot="discovery-question-card"
-                  className={cn(
-                    "grid gap-2 rounded-lg border bg-surface p-4",
-                    isActive || isEditingThis ? "border-brand" : "border-subtle",
-                  )}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <h3 className="text-sm font-semibold text-ink">{question.questionText}</h3>
-                    {priorityBadge(question, answer !== null)}
-                  </div>
-                  <p className="text-sm leading-6 text-ink-muted">{question.rationale}</p>
-
-                  {answer !== null ? (
-                    <div className="flex flex-wrap items-center justify-between gap-2 rounded-md bg-surface-muted px-3 py-2">
-                      <p className="text-sm text-ink">{answerLabel(answer.answerText)}</p>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        disabled={pending || isPaused || isBlocked || isComplete}
-                        onClick={() => onEditAnswer(question.id)}
-                      >
-                        <PencilLine aria-hidden="true" /> Correct
-                      </Button>
-                    </div>
-                  ) : isActive ? (
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      className="w-fit"
-                      disabled={pending}
-                      onClick={() => setDismissedQuestionId(null)}
-                    >
-                      Answer this question <ArrowRight aria-hidden="true" />
-                    </Button>
-                  ) : (
-                    <p className="text-xs font-medium text-ink-muted">Up next</p>
-                  )}
-                </article>
-              );
-            })}
-          </div>
-
-          {isComplete ? (
-            <div className="rounded-lg border border-success-border bg-success-surface p-4">
-              <p className="flex items-center gap-2 text-sm font-medium text-ink">
-                <Check aria-hidden="true" className="size-4 text-success" />
-                Your project brief is ready.
-              </p>
-              <Button type="button" className="mt-3" onClick={onOpenBrief}>
-                Open project brief <ArrowRight aria-hidden="true" />
-              </Button>
-            </div>
-          ) : isPaused ? (
-            <p className="text-sm leading-6 text-ink-muted">
-              This conversation is paused. Resume when you are ready.
-            </p>
-          ) : isBlocked ? (
-            <p className="text-sm leading-6 text-ink-muted">
-              This project hit its setup limit. You can pause and continue later.
-            </p>
-          ) : activeQuestion === null ? (
-            <form
-              className="grid gap-2 rounded-lg border border-subtle bg-surface p-4"
-              onSubmit={submitExtra}
-            >
-              <p className="text-sm leading-6 text-ink">
-                Anything else you want to add? Send a message to keep shaping this.
-              </p>
-              <div className="flex items-end gap-2">
-                <label className="sr-only" htmlFor="discovery-extra-input">
-                  Send a message
-                </label>
-                <textarea
-                  id="discovery-extra-input"
-                  className="min-h-11 flex-1 resize-none rounded-md border border-subtle bg-surface px-3 py-2.5 text-sm leading-6 text-ink outline-none placeholder:text-ink-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-                  placeholder="Anything else? Send to continue…"
-                  rows={1}
-                  autoComplete="off"
-                  dir="auto"
-                  disabled={pending}
-                />
-                <Button type="submit" size="icon" disabled={pending} aria-label="Send">
-                  <Send aria-hidden="true" />
-                </Button>
-              </div>
-            </form>
-          ) : null}
         </div>
 
-        <aside
-          data-slot="discovery-context"
-          aria-label="Captured context"
-          className="grid gap-4 rounded-lg border border-subtle bg-surface p-4"
-        >
-          <h2 className="text-sm font-semibold text-ink">Context</h2>
+        {listedQuestions.map((question) => {
+          const answer = currentAnswerFor(snapshot, question.id);
+          const isActive = activeQuestionId === question.id;
+          const isEditingThis = editingQuestionId === question.id;
+          const answered = answer !== null;
 
-          <div className="grid gap-1">
-            <p className="text-xs font-semibold tracking-wider text-ink-muted uppercase">
-              Your request
-            </p>
-            <p className="text-sm leading-6 whitespace-pre-wrap text-ink">
-              {snapshot.initialRequestText}
-            </p>
-          </div>
-
-          {listedQuestions.map((question) => {
-            const answer = currentAnswerFor(snapshot, question.id);
-            if (answer === null) return null;
-            return (
-              <div key={question.id} className="grid gap-1 border-t border-subtle pt-3">
-                <p className="text-xs font-semibold tracking-wider text-ink-muted uppercase">
-                  {question.questionText}
-                </p>
-                <p className="text-sm leading-6 text-ink">{answerLabel(answer.answerText)}</p>
-              </div>
-            );
-          })}
-
-          {latestAssessment === null ? null : (
-            <div className="grid gap-1 border-t border-subtle pt-3">
-              <p className="text-xs font-semibold tracking-wider text-ink-muted uppercase">
-                Latest assessment
-              </p>
-              <p className="text-sm leading-6 text-ink-muted">{latestAssessment.rationale}</p>
-            </div>
-          )}
-
-          {isComplete ? (
-            <p className="border-t border-subtle pt-3 text-sm leading-6 text-ink-muted">
-              Discovery is complete. The brief brings everything captured here together.
-            </p>
-          ) : (
-            <p className="border-t border-subtle pt-3 text-sm leading-6 text-ink-muted">
-              Answers land here as you confirm them. Nothing is shared outside this project.
-            </p>
-          )}
-        </aside>
-      </div>
-
-      <Dialog
-        open={dialogOpen}
-        onOpenChange={(open) => {
-          if (!open) closeDialog();
-        }}
-      >
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>{activeQuestion?.questionText}</DialogTitle>
-            <DialogDescription className="text-ink-muted">
-              {activeQuestion?.rationale}
-            </DialogDescription>
-          </DialogHeader>
-
-          {activeQuestion === null ? null : (
-            <form className="grid gap-4" onSubmit={submitDraft} aria-busy={pending}>
-              {activeQuestion.suggestedAnswers.length === 0 ? null : (
-                <div className="grid gap-2">
-                  {activeQuestion.suggestedAnswers.map((suggestion) => (
-                    <Button
-                      key={suggestion.value}
-                      type="button"
-                      variant="outline"
-                      disabled={pending}
-                      onClick={() => pickSuggestion(suggestion.value)}
-                      className="h-auto justify-start px-3 py-2.5 text-left text-sm leading-6 whitespace-normal"
-                    >
-                      {suggestion.label}
-                    </Button>
-                  ))}
-                </div>
+          return (
+            <article
+              key={question.id}
+              data-slot="discovery-question-card"
+              data-state={answered ? "answered" : isActive || isEditingThis ? "active" : "upcoming"}
+              className={cn(
+                "grid gap-3 rounded-xl border p-4",
+                isActive || isEditingThis
+                  ? "border-ink bg-surface-muted/60"
+                  : "border-subtle bg-surface",
               )}
-
-              {activeQuestion.allowsFreeText ? (
-                <div className="grid gap-1">
-                  <label className="sr-only" htmlFor="discovery-answer-input">
-                    Your answer
-                  </label>
-                  <textarea
-                    id="discovery-answer-input"
-                    className="min-h-20 w-full resize-none rounded-md border border-control bg-surface px-3 py-2.5 text-sm leading-6 text-ink outline-none placeholder:text-ink-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-                    value={draft}
-                    onChange={(event) => setDraft(event.target.value)}
-                    placeholder="Type your answer or select an example above"
-                    rows={3}
-                    autoComplete="off"
-                    dir="auto"
-                    disabled={pending}
-                  />
-                  <p className="text-xs text-ink-muted" aria-live="polite">
-                    {draftTooLong
-                      ? `Use at most ${MAX_DISCOVERY_ANSWER_UTF8_BYTES} bytes.`
-                      : `${draftBytes} bytes`}
-                  </p>
+            >
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex size-6 items-center justify-center rounded-full border border-subtle text-[11px] font-semibold text-ink-muted">
+                    {question.position}
+                  </span>
+                  <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-widest text-ink-muted uppercase">
+                    <Sparkles aria-hidden="true" className="size-3" /> Agent question
+                  </span>
                 </div>
-              ) : null}
+                {priorityBadge(question, answered)}
+              </div>
 
-              <DialogFooter className="justify-end">
-                <Button
-                  type="submit"
-                  disabled={pending || draftTooLong || draft.trim().length === 0}
-                  aria-label="Send"
-                >
-                  <Send aria-hidden="true" /> Send
-                </Button>
-              </DialogFooter>
-            </form>
-          )}
-        </DialogContent>
-      </Dialog>
+              <h2 className="text-[15px] leading-6 font-semibold text-ink">
+                {question.questionText}
+              </h2>
+              <p className="text-sm leading-6 text-ink-muted">{question.rationale}</p>
+
+              {answered && !isEditingThis ? (
+                <div className="grid gap-2">
+                  <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg bg-surface-muted px-3 py-2.5">
+                    <p className="text-sm leading-6 text-ink">{answerLabel(answer.answerText)}</p>
+                    <span className="flex items-center gap-1 text-xs font-medium text-success">
+                      <Check aria-hidden="true" /> Saved
+                    </span>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={!canAnswer}
+                      onClick={() => onEditAnswer(question.id)}
+                    >
+                      <PencilLine aria-hidden="true" /> Correct
+                    </Button>
+                  </div>
+                </div>
+              ) : isActive || isEditingThis ? (
+                <div className="grid gap-2" aria-busy={pending}>
+                  {question.suggestedAnswers.length === 0 ? null : (
+                    <div className="flex flex-wrap gap-2">
+                      {question.suggestedAnswers.map((suggestion) => (
+                        <Button
+                          key={suggestion.value}
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          disabled={!canAnswer}
+                          onClick={() => pickSuggestion(suggestion.value)}
+                        >
+                          {suggestion.label}
+                        </Button>
+                      ))}
+                    </div>
+                  )}
+
+                  {question.allowsFreeText ? (
+                    <form className="grid gap-1.5" onSubmit={submitDraft}>
+                      <label className="sr-only" htmlFor="discovery-answer-input">
+                        Your answer
+                      </label>
+                      <textarea
+                        id="discovery-answer-input"
+                        className="min-h-20 w-full resize-none rounded-lg border border-control bg-surface px-3 py-2.5 text-sm leading-6 text-ink outline-none placeholder:text-ink-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                        value={draft}
+                        onChange={(event) => setDraft(event.target.value)}
+                        placeholder="Type your answer or pick one above"
+                        rows={3}
+                        autoComplete="off"
+                        dir="auto"
+                        disabled={!canAnswer}
+                      />
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-xs text-ink-muted" aria-live="polite">
+                          {draftTooLong
+                            ? `Use at most ${MAX_DISCOVERY_ANSWER_UTF8_BYTES} bytes.`
+                            : `${draftBytes} bytes`}
+                        </p>
+                        <div className="flex items-center gap-2">
+                          {isEditingThis ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              disabled={pending}
+                              onClick={onCancelEdit}
+                            >
+                              Cancel
+                            </Button>
+                          ) : null}
+                          <Button
+                            type="submit"
+                            size="sm"
+                            disabled={pending || draftTooLong || draft.trim().length === 0}
+                          >
+                            {isEditingThis ? "Save correction" : "Send"}
+                            <ArrowUp aria-hidden="true" />
+                          </Button>
+                        </div>
+                      </div>
+                    </form>
+                  ) : null}
+                </div>
+              ) : (
+                <p className="text-xs font-medium text-ink-muted">Up next</p>
+              )}
+            </article>
+          );
+        })}
+
+        {isComplete ? (
+          <div className="rounded-xl border border-success-border bg-success-surface p-4">
+            <p className="flex items-center gap-2 text-sm font-medium text-ink">
+              <Check aria-hidden="true" className="size-4 text-success" />
+              Your project brief is ready.
+            </p>
+            <Button type="button" className="mt-3" onClick={onOpenBrief}>
+              Open project brief <ArrowRight aria-hidden="true" />
+            </Button>
+          </div>
+        ) : isPaused ? (
+          <p className="text-sm leading-6 text-ink-muted">
+            This conversation is paused. Resume when you are ready.
+          </p>
+        ) : isBlocked ? (
+          <p className="text-sm leading-6 text-ink-muted">
+            This project hit its setup limit. You can pause and continue later.
+          </p>
+        ) : activeQuestion === null ? (
+          <form
+            className="grid gap-2 rounded-xl border border-subtle bg-surface p-4"
+            onSubmit={submitExtra}
+          >
+            <p className="text-sm leading-6 text-ink">
+              Anything else you want to add? Send a message to keep shaping this.
+            </p>
+            <div className="flex items-end gap-2">
+              <label className="sr-only" htmlFor="discovery-extra-input">
+                Send a message
+              </label>
+              <textarea
+                id="discovery-extra-input"
+                className="min-h-11 flex-1 resize-none rounded-lg border border-subtle bg-surface px-3 py-2.5 text-sm leading-6 text-ink outline-none placeholder:text-ink-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                placeholder="Anything else? Send to continue…"
+                rows={1}
+                autoComplete="off"
+                dir="auto"
+                disabled={pending}
+              />
+              <Button type="submit" size="icon" disabled={pending} aria-label="Send">
+                <ArrowUp aria-hidden="true" />
+              </Button>
+            </div>
+          </form>
+        ) : null}
+      </div>
     </section>
   );
 }

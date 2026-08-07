@@ -1,4 +1,4 @@
-import { render, screen, within } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { axe } from "vitest-axe";
@@ -16,6 +16,7 @@ const PROJECT_ID = "22222222-2222-4222-8222-222222222222";
 const SESSION_ID = "33333333-3333-4333-8333-333333333333";
 const ANSWERED_QUESTION_ID = "55555555-5555-4555-8555-555555555555";
 const ACTIVE_QUESTION_ID = "44444444-4444-4444-8444-444444444444";
+const UPCOMING_QUESTION_ID = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const RUN_ID = "66666666-6666-4666-8666-666666666666";
 const ANSWER_ID = "77777777-7777-4777-8777-777777777777";
 const EVENT_ID = "88888888-8888-4888-8888-888888888888";
@@ -76,6 +77,9 @@ function snapshot(overrides: Partial<DiscoverySnapshotV1> = {}): DiscoverySnapsh
   const active = makeQuestion(ACTIVE_QUESTION_ID, 2, {
     questionText: "What workflow matters most?",
   });
+  const upcoming = makeQuestion(UPCOMING_QUESTION_ID, 3, {
+    questionText: "What does success look like?",
+  });
 
   return {
     projectId: PROJECT_ID,
@@ -97,7 +101,7 @@ function snapshot(overrides: Partial<DiscoverySnapshotV1> = {}): DiscoverySnapsh
       completedAt: null,
       abandonedAt: null,
     },
-    confirmedQuestions: [answered, active],
+    confirmedQuestions: [answered, active, upcoming],
     confirmedAnswers: [makeAnswer()],
     assessments: [],
     activeQuestion: active,
@@ -122,56 +126,80 @@ function defaultProps(overrides: Partial<React.ComponentProps<typeof DiscoveryWo
 }
 
 describe("DiscoveryWorkspace", () => {
-  it("opens the clarification dialog for the active question with suggestions and free text", async () => {
-    const user = userEvent.setup();
+  it("renders the active question inline with suggestions and free text", () => {
     render(<DiscoveryWorkspace {...defaultProps()} />);
 
-    const dialog = screen.getByRole("dialog");
-    expect(within(dialog).getByText("What workflow matters most?")).toBeVisible();
-    expect(within(dialog).getByRole("button", { name: "A small team" })).toBeVisible();
-    expect(within(dialog).getByLabelText("Your answer")).toBeVisible();
-
-    // The cards sit behind the modal; once dismissed, the answered card keeps
-    // its saved answer (also mirrored in Context) and correction entry point.
-    await user.keyboard("{Escape}");
-    expect(screen.getAllByText("a small team").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByRole("button", { name: "Correct" })).toBeVisible();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.getByText("What workflow matters most?")).toBeVisible();
+    expect(screen.getByRole("button", { name: "A small team" })).toBeVisible();
+    expect(screen.getByLabelText("Your answer")).toBeVisible();
+    expect(screen.getByText("You")).toBeVisible();
   });
 
-  it("submits a suggested answer from the dialog", async () => {
+  it("shows the progress strip with answered and upcoming ticks", () => {
+    render(<DiscoveryWorkspace {...defaultProps()} />);
+
+    const progress = screen.getByRole("group", {
+      name: "1 of 3 questions answered",
+    });
+    expect(progress).toBeVisible();
+    expect(screen.getByText("1/3 answered")).toBeVisible();
+  });
+
+  it("submits a suggested answer from the thread", async () => {
     const user = userEvent.setup();
     const props = defaultProps();
     render(<DiscoveryWorkspace {...props} />);
 
-    await user.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Just me" }));
+    await user.click(screen.getByRole("button", { name: "Just me" }));
 
     expect(props.onAnswerSubmit).toHaveBeenCalledWith("just me", "suggested");
   });
 
-  it("submits free text from the dialog", async () => {
+  it("submits free text from the thread", async () => {
     const user = userEvent.setup();
     const props = defaultProps();
     render(<DiscoveryWorkspace {...props} />);
 
-    const dialog = screen.getByRole("dialog");
-    await user.type(within(dialog).getByLabelText("Your answer"), "The review workflow");
-    await user.click(within(dialog).getByRole("button", { name: "Send" }));
+    await user.type(screen.getByLabelText("Your answer"), "The review workflow");
+    await user.click(screen.getByRole("button", { name: "Send" }));
 
     expect(props.onAnswerSubmit).toHaveBeenCalledWith("The review workflow", "free_text");
   });
 
-  it("can dismiss the dialog and reopen it from the question card", async () => {
-    const user = userEvent.setup();
+  it("shows answered questions with a saved tick and upcoming questions as up next", () => {
     render(<DiscoveryWorkspace {...defaultProps()} />);
 
-    await user.keyboard("{Escape}");
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "Answer this question" }));
-    expect(screen.getByRole("dialog")).toBeVisible();
+    expect(screen.getByText("a small team")).toBeVisible();
+    expect(screen.getByText("Saved")).toBeVisible();
+    expect(screen.getByText("Up next")).toBeVisible();
   });
 
-  it("marks questions by priority and hides the dialog once discovery completes", () => {
+  it("enters correction mode inline and saves a successor answer", async () => {
+    const user = userEvent.setup();
+    const props = defaultProps({ editingQuestionId: ANSWERED_QUESTION_ID });
+    render(<DiscoveryWorkspace {...props} />);
+
+    const textarea = screen.getByLabelText("Your answer");
+    expect(textarea).toHaveValue("a small team");
+
+    await user.clear(textarea);
+    await user.type(textarea, "a bigger team");
+    await user.click(screen.getByRole("button", { name: "Save correction" }));
+    expect(props.onAnswerSubmit).toHaveBeenCalledWith("a bigger team", "free_text");
+  });
+
+  it("cancels correction mode without submitting", async () => {
+    const user = userEvent.setup();
+    const props = defaultProps({ editingQuestionId: ANSWERED_QUESTION_ID });
+    render(<DiscoveryWorkspace {...props} />);
+
+    await user.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(props.onCancelEdit).toHaveBeenCalledTimes(1);
+    expect(props.onAnswerSubmit).not.toHaveBeenCalled();
+  });
+
+  it("marks questions by priority and shows the completion state once discovery completes", () => {
     const completed = snapshot({
       activeQuestion: null,
       session: {
@@ -187,9 +215,10 @@ describe("DiscoveryWorkspace", () => {
     });
     render(<DiscoveryWorkspace {...props} />);
 
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByText("Critical")).toBeVisible();
+    expect(screen.getByText("High priority")).toBeVisible();
     expect(screen.getByText("Answered")).toBeVisible();
+    expect(screen.queryByLabelText("Your answer")).not.toBeInTheDocument();
     expect(screen.getByText("Your project brief is ready.")).toBeVisible();
   });
 
@@ -236,14 +265,14 @@ describe("DiscoveryWorkspace", () => {
     render(<DiscoveryWorkspace {...props} />);
 
     expect(screen.getByRole("status")).toHaveTextContent("Your answers are saved");
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByLabelText("Your answer")).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Correct" })).toBeDisabled();
 
     await user.click(screen.getByRole("button", { name: "Resume workspace" }));
     expect(props.status?.action?.onClick).toHaveBeenCalled();
   });
 
-  it("has no axe violations with the dialog open", async () => {
+  it("has no axe violations", async () => {
     const { container } = render(<DiscoveryWorkspace {...defaultProps()} />);
 
     expect(await axe(container)).toHaveNoViolations();
