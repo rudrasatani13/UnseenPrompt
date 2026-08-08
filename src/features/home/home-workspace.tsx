@@ -1,6 +1,5 @@
 "use client";
 
-import { Sparkles } from "lucide-react";
 import { useCallback, useState } from "react";
 
 import { HomeComposer } from "@/features/discovery/home-composer";
@@ -8,7 +7,7 @@ import { type DiscoverTemplate } from "@/features/home/discover-fixtures";
 import { DiscoverGrid } from "@/features/home/discover-grid";
 
 /**
- * Reference-layout home surface: banner pill, headline, composer, mode toggle,
+ * Reference-layout home surface: stencil mark, headline, composer, mode toggle,
  * and the Discover grid. The composer owns the draft/intent/promotion steps;
  * once it leaves the home form, the hero and Discover sections step aside so
  * the confirmation flow gets the full surface.
@@ -39,12 +38,14 @@ export function HomeWorkspace() {
   return (
     <div data-slot="home-workspace" className="flex w-full flex-col items-center gap-12">
       {inHomeView ? (
-        <header className="flex flex-col items-center gap-4 pt-4 text-center md:pt-10">
-          <p className="inline-flex items-center gap-2 rounded-full border border-subtle bg-surface-muted px-4 py-1.5 text-xs font-medium text-ink-muted">
-            <Sparkles aria-hidden="true" className="size-3.5 text-ink" />
-            Early access
+        <header className="flex flex-col items-center gap-5 pt-4 text-center md:pt-12">
+          <p className="flex items-center gap-2 font-mono text-[11px] font-medium tracking-[0.3em] text-ink-muted uppercase">
+            <span aria-hidden="true" className="text-ink">
+              ★
+            </span>
+            Early access · est. 2026
           </p>
-          <h1 className="max-w-3xl text-4xl font-semibold tracking-tight text-balance text-ink md:text-5xl">
+          <h1 className="max-w-4xl text-5xl leading-[1.02] font-semibold tracking-tight text-balance text-ink md:text-6xl">
             Turn lazy prompts into great ones
           </h1>
           <p className="max-w-xl text-base leading-7 text-ink-muted">
@@ -61,12 +62,12 @@ export function HomeWorkspace() {
           <div
             role="group"
             aria-label="Composer mode"
-            className="-mt-6 inline-flex rounded-full border border-subtle bg-surface-muted p-1 text-sm font-medium"
+            className="-mt-4 inline-flex rounded-full border border-subtle bg-surface-muted p-1 text-sm font-medium"
           >
             <button
               type="button"
               aria-pressed="true"
-              className="rounded-full border border-subtle bg-surface px-5 py-2 text-ink"
+              className="rounded-full border border-subtle bg-surface px-5 py-2 font-mono text-xs tracking-widest text-ink uppercase"
             >
               Prompt
             </button>
@@ -74,10 +75,18 @@ export function HomeWorkspace() {
               type="button"
               disabled
               title="Template mode comes later."
-              className="cursor-default rounded-full px-5 py-2 text-ink-muted"
+              className="cursor-default rounded-full px-5 py-2 font-mono text-xs tracking-widest text-ink-muted uppercase"
             >
               Template
             </button>
+          </div>
+
+          <div className="flex w-full items-center gap-3" aria-hidden="true">
+            <span className="h-px flex-1 bg-ink/20" />
+            <span className="font-mono text-[10px] tracking-[0.3em] text-ink-muted uppercase">
+              The Manifest
+            </span>
+            <span className="h-px flex-1 bg-ink/20" />
           </div>
 
           <DiscoverGrid onUseTemplate={useTemplate} />

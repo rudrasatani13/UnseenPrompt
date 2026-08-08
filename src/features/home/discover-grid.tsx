@@ -30,7 +30,13 @@ export function DiscoverGrid({ onUseTemplate }: DiscoverGridProps) {
     <section data-slot="discover-grid" aria-labelledby="discover-heading" className="w-full">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <h2 id="discover-heading" className="text-2xl font-semibold tracking-tight text-ink">
+          <p className="flex items-center gap-2 font-mono text-[10px] font-medium tracking-[0.3em] text-ink-muted uppercase">
+            <span aria-hidden="true" className="text-ink">
+              ★
+            </span>
+            Starting points
+          </p>
+          <h2 id="discover-heading" className="mt-1 text-2xl font-semibold tracking-tight text-ink">
             Discover
           </h2>
           <p className="mt-1 text-sm leading-6 text-ink-muted">
@@ -72,7 +78,7 @@ export function DiscoverGrid({ onUseTemplate }: DiscoverGridProps) {
               aria-selected={active}
               onClick={() => setCategory(entry)}
               className={cn(
-                "-mb-px shrink-0 rounded-t-md border-b-2 px-3 py-2.5 text-sm font-medium whitespace-nowrap outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand",
+                "-mb-px shrink-0 rounded-t-md border-b-2 px-3 py-2.5 font-mono text-xs tracking-widest whitespace-nowrap uppercase outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand",
                 active
                   ? "border-brand text-ink"
                   : "border-transparent text-ink-muted hover:border-subtle hover:text-ink",
@@ -90,12 +96,12 @@ export function DiscoverGrid({ onUseTemplate }: DiscoverGridProps) {
         </p>
       ) : (
         <ul className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          {templates.map((template) => (
+          {templates.map((template, index) => (
             <li key={template.id}>
               <button
                 type="button"
                 onClick={() => onUseTemplate(template)}
-                className="group flex h-full w-full flex-col gap-2 rounded-lg border border-subtle bg-surface p-4 text-left outline-none transition-colors hover:border-control hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
+                className="group flex h-full w-full flex-col gap-2 rounded-lg border border-subtle bg-surface p-4 text-left outline-none transition-colors hover:border-ink hover:bg-surface-muted focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
               >
                 <span className="flex items-start justify-between gap-2">
                   <span className="text-sm font-semibold text-ink">{template.title}</span>
@@ -105,6 +111,9 @@ export function DiscoverGrid({ onUseTemplate }: DiscoverGridProps) {
                   />
                 </span>
                 <span className="text-sm leading-6 text-ink-muted">{template.description}</span>
+                <span className="mt-auto pt-1 font-mono text-[9px] tracking-[0.25em] text-ink-muted uppercase">
+                  {String(index + 1).padStart(2, "0")} · {template.category}
+                </span>
               </button>
             </li>
           ))}

@@ -476,7 +476,7 @@ export function HomeComposer({ prefill = null, onHomeStateChange }: HomeComposer
   return (
     <form
       data-slot="home-composer"
-      className="grid w-full max-w-3xl gap-4"
+      className="grid w-full max-w-2xl gap-3"
       onSubmit={(event) => void submitRequest(event)}
       noValidate
       aria-busy={pending}
@@ -486,7 +486,15 @@ export function HomeComposer({ prefill = null, onHomeStateChange }: HomeComposer
         Start a new prompt
       </h1>
 
-      <div className="rounded-xl border border-subtle bg-surface p-3 shadow-sm">
+      <div className="flex items-center gap-3" aria-hidden="true">
+        <span className="h-px flex-1 bg-ink/20" />
+        <span className="font-mono text-[10px] tracking-[0.3em] text-ink-muted uppercase">
+          {"// New session"}
+        </span>
+        <span className="h-px flex-1 bg-ink/20" />
+      </div>
+
+      <div className="rounded-xl border border-subtle bg-surface p-3 shadow-sm transition-colors focus-within:border-ink">
         <label htmlFor="home-composer-input" className="sr-only">
           What do you want to work on?
         </label>
@@ -535,8 +543,11 @@ export function HomeComposer({ prefill = null, onHomeStateChange }: HomeComposer
         )}
 
         <div className="flex items-center justify-between gap-3 px-1.5 pt-1.5">
-          <span aria-hidden="true" className="text-xs text-ink-muted tabular-nums">
-            {requestBytes} / {MAX_INITIAL_REQUEST_UTF8_BYTES} bytes
+          <span
+            aria-hidden="true"
+            className="font-mono text-[10px] tracking-wider text-ink-muted tabular-nums"
+          >
+            {requestBytes}/{MAX_INITIAL_REQUEST_UTF8_BYTES} b
           </span>
           <button
             type="submit"

@@ -110,13 +110,16 @@ export function IntentConfirmation({
       aria-labelledby="intent-confirmation-heading"
       aria-busy={pending}
     >
-      <header className="grid gap-2">
-        <p className="text-[10px] font-semibold tracking-widest text-ink-muted uppercase">
-          Question 1 · Critical
+      <header className="grid gap-3 border-b border-ink pb-5">
+        <p className="flex items-center gap-2 font-mono text-[10px] font-medium tracking-[0.25em] text-ink-muted uppercase">
+          <span aria-hidden="true" className="text-ink">
+            ★
+          </span>
+          Ask 01 · Critical
         </p>
         <h1
           id="intent-confirmation-heading"
-          className="text-2xl font-semibold tracking-tight text-ink md:text-3xl"
+          className="text-3xl leading-tight font-semibold tracking-tight text-ink md:text-4xl"
         >
           Does this look like the right kind of work?
         </h1>
@@ -127,11 +130,13 @@ export function IntentConfirmation({
       </header>
 
       <div className="grid gap-4">
-        <p className="text-sm leading-6 text-ink-muted">{intent.rationale}</p>
-        <p className="text-xs text-ink-muted">
-          Supporting signal: {percent(intent.confidence)} confidence · language detected as{" "}
-          <span className="font-mono">{intent.detectedLanguage}</span>
-        </p>
+        <div className="rounded-lg border border-dashed border-subtle bg-surface-muted/50 px-4 py-3">
+          <p className="text-sm leading-6 text-ink-muted">{intent.rationale}</p>
+          <p className="mt-1.5 font-mono text-[10px] tracking-wider text-ink-muted tabular-nums uppercase">
+            Supporting signal: {percent(intent.confidence)} confidence · language detected as{" "}
+            <span className="font-mono">{intent.detectedLanguage}</span>
+          </p>
+        </div>
 
         <QuestionChoice
           name="project-mode"
@@ -179,7 +184,7 @@ export function IntentConfirmation({
           </Alert>
         )}
 
-        <div className="flex flex-wrap items-center gap-2 pt-1">
+        <div className="flex flex-wrap items-center gap-2 border-t border-subtle pt-4">
           <Button type="button" onClick={onConfirm} disabled={!canConfirm}>
             {pending ? "Creating project…" : "Confirm and continue"}
             {pending ? null : <ArrowRight aria-hidden="true" />}

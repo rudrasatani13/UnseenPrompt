@@ -183,9 +183,9 @@ export function DiscoveryWorkspace({
       className="mx-auto grid w-full max-w-2xl gap-5"
       aria-busy={pending}
     >
-      <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
-        <h1 className="text-xl font-semibold tracking-tight text-ink">{title}</h1>
-        <div className="flex items-center gap-2 text-xs text-ink-muted">
+      <header className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 border-b border-ink pb-3">
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">{title}</h1>
+        <div className="flex items-center gap-2 font-mono text-[10px] tracking-wider text-ink-muted uppercase">
           <span
             role="group"
             aria-label={`${answeredCount} of ${totalCount} questions answered`}
@@ -200,7 +200,7 @@ export function DiscoveryWorkspace({
                   aria-hidden="true"
                   title={question.questionText}
                   className={cn(
-                    "size-2 rounded-[3px]",
+                    "size-2 rounded-[2px]",
                     answered && "bg-ink",
                     isCurrent && "border border-ink bg-surface",
                     !answered && !isCurrent && "border border-subtle bg-surface",
@@ -229,12 +229,12 @@ export function DiscoveryWorkspace({
         />
       )}
 
-      <div data-slot="discovery-thread" className="grid gap-7" aria-label="Discovery conversation">
+      <div data-slot="discovery-thread" className="grid gap-8" aria-label="Discovery conversation">
         <div className="grid justify-items-end gap-1.5">
-          <span className="text-[10px] font-semibold tracking-widest text-ink-muted uppercase">
+          <span className="font-mono text-[10px] font-medium tracking-[0.25em] text-ink-muted uppercase">
             You
           </span>
-          <div className="max-w-[85%] rounded-xl rounded-br-sm bg-surface-muted px-3.5 py-2.5 text-sm leading-6 whitespace-pre-wrap text-ink">
+          <div className="max-w-[85%] rounded-xl rounded-br-sm border border-subtle bg-surface-muted px-3.5 py-2.5 text-sm leading-6 whitespace-pre-wrap text-ink">
             {snapshot.initialRequestText}
           </div>
         </div>
@@ -249,15 +249,20 @@ export function DiscoveryWorkspace({
               data-state="answered"
               className="grid gap-2"
             >
-              <p className="text-[10px] font-semibold tracking-widest text-ink-muted uppercase">
-                Question {question.position} · {priorityLabel(question, true)}
+              <p className="font-mono text-[10px] font-medium tracking-[0.25em] text-ink-muted uppercase">
+                Ask {String(question.position).padStart(2, "0")} · {priorityLabel(question, true)}
               </p>
               <h2 className="text-[15px] leading-6 font-medium text-ink">
                 {question.questionText}
               </h2>
               <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-2">
-                  <Check aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-success" />
+                <div className="flex items-start gap-2.5">
+                  <span
+                    aria-hidden="true"
+                    className="mt-0.5 inline-flex size-4.5 shrink-0 items-center justify-center border border-ink bg-ink text-surface"
+                  >
+                    <Check className="size-3" />
+                  </span>
                   <p className="text-sm leading-6 text-ink">{answerLabel(answer.answerText)}</p>
                 </div>
                 <Button
@@ -275,9 +280,14 @@ export function DiscoveryWorkspace({
         })}
 
         {currentQuestion === null ? null : (
-          <div data-slot="discovery-question-card" data-state="current" className="grid gap-2">
-            <p className="text-[10px] font-semibold tracking-widest text-ink-muted uppercase">
-              Question {currentQuestion.position} · {priorityLabel(currentQuestion, false)}
+          <div
+            data-slot="discovery-question-card"
+            data-state="current"
+            className="grid gap-2 border-l-2 border-ink pl-4"
+          >
+            <p className="font-mono text-[10px] font-medium tracking-[0.25em] text-ink-muted uppercase">
+              Ask {String(currentQuestion.position).padStart(2, "0")} ·{" "}
+              {priorityLabel(currentQuestion, false)}
             </p>
             <h2 className="text-[15px] leading-6 font-medium text-ink">
               {currentQuestion.questionText}
@@ -303,11 +313,11 @@ export function DiscoveryWorkspace({
         )}
 
         {isComplete ? (
-          <div className="grid gap-3 rounded-xl bg-success-surface p-4">
-            <p className="flex items-center gap-2 text-sm font-medium text-ink">
-              <Check aria-hidden="true" className="size-4 text-success" />
-              Your project brief is ready.
+          <div className="grid gap-3 rounded-xl border border-dashed border-ink bg-surface p-4">
+            <p className="font-mono text-[10px] font-medium tracking-[0.3em] text-ink uppercase">
+              ★ Brief ready
             </p>
+            <p className="text-sm font-medium text-ink">Your project brief is ready.</p>
             <Button type="button" className="w-fit" onClick={onOpenBrief}>
               Open project brief <ArrowRight aria-hidden="true" />
             </Button>
@@ -331,11 +341,12 @@ export function DiscoveryWorkspace({
           data-slot="discovery-composer"
         >
           {isEditing && editingQuestion !== null ? (
-            <p className="text-xs font-medium text-ink-muted">
-              Correcting: <span className="text-ink">{editingQuestion.questionText}</span>
+            <p className="font-mono text-[10px] tracking-[0.2em] text-ink-muted uppercase">
+              Correcting ·{" "}
+              <span className="text-ink normal-case">{editingQuestion.questionText}</span>
             </p>
           ) : null}
-          <div className="flex items-end gap-2 rounded-xl border border-subtle bg-surface p-2 transition-colors focus-within:border-ink">
+          <div className="flex items-end gap-2 rounded-xl border border-subtle bg-surface p-2 shadow-sm transition-colors focus-within:border-ink">
             <label className="sr-only" htmlFor="discovery-composer-input">
               {composerLabel}
             </label>
@@ -370,7 +381,7 @@ export function DiscoveryWorkspace({
                 {currentQuestion === null ? null : (
                   <button
                     type="button"
-                    className="shrink-0 text-xs font-medium text-ink-muted hover:text-ink"
+                    className="shrink-0 font-mono text-[10px] tracking-[0.2em] text-ink-muted uppercase hover:text-ink"
                     disabled={pending}
                     onClick={() => {
                       if (!pending) onAdvance();
@@ -390,10 +401,13 @@ export function DiscoveryWorkspace({
             )}
           </div>
           {draftBytes === 0 ? null : (
-            <p className="text-xs text-ink-muted tabular-nums" aria-live="polite">
+            <p
+              className="font-mono text-[10px] tracking-wider text-ink-muted tabular-nums"
+              aria-live="polite"
+            >
               {draftTooLong
                 ? `Use at most ${MAX_DISCOVERY_ANSWER_UTF8_BYTES} bytes.`
-                : `${draftBytes} bytes`}
+                : `${draftBytes} b`}
             </p>
           )}
         </form>

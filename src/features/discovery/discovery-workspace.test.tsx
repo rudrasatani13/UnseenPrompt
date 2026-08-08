@@ -174,7 +174,7 @@ describe("DiscoveryWorkspace", () => {
 
     expect(screen.getByText("Who is this for?")).toBeVisible();
     expect(screen.getByText("a small team")).toBeVisible();
-    expect(screen.getByText(/Question 1 · Answered/i)).toBeVisible();
+    expect(screen.getByText(/Ask 01 · Answered/i)).toBeVisible();
     expect(screen.getByRole("button", { name: "Correct" })).toBeVisible();
   });
 
@@ -183,7 +183,7 @@ describe("DiscoveryWorkspace", () => {
     const props = defaultProps({ editingQuestionId: ANSWERED_QUESTION_ID });
     render(<DiscoveryWorkspace {...props} />);
 
-    expect(screen.getByText(/Correcting:/i)).toBeVisible();
+    expect(screen.getByText(/Correcting/i)).toBeVisible();
     const textarea = screen.getByLabelText("Your answer");
     expect(textarea).toHaveValue("a small team");
 
@@ -206,7 +206,7 @@ describe("DiscoveryWorkspace", () => {
   it("marks priority on the current question", () => {
     render(<DiscoveryWorkspace {...defaultProps()} />);
 
-    expect(screen.getByText(/Question 2 · Critical/i)).toBeVisible();
+    expect(screen.getByText(/Ask 02 · Critical/i)).toBeVisible();
 
     const late = snapshot({
       activeQuestion: makeQuestion(UPCOMING_QUESTION_ID, 3, {
@@ -219,7 +219,7 @@ describe("DiscoveryWorkspace", () => {
     });
     const lateProps = defaultProps({ snapshot: late });
     render(<DiscoveryWorkspace {...lateProps} />);
-    expect(screen.getByText(/Question 3 · High priority/i)).toBeVisible();
+    expect(screen.getByText(/Ask 03 · High priority/i)).toBeVisible();
   });
 
   it("shows the completion state without an input once discovery completes", () => {
