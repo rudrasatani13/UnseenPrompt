@@ -212,10 +212,31 @@ export function DiscoveryFlow({ initialSnapshot }: DiscoveryFlowProps) {
   const controllerRef = useRef<AbortController | null>(null);
   const retryRef = useRef<(() => void) | null>(null);
   const sendingRef = useRef(false);
+  // After an answer lands with no next question, the conversation continues on
+  // its own so a suggested pick or typed answer never dead-ends at a manual step.
+  const shouldAutoAdvanceRef = useRef(false);
 
   useEffect(() => {
     return () => controllerRef.current?.abort();
   }, []);
+
+  // Latest advance closure, kept in a ref so the auto-advance effect below can
+  // call it without widening its dependency array.
+  const advanceRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    advanceRef.current = () => void sendCommand("advance", { type: "advance_discovery" });
+  });
+
+  // Runs once an answer is durable: if the conversation is still live but has no
+  // next question yet, advance automatically instead of waiting for a manual send.
+  useEffect(() => {
+    if (!shouldAutoAdvanceRef.current) return;
+    if (pendingAction !== null) return;
+    shouldAutoAdvanceRef.current = false;
+    if (snapshot.activeQuestion !== null) return;
+    if (snapshot.session.status !== "active" && snapshot.session.status !== "sufficient") return;
+    advanceRef.current();
+  }, [snapshot, pendingAction]);
 
   const pending = pendingAction !== null;
   const editingQuestion =
@@ -327,6 +348,12 @@ export function DiscoveryFlow({ initialSnapshot }: DiscoveryFlowProps) {
       // the provider-bound POST while its response was in flight.
       const latest = await reloadSnapshot();
       applySnapshot(latest);
+      if (
+        latest.activeQuestion === null &&
+        (latest.session.status === "active" || latest.session.status === "sufficient")
+      ) {
+        shouldAutoAdvanceRef.current = true;
+      }
       retryRef.current = null;
     } catch (caught) {
       if (isAbortError(caught)) {

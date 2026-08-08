@@ -18,6 +18,7 @@ const PROJECT_ID = "22222222-2222-4222-8222-222222222222";
 const SESSION_ID = "33333333-3333-4333-8333-333333333333";
 const QUESTION_ID = "44444444-4444-4444-8444-444444444444";
 const PREVIOUS_QUESTION_ID = "55555555-5555-4555-8555-555555555555";
+const NEXT_QUESTION_ID = "99999999-9999-4999-8999-999999999999";
 const RUN_ID = "66666666-6666-4666-8666-666666666666";
 const ANSWER_ID = "77777777-7777-4777-8777-777777777777";
 const EVENT_ID = "88888888-8888-4888-8888-888888888888";
@@ -128,9 +129,18 @@ describe("DiscoveryFlow", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 
-  it("sends an explicit suggested answer and reloads the authoritative snapshot", async () => {
+  it("sends an explicit suggested answer, reloads, and auto-advances to the next question", async () => {
     const user = userEvent.setup();
     const next = snapshot({ activeQuestion: null, stateVersion: 3 });
+    const nextQuestion = makeQuestion(NEXT_QUESTION_ID, 3, {
+      questionText: "What budget are you working with?",
+    });
+    const advanced = snapshot({
+      activeQuestion: nextQuestion,
+      stateVersion: 4,
+      confirmedQuestions: [snapshot().confirmedQuestions[0], nextQuestion],
+      session: { ...snapshot().session, activeQuestionId: nextQuestion.id },
+    });
     const fetchMock = vi
       .fn()
       .mockResolvedValueOnce(
@@ -142,13 +152,14 @@ describe("DiscoveryFlow", () => {
           replayed: false,
         }),
       )
-      .mockResolvedValueOnce(response(next));
+      .mockResolvedValueOnce(response(next))
+      .mockResolvedValueOnce(response({ status: "question", snapshot: advanced }));
     vi.stubGlobal("fetch", fetchMock);
 
     render(<DiscoveryFlow initialSnapshot={snapshot()} />);
     await user.click(screen.getByRole("button", { name: "A small team" }));
 
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
     const [, request] = fetchMock.mock.calls[0] ?? [];
     const envelope = JSON.parse(String((request as RequestInit).body)) as {
       readonly command: {
@@ -163,7 +174,12 @@ describe("DiscoveryFlow", () => {
       answerText: "a small team",
     });
     expect(fetchMock.mock.calls[1]?.[0]).toBe(`/api/projects/${PROJECT_ID}/discovery`);
-    expect(screen.getByPlaceholderText(/Anything else/i)).toBeVisible();
+    // No manual send: the conversation advances by itself to the next question.
+    const advanceEnvelope = JSON.parse(
+      String((fetchMock.mock.calls[2]?.[1] as RequestInit).body),
+    ) as { readonly command: { readonly type: string } };
+    expect(advanceEnvelope.command).toMatchObject({ type: "advance_discovery" });
+    expect(await screen.findByText("What budget are you working with?")).toBeVisible();
   });
 
   it("reloads the authoritative snapshot after a stale conflict", async () => {
@@ -233,17 +249,22 @@ describe("DiscoveryFlow", () => {
 
   it("renders correction mode and sends a successor answer with the predecessor id", async () => {
     const user = userEvent.setup();
+    const nextQuestion = makeQuestion(NEXT_QUESTION_ID, 2, {
+      questionText: "What workflow matters most?",
+    });
     const corrected = snapshot({
-      activeQuestion: null,
+      activeQuestion: nextQuestion,
+      stateVersion: 3,
       confirmedQuestions: [
         makeQuestion(PREVIOUS_QUESTION_ID, 1, {
           questionText: "Who is this for?",
           status: "answered",
           answeredAt: "2026-08-04T00:01:00.000Z",
         }),
+        nextQuestion,
       ],
-      confirmedAnswers: [{ ...makeAnswer(), answerText: "a solo maker" }],
-      stateVersion: 3,
+      confirmedAnswers: [{ ...makeAnswer(), answerText: "just me" }],
+      session: { ...snapshot().session, activeQuestionId: nextQuestion.id },
     });
     const fetchMock = vi
       .fn()

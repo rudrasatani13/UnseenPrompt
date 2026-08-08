@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowUp, LoaderCircle, Paperclip, PencilLine, RotateCcw, X } from "lucide-react";
+import { ArrowUp, LoaderCircle, PencilLine, RotateCcw, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { z } from "zod";
@@ -486,99 +486,72 @@ export function HomeComposer({ prefill = null, onHomeStateChange }: HomeComposer
         Start a new prompt
       </h1>
 
-      <Card className="overflow-hidden rounded-2xl border-subtle shadow-sm">
-        <CardContent className="grid gap-0 p-0">
-          <label htmlFor="home-composer-input" className="sr-only">
-            What do you want to work on?
-          </label>
-          <textarea
-            id="home-composer-input"
-            value={requestText}
-            onChange={(event) => setRequestText(event.target.value)}
-            placeholder="Create a resume that lands me a job as a product manager…"
-            rows={5}
-            dir="auto"
-            lang="auto"
-            spellCheck
-            autoComplete="off"
-            className="w-full resize-y rounded-2xl bg-transparent px-4 py-4 text-base leading-7 text-ink outline-none placeholder:text-ink-muted"
-          />
+      <div className="rounded-xl border border-subtle bg-surface p-3 shadow-sm">
+        <label htmlFor="home-composer-input" className="sr-only">
+          What do you want to work on?
+        </label>
+        <textarea
+          id="home-composer-input"
+          value={requestText}
+          onChange={(event) => setRequestText(event.target.value)}
+          placeholder="Create a resume that lands me a job as a product manager…"
+          rows={3}
+          dir="auto"
+          lang="auto"
+          spellCheck
+          autoComplete="off"
+          className="max-h-40 w-full resize-y rounded-lg bg-transparent px-1.5 py-1.5 text-sm leading-6 text-ink outline-none placeholder:text-ink-muted"
+        />
 
-          {error === null ? null : (
-            <div className="px-4 pb-4">
-              <Alert variant="destructive">
-                <AlertTitle>We could not check that request.</AlertTitle>
-                <AlertDescription>
-                  <p>{error}</p>
-                  <div className="flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      onClick={() => void sendStart(requestText, createIdempotencyKey())}
-                      disabled={pending || requestError !== undefined}
-                    >
-                      <RotateCcw aria-hidden="true" />
-                      Try again
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      onClick={() => setError(null)}
-                      disabled={pending}
-                    >
-                      <X aria-hidden="true" />
-                      Dismiss
-                    </Button>
-                  </div>
-                </AlertDescription>
-              </Alert>
-            </div>
-          )}
-        </CardContent>
-        <CardFooter className="flex-wrap items-center justify-between gap-3 border-t border-subtle px-4 py-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              disabled
-              aria-label="Attach files (coming later)"
-              className="inline-flex size-9 items-center justify-center rounded-full border border-subtle text-ink-muted"
-            >
-              <Paperclip aria-hidden="true" size={16} />
-            </button>
-            <button
-              type="button"
-              disabled
-              className="rounded-full border border-subtle px-3 py-1.5 text-xs font-medium text-ink-muted"
-            >
-              Prompt type: Auto
-            </button>
-            <button
-              type="button"
-              disabled
-              className="rounded-full border border-subtle px-3 py-1.5 text-xs font-medium text-ink-muted"
-            >
-              Basic model
-            </button>
+        {error === null ? null : (
+          <div className="px-1.5 pb-1.5">
+            <Alert variant="destructive">
+              <AlertTitle>We could not check that request.</AlertTitle>
+              <AlertDescription>
+                <p>{error}</p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => void sendStart(requestText, createIdempotencyKey())}
+                    disabled={pending || requestError !== undefined}
+                  >
+                    <RotateCcw aria-hidden="true" />
+                    Try again
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    onClick={() => setError(null)}
+                    disabled={pending}
+                  >
+                    <X aria-hidden="true" />
+                    Dismiss
+                  </Button>
+                </div>
+              </AlertDescription>
+            </Alert>
           </div>
-          <div className="flex items-center gap-3">
-            <span aria-hidden="true" className="text-xs text-ink-muted tabular-nums">
-              {requestBytes} / {MAX_INITIAL_REQUEST_UTF8_BYTES} bytes
-            </span>
-            <button
-              type="submit"
-              disabled={pending || requestError !== undefined}
-              className="inline-flex size-10 items-center justify-center rounded-full bg-brand text-surface outline-none transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-40"
-            >
-              <span className="sr-only">Continue</span>
-              {pending ? (
-                <LoaderCircle aria-hidden="true" size={18} className="animate-spin" />
-              ) : (
-                <ArrowUp aria-hidden="true" size={18} />
-              )}
-            </button>
-          </div>
-        </CardFooter>
-      </Card>
+        )}
+
+        <div className="flex items-center justify-between gap-3 px-1.5 pt-1.5">
+          <span aria-hidden="true" className="text-xs text-ink-muted tabular-nums">
+            {requestBytes} / {MAX_INITIAL_REQUEST_UTF8_BYTES} bytes
+          </span>
+          <button
+            type="submit"
+            disabled={pending || requestError !== undefined}
+            className="inline-flex size-9 items-center justify-center rounded-full bg-brand text-surface outline-none transition-opacity hover:opacity-90 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:opacity-40"
+          >
+            <span className="sr-only">Continue</span>
+            {pending ? (
+              <LoaderCircle aria-hidden="true" size={16} className="animate-spin" />
+            ) : (
+              <ArrowUp aria-hidden="true" size={16} />
+            )}
+          </button>
+        </div>
+      </div>
 
       <p className="text-center text-xs leading-5 text-ink-muted">
         You stay in control: a suggested route never creates a project until you confirm it.

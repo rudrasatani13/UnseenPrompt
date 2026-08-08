@@ -59,7 +59,6 @@ describe("HomeComposer", () => {
 
     const input = screen.getByRole("textbox", { name: "What do you want to work on?" });
     await user.type(input, "Build a multilingual नोट्स app.");
-    expect(screen.getByRole("button", { name: "Attach files (coming later)" })).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "Continue" }));
 
     expect(
