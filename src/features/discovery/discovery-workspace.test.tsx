@@ -126,27 +126,29 @@ function defaultProps(overrides: Partial<React.ComponentProps<typeof DiscoveryWo
 }
 
 describe("DiscoveryWorkspace", () => {
-  it("renders the active question inline with suggestions and free text", () => {
+  it("renders the current question inline with suggestions and one composer", () => {
     render(<DiscoveryWorkspace {...defaultProps()} />);
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.getByText("What workflow matters most?")).toBeVisible();
     expect(screen.getByRole("button", { name: "A small team" })).toBeVisible();
     expect(screen.getByLabelText("Your answer")).toBeVisible();
-    expect(screen.getByText("You")).toBeVisible();
+    expect(screen.getByText("Build a focused field notebook.")).toBeVisible();
+    // Upcoming questions stay out of the transcript until it is their turn.
+    expect(screen.queryByText("What does success look like?")).not.toBeInTheDocument();
   });
 
-  it("shows the progress strip with answered and upcoming ticks", () => {
+  it("shows the progress ticks for answered and remaining questions", () => {
     render(<DiscoveryWorkspace {...defaultProps()} />);
 
     const progress = screen.getByRole("group", {
       name: "1 of 3 questions answered",
     });
     expect(progress).toBeVisible();
-    expect(screen.getByText("1/3 answered")).toBeVisible();
+    expect(screen.getByText("1/3")).toBeVisible();
   });
 
-  it("submits a suggested answer from the thread", async () => {
+  it("submits a suggested answer from the current question", async () => {
     const user = userEvent.setup();
     const props = defaultProps();
     render(<DiscoveryWorkspace {...props} />);
@@ -156,7 +158,7 @@ describe("DiscoveryWorkspace", () => {
     expect(props.onAnswerSubmit).toHaveBeenCalledWith("just me", "suggested");
   });
 
-  it("submits free text from the thread", async () => {
+  it("submits free text through the single composer", async () => {
     const user = userEvent.setup();
     const props = defaultProps();
     render(<DiscoveryWorkspace {...props} />);
@@ -167,19 +169,21 @@ describe("DiscoveryWorkspace", () => {
     expect(props.onAnswerSubmit).toHaveBeenCalledWith("The review workflow", "free_text");
   });
 
-  it("shows answered questions with a saved tick and upcoming questions as up next", () => {
+  it("records answered questions with a tick and a correction entry point", () => {
     render(<DiscoveryWorkspace {...defaultProps()} />);
 
+    expect(screen.getByText("Who is this for?")).toBeVisible();
     expect(screen.getByText("a small team")).toBeVisible();
-    expect(screen.getByText("Saved")).toBeVisible();
-    expect(screen.getByText("Up next")).toBeVisible();
+    expect(screen.getByText(/Question 1 · Answered/i)).toBeVisible();
+    expect(screen.getByRole("button", { name: "Correct" })).toBeVisible();
   });
 
-  it("enters correction mode inline and saves a successor answer", async () => {
+  it("corrects an answered question through the composer", async () => {
     const user = userEvent.setup();
     const props = defaultProps({ editingQuestionId: ANSWERED_QUESTION_ID });
     render(<DiscoveryWorkspace {...props} />);
 
+    expect(screen.getByText(/Correcting:/i)).toBeVisible();
     const textarea = screen.getByLabelText("Your answer");
     expect(textarea).toHaveValue("a small team");
 
@@ -199,7 +203,26 @@ describe("DiscoveryWorkspace", () => {
     expect(props.onAnswerSubmit).not.toHaveBeenCalled();
   });
 
-  it("marks questions by priority and shows the completion state once discovery completes", () => {
+  it("marks priority on the current question", () => {
+    render(<DiscoveryWorkspace {...defaultProps()} />);
+
+    expect(screen.getByText(/Question 2 · Critical/i)).toBeVisible();
+
+    const late = snapshot({
+      activeQuestion: makeQuestion(UPCOMING_QUESTION_ID, 3, {
+        questionText: "What does success look like?",
+      }),
+      session: {
+        ...snapshot().session,
+        activeQuestionId: UPCOMING_QUESTION_ID,
+      },
+    });
+    const lateProps = defaultProps({ snapshot: late });
+    render(<DiscoveryWorkspace {...lateProps} />);
+    expect(screen.getByText(/Question 3 · High priority/i)).toBeVisible();
+  });
+
+  it("shows the completion state without an input once discovery completes", () => {
     const completed = snapshot({
       activeQuestion: null,
       session: {
@@ -215,14 +238,11 @@ describe("DiscoveryWorkspace", () => {
     });
     render(<DiscoveryWorkspace {...props} />);
 
-    expect(screen.getByText("Critical")).toBeVisible();
-    expect(screen.getByText("High priority")).toBeVisible();
-    expect(screen.getByText("Answered")).toBeVisible();
     expect(screen.queryByLabelText("Your answer")).not.toBeInTheDocument();
     expect(screen.getByText("Your project brief is ready.")).toBeVisible();
   });
 
-  it("opens the brief from the completion card", async () => {
+  it("opens the brief from the completion state", async () => {
     const user = userEvent.setup();
     const completed = snapshot({
       activeQuestion: null,

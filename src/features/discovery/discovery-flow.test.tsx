@@ -163,7 +163,7 @@ describe("DiscoveryFlow", () => {
       answerText: "a small team",
     });
     expect(fetchMock.mock.calls[1]?.[0]).toBe(`/api/projects/${PROJECT_ID}/discovery`);
-    expect(screen.getByText(/Anything else/i)).toBeVisible();
+    expect(screen.getByPlaceholderText(/Anything else/i)).toBeVisible();
   });
 
   it("reloads the authoritative snapshot after a stale conflict", async () => {
@@ -260,10 +260,14 @@ describe("DiscoveryFlow", () => {
     vi.stubGlobal("fetch", fetchMock);
 
     render(<DiscoveryFlow initialSnapshot={snapshot()} />);
-    // Answers sit inline in the thread; step to the answered question's
-    // correction entry point and revise it.
+    // Answers sit inline in the thread; the composer turns into the correction
+    // surface for the answered question and sends a successor answer.
     await user.click(screen.getByRole("button", { name: "Correct" }));
-    await user.click(screen.getByRole("button", { name: "Just me" }));
+    const composer = screen.getByLabelText("Your answer");
+    expect(composer).toHaveValue("a small team");
+    await user.clear(composer);
+    await user.type(composer, "just me");
+    await user.click(screen.getByRole("button", { name: "Save correction" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(2));
     const envelope = JSON.parse(String((fetchMock.mock.calls[0]?.[1] as RequestInit).body)) as {
@@ -273,7 +277,7 @@ describe("DiscoveryFlow", () => {
       type: "revise_answer",
       questionId: PREVIOUS_QUESTION_ID,
       predecessorAnswerId: ANSWER_ID,
-      source: "suggested",
+      source: "free_text",
       answerText: "just me",
     });
   });

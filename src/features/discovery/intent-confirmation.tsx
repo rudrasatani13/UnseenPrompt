@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowRight, PencilLine, RotateCcw, Sparkles } from "lucide-react";
+import { ArrowRight, PencilLine, RotateCcw } from "lucide-react";
 
 import { type ChoiceOption, QuestionChoice } from "@/components/product/question-choice";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -106,38 +106,27 @@ export function IntentConfirmation({
   return (
     <section
       data-slot="intent-confirmation"
-      className="grid w-full max-w-3xl gap-6"
+      className="mx-auto grid w-full max-w-2xl gap-5"
       aria-labelledby="intent-confirmation-heading"
       aria-busy={pending}
     >
-      <div className="grid gap-3">
-        <div className="flex flex-wrap items-center gap-2 text-sm font-medium text-brand">
-          <Sparkles aria-hidden="true" size={16} />
-          <span>One small confirmation before setup</span>
-        </div>
+      <header className="grid gap-2">
+        <p className="text-[10px] font-semibold tracking-widest text-ink-muted uppercase">
+          Question 1 · Critical
+        </p>
         <h1
           id="intent-confirmation-heading"
           className="text-2xl font-semibold tracking-tight text-ink md:text-3xl"
         >
           Does this look like the right kind of work?
         </h1>
-        <p className="max-w-prose text-sm leading-6 text-ink-muted">
+        <p className="text-sm leading-6 text-ink-muted">
           We use your choice to shape the next questions. The suggestion is a starting point, not a
           decision made for you.
         </p>
-      </div>
+      </header>
 
-      <div className="grid gap-3 rounded-xl border border-ink bg-surface-muted/60 p-4">
-        <div className="flex items-center gap-2">
-          <span className="inline-flex size-6 items-center justify-center rounded-full border border-subtle text-[11px] font-semibold text-ink-muted">
-            1
-          </span>
-          <span className="flex items-center gap-1.5 text-[10px] font-semibold tracking-widest text-ink-muted uppercase">
-            <Sparkles aria-hidden="true" className="size-3" /> Agent question
-          </span>
-        </div>
-
-        <h2 className="text-[15px] leading-6 font-semibold text-ink">Route this request</h2>
+      <div className="grid gap-4">
         <p className="text-sm leading-6 text-ink-muted">{intent.rationale}</p>
         <p className="text-xs text-ink-muted">
           Supporting signal: {percent(intent.confidence)} confidence · language detected as{" "}
@@ -190,7 +179,7 @@ export function IntentConfirmation({
           </Alert>
         )}
 
-        <div className="flex flex-wrap items-center gap-2 border-t border-subtle pt-3">
+        <div className="flex flex-wrap items-center gap-2 pt-1">
           <Button type="button" onClick={onConfirm} disabled={!canConfirm}>
             {pending ? "Creating project…" : "Confirm and continue"}
             {pending ? null : <ArrowRight aria-hidden="true" />}
