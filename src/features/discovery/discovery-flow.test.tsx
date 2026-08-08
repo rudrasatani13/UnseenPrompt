@@ -135,10 +135,15 @@ describe("DiscoveryFlow", () => {
     const nextQuestion = makeQuestion(NEXT_QUESTION_ID, 3, {
       questionText: "What budget are you working with?",
     });
+    const previousQuestion = makeQuestion(PREVIOUS_QUESTION_ID, 1, {
+      questionText: "Who is this for?",
+      status: "answered",
+      answeredAt: "2026-08-04T00:01:00.000Z",
+    });
     const advanced = snapshot({
       activeQuestion: nextQuestion,
       stateVersion: 4,
-      confirmedQuestions: [snapshot().confirmedQuestions[0], nextQuestion],
+      confirmedQuestions: [previousQuestion, nextQuestion],
       session: { ...snapshot().session, activeQuestionId: nextQuestion.id },
     });
     const fetchMock = vi
